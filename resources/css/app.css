@@ -1,0 +1,149 @@
+@import 'tailwindcss';
+@import '../../vendor/livewire/flux/dist/flux.css';
+
+@source '../views';
+@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
+@source '../../vendor/livewire/flux-pro/stubs/**/*.blade.php';
+@source '../../vendor/livewire/flux/stubs/**/*.blade.php';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-zinc-50: #fafafa;
+    --color-zinc-100: #f5f5f5;
+    --color-zinc-200: #e5e5e5;
+    --color-zinc-300: #d4d4d4;
+    --color-zinc-400: #a3a3a3;
+    --color-zinc-500: #737373;
+    --color-zinc-600: #525252;
+    --color-zinc-700: #404040;
+    --color-zinc-800: #262626;
+    --color-zinc-900: #171717;
+    --color-zinc-950: #0a0a0a;
+
+    --font-display: var(--font-cinzel), 'Cinzel', ui-serif, Georgia, serif;
+    --font-script: var(--font-cormorant-garamond), 'Cormorant Garamond', ui-serif, Georgia, serif;
+
+    /* Homebridge MUN palette (see the mood board). */
+    --color-hb-purple: #3b0a6b;
+    --color-hb-purple-line: #7a4fb0;
+    --color-hb-lavender: #c9b6ea;
+    --color-hb-lilac: #8e7bb0;
+    --color-hb-ink: #000000;
+    --color-hb-surface: #0a080d;
+    --color-hb-field: #0c0a10;
+    --color-hb-line: #2e2a35;
+    --color-hb-line-strong: #4a4a4a;
+    --color-hb-muted: #b4aebc;
+    --color-hb-subtle: #a8a3ae;
+    --color-hb-soft: #d6d2dc;
+    --color-hb-parchment: #d9d5ce;
+
+    --color-accent: var(--color-neutral-800);
+    --color-accent-content: var(--color-neutral-800);
+    --color-accent-foreground: var(--color-white);
+}
+
+@layer theme {
+    .dark {
+        --color-accent: var(--color-white);
+        --color-accent-content: var(--color-white);
+        --color-accent-foreground: var(--color-neutral-800);
+    }
+}
+
+@layer base {
+
+    *,
+    ::after,
+    ::before,
+    ::backdrop,
+    ::file-selector-button {
+        border-color: var(--color-gray-200, currentColor);
+    }
+}
+
+[data-flux-field]:not(ui-radio, ui-checkbox) {
+    @apply grid gap-2;
+}
+
+[data-flux-label] {
+    @apply  !mb-0 !leading-tight;
+}
+
+input:focus[data-flux-control],
+textarea:focus[data-flux-control],
+select:focus[data-flux-control] {
+    @apply outline-hidden ring-2 ring-accent ring-offset-2 ring-offset-accent-foreground;
+}
+
+/*
+ * Public site: engraved illustrations are cropped from the mood board until
+ * the separate artwork files are available.
+ */
+.hb-art {
+    background-image: url('../images/moodboard.jpg');
+    background-repeat: no-repeat;
+}
+
+.hb-art-crest { background-size: 281.67% auto; background-position: 44.96% 39.47%; aspect-ratio: 431 / 502; }
+.hb-art-window { background-size: 325.47% auto; background-position: 44.23% 0%; aspect-ratio: 373 / 303; }
+.hb-art-globe { background-size: 622.56% auto; background-position: 77.53% 29.95%; aspect-ratio: 3 / 4; }
+.hb-art-seal { background-size: 562.04% auto; background-position: 75.35% 0%; aspect-ratio: 3 / 4; }
+.hb-art-column { background-size: 551.82% auto; background-position: 0% 30.44%; aspect-ratio: 3 / 4; }
+.hb-art-banner { background-size: 476.08% auto; background-position: 73.51% 78.53%; aspect-ratio: 3 / 4; }
+.hb-art-library { background-size: 539.56% auto; background-position: 28.31% 87.3%; aspect-ratio: 225 / 350; }
+.hb-art-books { background-size: 332.6% auto; background-position: 0% 0%; aspect-ratio: 365 / 300; }
+
+@keyframes hb-marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+
+.hb-marquee {
+    animation: hb-marquee 40s linear infinite;
+}
+
+.hb-marquee:hover {
+    animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .hb-marquee { animation: none; }
+}
+
+@layer components {
+    .hb-label {
+        @apply text-sm font-medium text-hb-soft;
+    }
+
+    .hb-input {
+        @apply min-h-12 w-full rounded-xs border border-[#3a3542] bg-hb-field px-3.5 text-[15px] text-white placeholder:text-[#7d7785] focus:border-[#8e6bc8] focus:outline-2 focus:outline-offset-1 focus:outline-[#8e6bc8];
+    }
+
+    .hb-error {
+        @apply text-sm text-red-300;
+    }
+
+    .hb-legend {
+        @apply pb-4 font-display text-xl font-semibold text-white;
+    }
+
+    .hb-eyebrow {
+        @apply font-display text-[13px] tracking-[0.3em] text-hb-lavender uppercase;
+    }
+
+    .hb-button-primary {
+        @apply inline-flex min-h-12 items-center justify-center gap-2.5 rounded-xs bg-white px-7 font-semibold text-hb-purple transition hover:bg-hb-lavender disabled:opacity-60;
+    }
+
+    .hb-button-secondary {
+        @apply inline-flex min-h-12 items-center justify-center rounded-xs border border-[#6e6a75] px-6 font-medium text-white transition hover:border-white;
+    }
+}
+
+/* \[:where(&)\]:size-4 {
+    @apply size-4;
+} */
