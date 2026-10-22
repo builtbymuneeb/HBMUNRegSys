@@ -11,6 +11,7 @@ Route::get('/', fn () => view('welcome', [
 
 Route::middleware('guest')->group(function () {
     Route::livewire('register', 'pages::registration.create')->name('register');
+    Route::livewire('staff/join', 'pages::staff.join')->name('staff.join');
 });
 
 Route::livewire('status', 'pages::registration.status')->name('registration.status');
@@ -30,6 +31,10 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
 
     Route::get('registrations/{registration}/payment-screenshot', PaymentScreenshotController::class)
         ->name('registrations.payment-screenshot');
+
+    Route::livewire('team', 'pages::staff.team')
+        ->can('manage-staff')
+        ->name('team');
 });
 
 require __DIR__.'/settings.php';

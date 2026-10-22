@@ -55,5 +55,10 @@
             <span>{{ __('Not registered yet?') }}</span>
             <flux:link :href="route('register')">{{ __('Register for the conference') }}</flux:link>
         </div>
+
+        <div class="space-x-1 text-sm text-center rtl:space-x-reverse text-zinc-600 dark:text-zinc-400">
+            <span>{{ __('On the organising team?') }}</span>
+            <flux:link :href="route('staff.join')" wire:navigate>{{ __('Request staff access') }}</flux:link>
+        </div>
     </div>
 </x-layouts::auth>

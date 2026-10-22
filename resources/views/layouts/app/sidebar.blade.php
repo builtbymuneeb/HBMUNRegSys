@@ -22,6 +22,11 @@
                         <flux:sidebar.item icon="clipboard-document-check" :href="route('staff.registrations.index')" :current="request()->routeIs('staff.registrations.*')" wire:navigate>
                             {{ __('Registrations') }}
                         </flux:sidebar.item>
+                        @can('manage-staff')
+                            <flux:sidebar.item icon="users" :href="route('staff.team')" :current="request()->routeIs('staff.team')" wire:navigate>
+                                {{ __('Team') }}
+                            </flux:sidebar.item>
+                        @endcan
                     </flux:sidebar.group>
                 @endcan
             </flux:sidebar.nav>
