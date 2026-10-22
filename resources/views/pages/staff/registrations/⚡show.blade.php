@@ -140,7 +140,7 @@ new #[Title('Review registration')] class extends Component {
         <div class="flex flex-col gap-6">
             {{-- Contact --}}
             <flux:card class="flex flex-col gap-4">
-                <flux:heading size="lg">{{ $registration->type->isDelegation() ? __('Contact') : __('Delegate') }}</flux:heading>
+                <flux:heading size="lg">{{ __('Contact') }}</flux:heading>
                 <dl class="grid gap-4 text-sm sm:grid-cols-2">
                     @foreach ([
                         __('Institution / delegation') => $registration->organisation_name,

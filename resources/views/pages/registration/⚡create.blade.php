@@ -48,22 +48,16 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
      */
     public function mount(): void
     {
-        if (! RegistrationType::tryFrom($this->type)) {
-            $this->type = RegistrationType::InstitutionDelegation->value;
-        }
-
+        $this->ensureKnownType();
         $this->syncDelegateCount();
     }
 
     /**
-     * Switch between institution delegation, private delegate and private delegation.
+     * Switch between the registration types that are open.
      */
     public function updatedType(): void
     {
-        if (! RegistrationType::tryFrom($this->type)) {
-            $this->type = RegistrationType::InstitutionDelegation->value;
-        }
-
+        $this->ensureKnownType();
         $this->resetValidation();
         $this->syncDelegateCount();
     }
@@ -115,7 +109,6 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     public function submit(SubmitRegistration $submitRegistration): void
     {
         $validated = $this->validate();
-        $type = $this->registrationType;
 
         $delegates = array_map(fn (array $delegate) => [
             ...Arr::only($delegate, ['name', 'cnic', 'email', 'phone', 'first_committee_id', 'second_committee_id']),
@@ -123,11 +116,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'personality_preference' => $delegate['personality_preference'] ?: null,
         ], $validated['delegates']);
 
-        $contact = $type->isDelegation()
-            ? $validated['contact']
-            : [...Arr::only($delegates[0], ['name', 'cnic', 'phone', 'email']), 'city' => $validated['contact']['city']];
-
-        $registration = $submitRegistration->handle($type, $contact, $delegates, $this->paymentScreenshot);
+        $registration = $submitRegistration->handle($this->registrationType, $validated['contact'], $delegates, $this->paymentScreenshot);
 
         $this->submittedReference = $registration->reference;
         $this->js('window.scrollTo({ top: 0 })');
@@ -139,18 +128,17 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     protected function rules(): array
     {
         $type = $this->registrationType;
-        $isDelegation = $type->isDelegation();
         $phone = ['required', 'string', 'regex:/^\+?[0-9\s\-]{10,15}$/'];
         $cnic = ['required', 'string', 'regex:/^\d{5}-?\d{7}-?\d$/'];
 
         return [
             'type' => ['required', Rule::enum(RegistrationType::class)],
-            'contact.organisation_name' => [Rule::requiredIf($isDelegation), 'nullable', 'string', 'max:255'],
+            'contact.organisation_name' => ['required', 'string', 'max:255'],
             'contact.city' => ['required', 'string', 'max:255'],
-            'contact.name' => [Rule::requiredIf($isDelegation), 'nullable', 'string', 'max:255'],
-            'contact.cnic' => $isDelegation ? $cnic : ['nullable'],
-            'contact.phone' => $isDelegation ? $phone : ['nullable'],
-            'contact.email' => [Rule::requiredIf($isDelegation), 'nullable', 'email', 'max:255'],
+            'contact.name' => ['required', 'string', 'max:255'],
+            'contact.cnic' => $cnic,
+            'contact.phone' => $phone,
+            'contact.email' => ['required', 'email', 'max:255'],
             'delegates' => ['required', 'array', 'min:'.$type->minimumDelegates(), 'max:'.$type->maximumDelegates()],
             'delegates.*.name' => ['required', 'string', 'max:255'],
             'delegates.*.cnic' => [...$cnic, 'distinct'],
@@ -218,6 +206,16 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     }
 
     /**
+     * Fall back to an institution delegation when the chosen type is unknown.
+     */
+    private function ensureKnownType(): void
+    {
+        if (! RegistrationType::tryFrom($this->type)) {
+            $this->type = RegistrationType::InstitutionDelegation->value;
+        }
+    }
+
+    /**
      * Keep the delegate rows in step with the chosen registration type and count.
      */
     private function syncDelegateCount(): void
@@ -274,11 +272,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                     <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
                     <div class="font-display text-4xl font-bold" data-test="amount-due">PKR {{ number_format($this->amountDue) }}</div>
                     <div class="text-sm leading-relaxed text-hb-muted">
-                        @if ($this->registrationType->isDelegation())
-                            {{ __(':count delegates × PKR :fee + PKR :delegation delegation fee', ['count' => count($delegates), 'fee' => number_format(config('conference.fees.per_delegate')), 'delegation' => number_format(config('conference.fees.per_delegation'))]) }}
-                        @else
-                            {{ __('1 delegate × PKR :fee', ['fee' => number_format(config('conference.fees.per_delegate'))]) }}
-                        @endif
+                        {{ __(':count delegates × PKR :fee + PKR :delegation delegation fee', ['count' => count($delegates), 'fee' => number_format(config('conference.fees.per_delegate')), 'delegation' => number_format(config('conference.fees.per_delegation'))]) }}
                     </div>
                     <div class="border-t border-hb-line pt-2 text-xs leading-relaxed text-hb-subtle">
                         {{ __('Questions about the fee or an adjustment? Contact the registration team below.') }}
@@ -301,7 +295,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 <input type="radio" wire:model.live="type" value="{{ $option->value }}" class="sr-only">
                                 <span class="font-semibold">{{ $option->label() }}</span>
                                 <span class="mt-1 text-sm opacity-80">
-                                    {{ $option->isDelegation() ? __(':min–:max members', ['min' => $option->minimumDelegates(), 'max' => $option->maximumDelegates()]) : __('Individual') }}
+                                    {{ __(':min–:max members', ['min' => $option->minimumDelegates(), 'max' => $option->maximumDelegates()]) }}
                                 </span>
                             </label>
                         @endforeach
@@ -310,49 +304,39 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
                 {{-- 2. Contact --}}
                 <fieldset class="flex flex-col gap-4">
-                    @if ($this->registrationType === RegistrationType::InstitutionDelegation)
-                        <legend class="hb-legend">2 · {{ __('Institution information') }}</legend>
-                    @elseif ($this->registrationType === RegistrationType::PrivateDelegation)
-                        <legend class="hb-legend">2 · {{ __('Delegation head') }}</legend>
-                    @else
-                        <legend class="hb-legend">2 · {{ __('Your city') }}</legend>
-                    @endif
+                    @php($isInstitution = $this->registrationType === RegistrationType::InstitutionDelegation)
+                    <legend class="hb-legend">2 · {{ $isInstitution ? __('Institution information') : __('Delegation head') }}</legend>
 
                     <div class="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
-                        @if ($this->registrationType->isDelegation())
-                            <x-public.field :label="$this->registrationType === RegistrationType::InstitutionDelegation ? __('Institution / school / college name') : __('Delegation name')" name="contact.organisation_name">
-                                <input type="text" wire:model.blur="contact.organisation_name" class="hb-input" autocomplete="organization">
-                            </x-public.field>
-                        @endif
+                        <x-public.field :label="$isInstitution ? __('Institution / school / college name') : __('Delegation name')" name="contact.organisation_name">
+                            <input type="text" wire:model.blur="contact.organisation_name" class="hb-input" autocomplete="organization">
+                        </x-public.field>
 
                         <x-public.field :label="__('City')" name="contact.city">
                             <input type="text" wire:model.blur="contact.city" class="hb-input" placeholder="Lahore" autocomplete="address-level2">
                         </x-public.field>
 
-                        @if ($this->registrationType->isDelegation())
-                            @php($who = $this->registrationType === RegistrationType::InstitutionDelegation ? __('Representative’s') : __('Head’s'))
-                            <x-public.field :label="$who.' '.__('full name')" name="contact.name">
-                                <input type="text" wire:model.blur="contact.name" class="hb-input" autocomplete="name">
-                            </x-public.field>
-                            <x-public.field :label="$who.' '.__('CNIC / B-Form')" name="contact.cnic">
-                                <input type="text" wire:model.blur="contact.cnic" class="hb-input" inputmode="numeric" placeholder="35202-1234567-1">
-                            </x-public.field>
-                            <x-public.field :label="$who.' '.__('phone (WhatsApp)')" name="contact.phone">
-                                <input type="tel" wire:model.blur="contact.phone" class="hb-input" placeholder="03XX XXXXXXX" autocomplete="tel">
-                            </x-public.field>
-                            <x-public.field :label="$who.' '.__('email')" name="contact.email">
-                                <input type="email" wire:model.blur="contact.email" class="hb-input" autocomplete="email">
-                            </x-public.field>
-                        @endif
+                        @php($who = $isInstitution ? __('Representative’s') : __('Head’s'))
+                        <x-public.field :label="$who.' '.__('full name')" name="contact.name">
+                            <input type="text" wire:model.blur="contact.name" class="hb-input" autocomplete="name">
+                        </x-public.field>
+                        <x-public.field :label="$who.' '.__('CNIC / B-Form')" name="contact.cnic">
+                            <input type="text" wire:model.blur="contact.cnic" class="hb-input" inputmode="numeric" placeholder="35202-1234567-1">
+                        </x-public.field>
+                        <x-public.field :label="$who.' '.__('phone (WhatsApp)')" name="contact.phone">
+                            <input type="tel" wire:model.blur="contact.phone" class="hb-input" placeholder="03XX XXXXXXX" autocomplete="tel">
+                        </x-public.field>
+                        <x-public.field :label="$who.' '.__('email')" name="contact.email">
+                            <input type="email" wire:model.blur="contact.email" class="hb-input" autocomplete="email">
+                        </x-public.field>
                     </div>
                 </fieldset>
 
                 {{-- 3. Delegates --}}
                 <fieldset class="flex flex-col gap-4">
-                    <legend class="hb-legend">3 · {{ $this->registrationType->isDelegation() ? __('Delegates') : __('Your details & preferences') }}</legend>
+                    <legend class="hb-legend">3 · {{ __('Delegates') }}</legend>
 
-                    @if ($this->registrationType->isDelegation())
-                        <div class="flex flex-wrap items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-3">
                             <span class="text-sm text-hb-soft" id="delegate-count-label">{{ __('Number of delegates') }}</span>
                             <div class="flex gap-2" role="radiogroup" aria-labelledby="delegate-count-label">
                                 @foreach (range($this->registrationType->minimumDelegates(), $this->registrationType->maximumDelegates()) as $count)
@@ -368,13 +352,10 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                             </div>
                         </div>
                         <x-public.error name="delegates" />
-                    @endif
 
                     @foreach ($delegates as $index => $delegate)
-                        <div wire:key="delegate-{{ $index }}" class="flex flex-col gap-3.5 border border-hb-line bg-hb-surface p-5">
-                            @if ($this->registrationType->isDelegation())
-                                <div class="text-xs tracking-[0.18em] text-hb-lavender uppercase">{{ __('Delegate :number', ['number' => $index + 1]) }}</div>
-                            @endif
+                        <div wire:key="delegate-{{ $index }}" class="flex flex-col gap-3.5 border border-hb-line bg-hb-surface p-4 sm:p-5">
+                            <div class="text-xs tracking-[0.18em] text-hb-lavender uppercase">{{ __('Delegate :number', ['number' => $index + 1]) }}</div>
                             <div class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3">
                                 <x-public.field :label="__('Full name')" name="delegates.{{ $index }}.name">
                                     <input type="text" wire:model.blur="delegates.{{ $index }}.name" class="hb-input">

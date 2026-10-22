@@ -4,7 +4,6 @@
     $hasStarted = $startsAt->isPast();
     $feePerDelegate = number_format(config('conference.fees.per_delegate'));
     $feePerDelegation = number_format(config('conference.fees.per_delegation'));
-    $exampleDelegationTotal = number_format(\App\Enums\RegistrationType::InstitutionDelegation->amountDueFor(4));
     $minDelegates = config('conference.delegation.min_delegates');
     $maxDelegates = config('conference.delegation.max_delegates');
     $committeeArt = ['UNW' => 'hb-art-seal', 'UNSC' => 'hb-art-globe', 'PNA' => 'hb-art-column', 'SPECIAL' => 'hb-art-banner'];
@@ -178,22 +177,24 @@
         <div class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-14 lg:gap-12 lg:py-24">
             <div class="flex flex-col items-center gap-3 text-center">
                 <div class="hb-eyebrow">{{ __('Registration fees') }}</div>
-                <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Come alone, or bring your team.') }}</h2>
+                <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Bring your team.') }}</h2>
             </div>
-            <div class="mx-auto grid w-full max-w-4xl gap-4 md:grid-cols-2 md:gap-6">
-                <div class="flex flex-col gap-3.5 border border-hb-line-strong px-6 py-7 md:gap-4.5 md:px-9 md:py-10">
-                    <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Private delegate') }}</div>
-                    <div class="flex items-baseline gap-2"><span class="text-hb-subtle">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePerDelegate }}</span></div>
-                    <p class="leading-relaxed text-hb-muted">{{ __('Register on your own. One delegate, one seat, with your committee and portfolio preferences.') }}</p>
-                    <a href="{{ route('register', ['type' => 'private_delegate']) }}" class="hb-button-secondary mt-auto border-white">{{ __('Register as a delegate') }}</a>
-                </div>
+            <div class="mx-auto w-full max-w-xl">
                 <div class="flex flex-col gap-3.5 border border-hb-purple-line bg-hb-purple px-6 py-7 md:gap-4.5 md:px-9 md:py-10">
                     <div class="flex items-center justify-between gap-3">
                         <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Delegation') }}</div>
                         <div class="bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase">{{ __(':min–:max members', ['min' => $minDelegates, 'max' => $maxDelegates]) }}</div>
                     </div>
                     <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span class="text-[#dccff0]">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePerDelegate }}</span><span class="text-[#dccff0]">{{ __('/ delegate + :fee', ['fee' => $feePerDelegation]) }}</span></div>
-                    <p class="leading-relaxed text-[#e6ddf3]">{!! __('Institution or private delegations, registered together by the head. A delegation of 4 pays :total.', ['total' => '<strong class="text-white">PKR '.$exampleDelegationTotal.'</strong>']) !!}</p>
+                    <p class="leading-relaxed text-[#e6ddf3]">{{ __('Register as an institution or private delegation. The head registers the whole team in one form.') }}</p>
+                    <dl class="grid grid-cols-2 gap-px border border-[#7a4fb0] bg-[#7a4fb0] text-center sm:grid-cols-4">
+                        @foreach (range($minDelegates, $maxDelegates) as $size)
+                            <div class="flex flex-col-reverse gap-0.5 bg-hb-purple px-1 py-2.5">
+                                <dt class="text-[11px] tracking-[0.08em] text-[#dccff0] uppercase">{{ __(':count delegates', ['count' => $size]) }}</dt>
+                                <dd class="font-semibold tabular-nums">{{ number_format(\App\Enums\RegistrationType::InstitutionDelegation->amountDueFor($size)) }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
                     <p class="text-sm leading-relaxed text-[#dccff0]">{{ __('Want to discuss a fee adjustment for your institute? Contact the registration team.') }}</p>
                     <a href="{{ route('register') }}" class="hb-button-primary mt-auto">{{ __('Register a delegation') }}</a>
                 </div>
@@ -211,7 +212,7 @@
             </div>
             <ol class="flex min-w-0 flex-[2_1_560px] flex-col">
                 @foreach ([
-                    'I' => [__('Fill in the form'), __('Register as an institution delegation, a private delegate or a private delegation, with two committee preferences per delegate.')],
+                    'I' => [__('Fill in the form'), __('Register your institution or private delegation of :min–:max delegates, with two committee preferences each.', ['min' => $minDelegates, 'max' => $maxDelegates])],
                     'II' => [__('Send the fee'), __('Transfer the amount shown on the form to our account.')],
                     'III' => [__('Upload your payment screenshot'), __('You’ll get a reference number to track your registration status.')],
                     'IV' => [__('Get verified, set your password'), __('Once our team confirms your payment, each delegate receives an email to activate their dashboard.')],

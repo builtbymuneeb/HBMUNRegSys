@@ -10,6 +10,7 @@ use Database\Seeders\CommitteeSeeder;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -83,10 +84,35 @@ test('an institution delegation registers with all its delegates and payment scr
     );
 });
 
-test('a private delegate is their own contact and pays the delegate fee only', function () {
-    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])->test('pages::registration.create')
-        ->set('contact.city', 'Karachi')
-        ->set('delegates', [delegateInput(1)])
+/**
+ * An institution delegation of three with every field filled in.
+ *
+ * @param  array<int, array<string, string>>  $delegateOverrides
+ */
+function filledDelegationForm(array $delegateOverrides = []): Testable
+{
+    return Livewire::test('pages::registration.create')
+        ->set('contact', institutionContact())
+        ->set('delegates', array_map(fn (int $number) => delegateInput($number, $delegateOverrides[$number - 1] ?? []), range(1, 3)))
+        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('confirmed', true);
+}
+
+test('individual (private delegate) registration is not offered', function () {
+    Livewire::withQueryParams(['type' => 'private_delegate'])
+        ->test('pages::registration.create')
+        ->assertSet('type', RegistrationType::InstitutionDelegation->value)
+        ->assertDontSeeText('Private delegate')
+        ->set('type', 'private_delegate')
+        ->assertSet('type', RegistrationType::InstitutionDelegation->value)
+        ->assertCount('delegates', 3);
+});
+
+test('a private delegation registers with the head as contact', function () {
+    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegation->value])
+        ->test('pages::registration.create')
+        ->set('contact', [...institutionContact(), 'organisation_name' => 'Lahore Debaters'])
+        ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 3)))
         ->set('paymentScreenshot', UploadedFile::fake()->image('payment.jpg'))
         ->set('confirmed', true)
         ->call('submit')
@@ -94,28 +120,23 @@ test('a private delegate is their own contact and pays the delegate fee only', f
 
     $registration = Registration::sole();
 
-    expect($registration->amount_due)->toBe(1000)
-        ->and($registration->contact_name)->toBe('Delegate 1')
-        ->and($registration->contact_email)->toBe('delegate1@gmail.com')
-        ->and($registration->city)->toBe('Karachi')
-        ->and($registration->organisation_name)->toBeNull();
+    expect($registration->type)->toBe(RegistrationType::PrivateDelegation)
+        ->and($registration->amount_due)->toBe(4000)
+        ->and($registration->organisation_name)->toBe('Lahore Debaters');
 });
 
-test('switching to a delegation keeps the delegate count within 3 to 6', function () {
-    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])->test('pages::registration.create')
-        ->assertCount('delegates', 1)
-        ->set('type', RegistrationType::PrivateDelegation->value)
+test('the delegate count stays within 3 to 6', function () {
+    Livewire::test('pages::registration.create')
         ->assertCount('delegates', 3)
         ->set('delegateCount', 9)
-        ->assertCount('delegates', 6);
+        ->assertCount('delegates', 6)
+        ->set('delegateCount', 1)
+        ->assertCount('delegates', 3);
 });
 
 test('a delegation needs at least three delegates', function () {
-    Livewire::test('pages::registration.create')
-        ->set('contact', institutionContact())
+    filledDelegationForm()
         ->set('delegates', [delegateInput(1), delegateInput(2)])
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
-        ->set('confirmed', true)
         ->call('submit')
         ->assertHasErrors(['delegates' => 'min']);
 
@@ -125,23 +146,13 @@ test('a delegation needs at least three delegates', function () {
 test('a delegate must choose two different committees', function () {
     $sameCommittee = (string) Committee::where('code', 'UNSC')->value('id');
 
-    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])->test('pages::registration.create')
-        ->set('contact.city', 'Lahore')
-        ->set('delegates', [delegateInput(1, ['second_committee_id' => $sameCommittee])])
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
-        ->set('confirmed', true)
+    filledDelegationForm([['second_committee_id' => $sameCommittee]])
         ->call('submit')
         ->assertHasErrors(['delegates.0.second_committee_id' => 'different']);
 });
 
 test('delegates in one delegation need different emails', function () {
-    Livewire::test('pages::registration.create')
-        ->set('contact', institutionContact())
-        ->set('delegates', [
-            delegateInput(1),
-            delegateInput(2, ['email' => 'DELEGATE1@gmail.com']),
-            delegateInput(3),
-        ])
+    filledDelegationForm([1 => ['email' => 'DELEGATE1@gmail.com']])
         ->call('submit')
         ->assertHasErrors(['delegates.1.email' => 'distinct']);
 });
@@ -149,9 +160,7 @@ test('delegates in one delegation need different emails', function () {
 test('an email already used in an active registration cannot register again', function () {
     Delegate::factory()->create(['email' => 'delegate1@gmail.com']);
 
-    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])->test('pages::registration.create')
-        ->set('contact.city', 'Lahore')
-        ->set('delegates', [delegateInput(1)])
+    filledDelegationForm()
         ->call('submit')
         ->assertHasErrors(['delegates.0.email']);
 });
@@ -161,21 +170,14 @@ test('an email from a rejected registration can register again', function () {
         ->for(Registration::factory()->rejected())
         ->create(['email' => 'delegate1@gmail.com']);
 
-    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])->test('pages::registration.create')
-        ->set('contact.city', 'Lahore')
-        ->set('delegates', [delegateInput(1)])
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
-        ->set('confirmed', true)
+    filledDelegationForm()
         ->call('submit')
         ->assertHasNoErrors();
 });
 
 test('the payment screenshot must be a JPG or PNG image', function () {
-    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])->test('pages::registration.create')
-        ->set('contact.city', 'Lahore')
-        ->set('delegates', [delegateInput(1)])
+    filledDelegationForm()
         ->set('paymentScreenshot', UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'))
-        ->set('confirmed', true)
         ->call('submit')
         ->assertHasErrors(['paymentScreenshot']);
 
@@ -183,10 +185,8 @@ test('the payment screenshot must be a JPG or PNG image', function () {
 });
 
 test('the registrant must confirm their details', function () {
-    Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])->test('pages::registration.create')
-        ->set('contact.city', 'Lahore')
-        ->set('delegates', [delegateInput(1)])
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+    filledDelegationForm()
+        ->set('confirmed', false)
         ->call('submit')
         ->assertHasErrors(['confirmed' => 'accepted']);
 });

@@ -21,15 +21,15 @@ class RegistrationFactory extends Factory
     public function definition(): array
     {
         return [
-            'type' => RegistrationType::PrivateDelegate,
+            'type' => RegistrationType::PrivateDelegation,
             'status' => RegistrationStatus::Pending,
-            'organisation_name' => null,
+            'organisation_name' => fake()->lastName().' Delegation',
             'city' => fake()->city(),
             'contact_name' => fake()->name(),
             'contact_cnic' => fake()->numerify('#####-#######-#'),
             'contact_phone' => fake()->numerify('03#########'),
             'contact_email' => fake()->unique()->safeEmail(),
-            'amount_due' => 1000,
+            'amount_due' => RegistrationType::PrivateDelegation->amountDueFor(3),
             'payment_screenshot_path' => 'payment-screenshots/'.fake()->uuid().'.png',
         ];
     }
