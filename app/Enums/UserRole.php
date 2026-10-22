@@ -31,7 +31,7 @@ enum UserRole: string
             self::Applicant => 'Can log in, but has no access until an admin approves them.',
             self::Registrations => 'Checks payment screenshots and verifies or rejects registrations.',
             self::Allocations => 'Assigns committees and portfolios to verified delegates.',
-            self::Admin => 'Views all registrations and manages the team.',
+            self::Admin => 'Verifies or rejects registrations and manages the team.',
         };
     }
 

@@ -78,7 +78,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 
     public function canReviewRegistrations(): bool
     {
-        return $this->role === UserRole::Registrations;
+        return in_array($this->role, [UserRole::Registrations, UserRole::Admin], true);
     }
 
     public function canViewRegistrations(): bool

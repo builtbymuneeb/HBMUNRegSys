@@ -96,12 +96,24 @@ test('a delegate can set their password from the verification email and log in',
     $this->assertAuthenticatedAs($user);
 });
 
-test('admins can view but not verify or reject registrations', function () {
+test('admins can verify registrations', function () {
+    Notification::fake();
     $registration = Registration::factory()->institutionDelegation()->create();
 
     Livewire::actingAs(User::factory()->role(UserRole::Admin)->create())
         ->test('pages::staff.registrations.show', ['registration' => $registration])
-        ->assertDontSeeText('Verify payment')
+        ->assertSeeText('Verify payment')
+        ->call('verify')
+        ->assertHasNoErrors();
+
+    expect($registration->refresh()->status)->toBe(RegistrationStatus::Verified);
+});
+
+test('the allocations team cannot verify or reject registrations', function () {
+    $registration = Registration::factory()->institutionDelegation()->create();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Allocations)->create())
+        ->test('pages::staff.registrations.show', ['registration' => $registration])
         ->call('verify')
         ->assertForbidden();
 
