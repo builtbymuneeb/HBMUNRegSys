@@ -44,7 +44,7 @@ new #[Title('Study guides')] class extends Component {
         return StudyGuide::with(['committee', 'uploader'])->latest()->get();
     }
 
-    public function upload(): void
+    public function saveGuide(): void
     {
         Gate::authorize('manage-conference');
 
@@ -93,7 +93,7 @@ new #[Title('Study guides')] class extends Component {
     </div>
 
     <flux:card>
-        <form wire:submit="upload" class="grid gap-4 md:grid-cols-2">
+        <form wire:submit="saveGuide" class="grid gap-4 md:grid-cols-2">
             <flux:input wire:model="title" :label="__('Title')" :placeholder="__('e.g. UNSC Study Guide')" />
             <flux:select wire:model="committeeId" :label="__('For')">
                 <flux:select.option value="">{{ __('Every committee') }}</flux:select.option>
@@ -191,10 +191,10 @@ new #[Title('Study guides')] class extends Component {
                 <div x-show="failed" x-cloak class="mt-2 text-sm text-red-500">{{ __('The upload failed. Check your connection and choose the file again.') }}</div>
             </div>
             <div class="md:col-span-2">
-                <flux:button type="submit" variant="primary" icon="arrow-up-tray" :loading="false" wire:loading.attr="disabled" wire:target="file,upload">
-                    <span wire:loading.remove wire:target="file,upload">{{ __('Upload guide') }}</span>
+                <flux:button type="submit" variant="primary" icon="arrow-up-tray" :loading="false" wire:loading.attr="disabled" wire:target="file,saveGuide">
+                    <span wire:loading.remove wire:target="file,saveGuide">{{ __('Upload guide') }}</span>
                     <span wire:loading wire:target="file">{{ __('Waiting for file…') }}</span>
-                    <span wire:loading wire:target="upload">{{ __('Saving…') }}</span>
+                    <span wire:loading wire:target="saveGuide">{{ __('Saving…') }}</span>
                 </flux:button>
             </div>
         </form>

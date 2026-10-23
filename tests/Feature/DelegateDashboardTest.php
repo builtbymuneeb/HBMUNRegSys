@@ -110,7 +110,7 @@ test('staff upload and delete study guides', function () {
         ->set('title', 'UNW Guide')
         ->set('committeeId', (string) $committee->id)
         ->set('file', UploadedFile::fake()->create('unw.pdf', 200, 'application/pdf'))
-        ->call('upload')
+        ->call('saveGuide')
         ->assertHasNoErrors();
 
     $guide = StudyGuide::sole();
@@ -128,7 +128,7 @@ test('study guides must be documents', function () {
         ->test('pages::staff.guides')
         ->set('title', 'Script')
         ->set('file', UploadedFile::fake()->create('evil.php', 1, 'text/x-php'))
-        ->call('upload')
+        ->call('saveGuide')
         ->assertHasErrors('file');
 });
 
