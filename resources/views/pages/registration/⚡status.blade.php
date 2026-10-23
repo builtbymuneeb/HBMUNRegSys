@@ -3,6 +3,7 @@
 use App\Actions\Registrations\ResubmitPayment;
 use App\Enums\RegistrationStatus;
 use App\Models\Registration;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -17,56 +18,54 @@ use Livewire\WithFileUploads;
 new #[Layout('layouts::public')] #[Title('Registration status')] class extends Component {
     use WithFileUploads;
 
-    #[Url]
-    public string $reference = '';
-
-    public string $email = '';
+    /**
+     * The registration's reference number, an email on it, or the head's phone number.
+     */
+    #[Url(as: 'reference')]
+    public string $identifier = '';
 
     #[Locked]
     public ?int $registrationId = null;
+
+    /**
+     * Which kind of detail found the registration: reference, email or phone.
+     */
+    #[Locked]
+    public ?string $matchedBy = null;
+
+    /**
+     * A second, different detail, asked for before a new screenshot can replace the old one.
+     */
+    public string $confirmation = '';
 
     public $paymentScreenshot;
 
     public bool $resubmitted = false;
 
     /**
-     * Find the registration matching the reference number and email.
+     * Find the registration matching the reference number, an email or the head's phone.
      */
     public function lookup(): void
     {
-        $this->validate([
-            'reference' => ['required', 'string', 'max:50'],
-            'email' => ['required', 'email', 'max:255'],
-        ]);
+        $this->validate(
+            ['identifier' => ['required', 'string', 'max:255']],
+            attributes: ['identifier' => 'email, reference number or phone'],
+        );
 
-        $throttleKey = 'registration-status:'.request()->ip();
+        $this->throttle('identifier');
 
-        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
-            throw ValidationException::withMessages([
-                'reference' => __('Too many attempts. Please try again in :seconds seconds.', ['seconds' => RateLimiter::availableIn($throttleKey)]),
-            ]);
-        }
-
-        RateLimiter::hit($throttleKey);
-
-        $email = Str::lower(trim($this->email));
-
-        $registration = Registration::query()
-            ->where('reference', Str::upper(trim($this->reference)))
-            ->where(fn ($query) => $query
-                ->whereRaw('lower(contact_email) = ?', [$email])
-                ->orWhereHas('delegates', fn ($delegates) => $delegates->whereRaw('lower(email) = ?', [$email])))
-            ->first();
+        [$kind, $registration] = $this->find($this->identifier);
 
         if (! $registration) {
             $this->registrationId = null;
 
             throw ValidationException::withMessages([
-                'reference' => __('We couldn’t find a registration with that reference number and email.'),
+                'identifier' => __('We couldn’t find a registration with that email, reference number or phone number.'),
             ]);
         }
 
         $this->registrationId = $registration->id;
+        $this->matchedBy = $kind;
         $this->resubmitted = false;
     }
 
@@ -77,7 +76,7 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
     }
 
     /**
-     * Upload a new payment screenshot for a rejected registration.
+     * Upload a new payment screenshot for a rejected registration, once a second detail confirms who's asking.
      */
     public function resubmit(ResubmitPayment $resubmitPayment): void
     {
@@ -86,12 +85,25 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
         abort_unless($registration?->isRejected(), 403);
 
         $this->validate([
+            'confirmation' => ['required', 'string', 'max:255'],
             'paymentScreenshot' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
-        ], attributes: ['paymentScreenshot' => 'payment screenshot']);
+        ], attributes: ['paymentScreenshot' => 'payment screenshot', 'confirmation' => 'second detail']);
+
+        $this->throttle('confirmation');
+
+        [$kind, $confirmed] = $this->find($this->confirmation, $registration);
+
+        if (! $confirmed || $kind === $this->matchedBy) {
+            throw ValidationException::withMessages([
+                'confirmation' => $confirmed
+                    ? __('Enter a different detail from the one you searched with.')
+                    : __('That doesn’t match this registration.'),
+            ]);
+        }
 
         $resubmitPayment->handle($registration, $this->paymentScreenshot);
 
-        $this->reset('paymentScreenshot');
+        $this->reset('paymentScreenshot', 'confirmation');
         $this->resubmitted = true;
         unset($this->registration);
     }
@@ -100,22 +112,68 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
     {
         $this->reset();
     }
+
+    /**
+     * Work out which kind of detail was entered and find the registration it belongs to,
+     * optionally only within one registration. Prefers the newest registration that isn't rejected.
+     *
+     * @return array{0: string, 1: Registration|null}
+     */
+    private function find(string $value, ?Registration $within = null): array
+    {
+        $value = trim($value);
+        $digits = preg_replace('/\D/', '', $value) ?? '';
+
+        [$kind, $constraint] = match (true) {
+            str_contains($value, '@') => ['email', function (Builder $query) use ($value): void {
+                $email = Str::lower($value);
+
+                $query->whereRaw('lower(contact_email) = ?', [$email])
+                    ->orWhereHas('delegates', fn (Builder $delegates) => $delegates->whereRaw('lower(email) = ?', [$email]));
+            }],
+            (bool) preg_match('/^[a-z]+\d*-\d+$/i', $value) => ['reference', fn (Builder $query) => $query->where('reference', Str::upper($value))],
+            strlen($digits) >= 10 => ['phone', fn (Builder $query) => $query->whereRaw(
+                "replace(replace(replace(replace(replace(contact_phone, ' ', ''), '-', ''), '+', ''), '(', ''), ')', '') like ?",
+                ['%'.substr($digits, -10)],
+            )],
+            default => ['unknown', fn (Builder $query) => $query->whereRaw('1 = 0')],
+        };
+
+        $registration = Registration::query()
+            ->when($within, fn (Builder $query) => $query->whereKey($within->id))
+            ->where($constraint)
+            ->orderByRaw('case when status = ? then 1 else 0 end', [RegistrationStatus::Rejected->value])
+            ->latest('id')
+            ->first();
+
+        return [$kind, $registration];
+    }
+
+    private function throttle(string $field): void
+    {
+        $throttleKey = 'registration-status:'.request()->ip();
+
+        if (RateLimiter::tooManyAttempts($throttleKey, 10)) {
+            throw ValidationException::withMessages([
+                $field => __('Too many attempts. Please try again in :seconds seconds.', ['seconds' => RateLimiter::availableIn($throttleKey)]),
+            ]);
+        }
+
+        RateLimiter::hit($throttleKey);
+    }
 }; ?>
 
 <div class="mx-auto flex max-w-2xl flex-col gap-10 px-6 pt-16 pb-28">
     <div class="flex flex-col gap-4">
         <div class="hb-eyebrow">{{ __('Registration status') }}</div>
         <h1 class="font-display text-4xl leading-tight font-semibold">{{ __('Where’s my seat?') }}</h1>
-        <p class="leading-relaxed text-hb-muted">{{ __('Enter the reference number from your confirmation and the email used to register.') }}</p>
+        <p class="leading-relaxed text-hb-muted">{{ __('Enter any one of these: your reference number (e.g. HB26-0001), an email used in the registration, or the phone number of the delegation head or institution representative.') }}</p>
     </div>
 
     @if (! $this->registration)
         <form wire:submit="lookup" class="flex flex-col gap-5 border border-hb-line bg-hb-surface p-6" novalidate>
-            <x-public.field :label="__('Reference number')" name="reference">
-                <input type="text" wire:model="reference" class="hb-input uppercase" placeholder="HB26-0001" autocomplete="off">
-            </x-public.field>
-            <x-public.field :label="__('Email')" name="email">
-                <input type="email" wire:model="email" class="hb-input" autocomplete="email">
+            <x-public.field :label="__('Email, reference number or head’s phone')" name="identifier">
+                <input type="text" wire:model="identifier" class="hb-input" placeholder="HB26-0001 · name@gmail.com · 03XX XXXXXXX" autocomplete="off" autocapitalize="off" spellcheck="false">
             </x-public.field>
             <button type="submit" class="hb-button-primary self-start" data-test="check-status">
                 {{ __('Check status') }}
@@ -175,6 +233,15 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
                             <input id="new-payment-screenshot" type="file" wire:model="paymentScreenshot" accept=".jpg,.jpeg,.png" class="sr-only">
                         </label>
                         <x-public.error name="paymentScreenshot" />
+
+                        <x-public.field :label="__('Confirm it’s you')" name="confirmation" :hint="match ($matchedBy) {
+                            'reference' => __('Enter an email or the head’s phone number used in this registration.'),
+                            'email' => __('Enter the reference number or the head’s phone number.'),
+                            default => __('Enter the reference number or an email used in this registration.'),
+                        }">
+                            <input type="text" wire:model="confirmation" class="hb-input" autocomplete="off" autocapitalize="off" spellcheck="false">
+                        </x-public.field>
+
                         <button type="submit" class="hb-button-primary self-start" wire:loading.attr="disabled" wire:target="resubmit,paymentScreenshot">
                             {{ __('Resubmit for verification') }}
                         </button>
