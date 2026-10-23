@@ -6,6 +6,7 @@
     $guides = $isVerified ? \App\Models\StudyGuide::visibleToCommittee($committee?->id)->with('committee')->latest()->get() : collect();
     $announcements = $isVerified ? \App\Models\Announcement::visibleToCommittee($committee?->id)->with('committee')->latest()->limit(20)->get() : collect();
     $startsAt = \Illuminate\Support\Carbon::parse(config('conference.starts_at'), 'Asia/Karachi');
+    $fresh ??= ['allocation' => false, 'announcements' => [], 'guides' => [], 'sessions' => []];
 @endphp
 
 @if (! $isVerified)
@@ -15,7 +16,7 @@
     <div class="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <div class="flex flex-col gap-6">
             {{-- Allocation --}}
-            <flux:card class="flex flex-col gap-4">
+            <flux:card @class(['flex flex-col gap-4', 'ring-2 ring-[#a98bd6]/60' => $fresh['allocation']])>
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
                         <div class="hb-kicker">{{ __('Your allocation') }}</div>
@@ -34,7 +35,12 @@
                             </flux:text>
                         @endif
                     </div>
-                    <flux:badge :color="$committee ? 'green' : 'amber'">{{ $committee ? __('Allocated') : __('Pending') }}</flux:badge>
+                    <div class="flex items-center gap-2">
+                        @if ($fresh['allocation'])
+                            <flux:badge size="sm" color="purple">{{ __('New') }}</flux:badge>
+                        @endif
+                        <flux:badge :color="$committee ? 'green' : 'amber'">{{ $committee ? __('Allocated') : __('Pending') }}</flux:badge>
+                    </div>
                 </div>
 
                 @if ($committee?->agenda)
@@ -69,12 +75,16 @@
                         <div @class([
                             'flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-700',
                             'opacity-60' => ! $session->isUpcoming(),
+                            'hb-fresh' => in_array($session->id, $fresh['sessions']),
                         ])>
                             <div>
                                 <div class="font-medium text-zinc-800 dark:text-white">
                                     {{ $session->title }}
                                     @if ($next?->is($session))
                                         <flux:badge size="sm" color="purple" class="ms-1">{{ __('Next') }}</flux:badge>
+                                    @endif
+                                    @if (in_array($session->id, $fresh['sessions']))
+                                        <flux:badge size="sm" color="lime" class="ms-1">{{ __('Updated') }}</flux:badge>
                                     @endif
                                 </div>
                                 <flux:text class="text-sm">{{ $session->timeLabel() }}</flux:text>
@@ -99,9 +109,17 @@
             <flux:card class="flex flex-col gap-3">
                 <div class="hb-kicker">{{ __('Study guides') }}</div>
                 @forelse ($guides as $guide)
-                    <div class="flex items-center justify-between gap-4 border-t border-zinc-200 pt-3 first-of-type:border-0 first-of-type:pt-0 dark:border-zinc-700">
+                    <div @class([
+                        'flex items-center justify-between gap-4 border-t border-zinc-200 pt-3 first-of-type:border-0 first-of-type:pt-0 dark:border-zinc-700',
+                        'hb-fresh' => in_array($guide->id, $fresh['guides']),
+                    ])>
                         <div class="min-w-0">
-                            <div class="font-medium text-zinc-800 dark:text-white">{{ $guide->title }}</div>
+                            <div class="font-medium text-zinc-800 dark:text-white">
+                                {{ $guide->title }}
+                                @if (in_array($guide->id, $fresh['guides']))
+                                    <flux:badge size="sm" color="purple" class="ms-1">{{ __('New') }}</flux:badge>
+                                @endif
+                            </div>
                             <flux:text class="text-xs">{{ $guide->committee?->code ?? __('All committees') }} · {{ $guide->humanFileSize() }}</flux:text>
                             @if ($guide->description)
                                 <flux:text class="mt-1 text-sm">{{ $guide->description }}</flux:text>
@@ -164,8 +182,16 @@
             <flux:card class="flex flex-col gap-3">
                 <div class="hb-kicker">{{ __('Announcements') }}</div>
                 @forelse ($announcements as $announcement)
-                    <div class="border-t border-zinc-200 pt-3 first-of-type:border-0 first-of-type:pt-0 dark:border-zinc-700">
-                        <div class="font-medium text-zinc-800 dark:text-white">{{ $announcement->title }}</div>
+                    <div @class([
+                        'border-t border-zinc-200 pt-3 first-of-type:border-0 first-of-type:pt-0 dark:border-zinc-700',
+                        'hb-fresh' => in_array($announcement->id, $fresh['announcements']),
+                    ])>
+                        <div class="font-medium text-zinc-800 dark:text-white">
+                            {{ $announcement->title }}
+                            @if (in_array($announcement->id, $fresh['announcements']))
+                                <flux:badge size="sm" color="purple" class="ms-1">{{ __('New') }}</flux:badge>
+                            @endif
+                        </div>
                         <flux:text class="text-xs">
                             {{ $announcement->created_at->timezone('Asia/Karachi')->format('j M, g:i a') }}
                             @if ($announcement->committee)

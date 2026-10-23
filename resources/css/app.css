@@ -241,3 +241,15 @@ select:focus[data-flux-control] {
 [x-cloak] {
     display: none !important;
 }
+
+/* Something that appeared on the delegate dashboard since the page loaded. */
+.hb-fresh {
+    @apply -mx-3 rounded-md bg-[#a98bd6]/10 px-3 pb-3 ring-1 ring-[#a98bd6]/40;
+    animation: hb-fresh-in 1.2s ease-out;
+}
+
+@keyframes hb-fresh-in {
+    from {
+        background-color: rgb(169 139 214 / 0.35);
+    }
+}

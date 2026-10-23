@@ -53,6 +53,7 @@ test('an allocated delegate sees their allocation, session, card, guides and ann
         ->assertSeeText('Opening session')
         ->assertSee('https://meet.google.com/abc-defg-hij')
         ->assertSeeText('Download card')
+        ->assertSeeText('Get notified about updates')
         ->assertSeeText('Rules of procedure')
         ->assertSeeText('UNSC study guide')
         ->assertDontSeeText('Other committee guide')
@@ -222,4 +223,53 @@ test('the delegate dashboard picks up new announcements and allocations without 
     $component->call('refresh')
         ->assertSeeText('Roll call moved')
         ->assertSeeText('Pakistan');
+});
+
+test('the dashboard highlights and announces what was posted since it loaded', function () {
+    $committee = Committee::factory()->create();
+    $session = CommitteeSession::factory()->for($committee)->create(['title' => 'Opening session']);
+    $delegate = dashboardDelegate(['allocated_committee_id' => $committee->id, 'allocated_portfolio' => 'Chad', 'allocation_published_at' => now()]);
+    $old = Announcement::create(['title' => 'Old news', 'body' => 'Seen already.']);
+
+    $component = Livewire::actingAs($delegate->user)->test('delegate-dashboard');
+
+    $this->travel(1)->minute();
+    $announcement = Announcement::create(['title' => 'Roll call at 10', 'body' => 'Be on time.']);
+    $guide = guideFor($committee, 'Fresh guide');
+    $session->update(['meeting_url' => 'https://zoom.us/j/999']);
+    cache()->flush();
+
+    $component->call('refresh')
+        ->assertDispatched('dashboard-updates', fn (string $name, array $params) => collect($params['updates'])->pluck('tag')->sort()->values()->all() === [
+            'announcement-'.$announcement->id, 'guide-'.$guide->id, 'session-'.$session->id,
+        ])
+        ->assertSet('fresh.announcements', [$announcement->id])
+        ->assertSet('fresh.guides', [$guide->id])
+        ->assertSet('fresh.sessions', [$session->id])
+        ->assertSeeText('Roll call at 10');
+
+    expect($component->get('fresh.announcements'))->not->toContain($old->id);
+});
+
+test('the dashboard announces a newly sent allocation', function () {
+    $committee = Committee::factory()->create();
+    $delegate = dashboardDelegate(['allocated_committee_id' => $committee->id, 'allocated_portfolio' => 'Chad']);
+
+    $component = Livewire::actingAs($delegate->user)->test('delegate-dashboard');
+
+    $this->travel(1)->minute();
+    $delegate->update(['allocation_published_at' => now()]);
+
+    $component->call('refresh')
+        ->assertDispatched('dashboard-updates', fn (string $name, array $params) => $params['updates'][0]['tag'] === 'allocation')
+        ->assertSet('fresh.allocation', true)
+        ->assertSeeText('Chad');
+});
+
+test('a quiet poll announces nothing', function () {
+    $delegate = dashboardDelegate();
+
+    Livewire::actingAs($delegate->user)->test('delegate-dashboard')
+        ->call('refresh')
+        ->assertNotDispatched('dashboard-updates');
 });
