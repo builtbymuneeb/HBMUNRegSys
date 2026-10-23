@@ -179,6 +179,14 @@ test('a delegate must choose two different committees', function () {
         ->assertHasErrors(['delegates.0.second_committee_id' => 'different']);
 });
 
+test('a country preference must be a country from the list', function () {
+    filledDelegationForm([['country_preference' => 'Frances']])
+        ->call('submit')
+        ->assertHasErrors(['delegates.0.country_preference' => 'in']);
+
+    expect(Registration::count())->toBe(0);
+});
+
 test('delegates in one delegation need different emails', function () {
     filledDelegationForm([1 => ['email' => 'DELEGATE1@gmail.com']])
         ->call('submit')

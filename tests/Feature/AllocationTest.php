@@ -78,7 +78,7 @@ test('a portfolio cannot be given to two delegates in the same committee', funct
         ->test('pages::staff.allocations')
         ->call('edit', $delegate->id)
         ->set('committeeId', (string) $committee->id)
-        ->set('portfolio', 'france')
+        ->set('portfolio', 'France')
         ->call('save')
         ->assertHasErrors('portfolio');
 
@@ -147,4 +147,43 @@ test('a committee page lists its allocated delegates and sessions', function () 
     $this->actingAs(User::factory()->role(UserRole::Delegate)->create())
         ->get(route('staff.committees.show', $committee))
         ->assertForbidden();
+});
+
+test('a country committee only accepts a country from the list', function () {
+    $committee = Committee::factory()->create();
+    $delegate = verifiedDelegate();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.allocations')
+        ->call('edit', $delegate->id)
+        ->set('committeeId', (string) $committee->id)
+        ->set('portfolio', 'Frances')
+        ->call('save')
+        ->assertHasErrors(['portfolio' => 'in']);
+
+    expect($delegate->refresh()->allocated_committee_id)->toBeNull();
+});
+
+test('a loosely typed country preference is matched to its listed name', function () {
+    $delegate = verifiedDelegate(['country_preference' => 'usa']);
+
+    Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.allocations')
+        ->call('edit', $delegate->id)
+        ->assertSet('portfolio', 'United States');
+});
+
+test('a character committee still takes any name', function () {
+    $committee = Committee::factory()->characters()->create();
+    $delegate = verifiedDelegate();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.allocations')
+        ->call('edit', $delegate->id)
+        ->set('committeeId', (string) $committee->id)
+        ->set('portfolio', 'Maryam Nawaz')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($delegate->refresh()->allocated_portfolio)->toBe('Maryam Nawaz');
 });

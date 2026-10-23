@@ -6,6 +6,7 @@ use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
 use App\Models\Committee;
 use App\Models\Delegate;
+use App\Support\Countries;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -259,7 +260,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.phone' => $phone,
             'delegates.*.first_committee_id' => ['required', Rule::exists('committees', 'id')],
             'delegates.*.second_committee_id' => ['required', Rule::exists('committees', 'id'), 'different:delegates.*.first_committee_id'],
-            'delegates.*.country_preference' => ['nullable', 'string', 'max:255'],
+            'delegates.*.country_preference' => ['nullable', 'string', Rule::in(Countries::names())],
             'delegates.*.personality_preference' => ['nullable', 'string', 'max:255'],
             'paymentScreenshot' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'confirmed' => ['accepted'],
@@ -605,7 +606,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         </x-public.field>
                                         @if ($this->delegateNeedsPortfolio($index, PortfolioType::Country))
                                             <x-public.field :label="__('Country preference')" name="delegates.{{ $index }}.country_preference" :hint="__('For UNW / UNSC')">
-                                                <input type="text" wire:model="delegates.{{ $index }}.country_preference" class="hb-input" placeholder="{{ __('e.g. France') }}">
+                                                <x-country-select wire:model="delegates.{{ $index }}.country_preference" wire:key="country-{{ $index }}" :placeholder="__('Search, e.g. France')" />
                                             </x-public.field>
                                         @endif
                                         @if ($this->delegateNeedsPortfolio($index, PortfolioType::Character))

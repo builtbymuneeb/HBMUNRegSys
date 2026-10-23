@@ -5,6 +5,7 @@ namespace Database\Factories;
 use App\Models\Committee;
 use App\Models\Delegate;
 use App\Models\Registration;
+use App\Support\Countries;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -27,7 +28,7 @@ class DelegateFactory extends Factory
             'phone' => fake()->numerify('03#########'),
             'first_committee_id' => Committee::factory(),
             'second_committee_id' => Committee::factory(),
-            'country_preference' => fake()->country(),
+            'country_preference' => fake()->randomElement(Countries::names()),
             'personality_preference' => null,
         ];
     }
