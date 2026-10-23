@@ -519,7 +519,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     <input type="text" wire:model="contact.cnic" class="hb-input" inputmode="numeric" x-mask="99999-9999999-9" placeholder="35202-1234567-1">
                                 </x-public.field>
                                 <x-public.field :label="$who.' '.__('phone (WhatsApp)')" name="contact.phone">
-                                    <input type="tel" wire:model="contact.phone" class="hb-input" placeholder="03XX XXXXXXX" autocomplete="tel">
+                                    <input type="tel" wire:model="contact.phone" class="hb-input" inputmode="numeric" x-mask="9999 9999999" placeholder="03XX XXXXXXX" autocomplete="tel-national">
                                 </x-public.field>
                                 <x-public.field :label="$who.' '.__('email')" name="contact.email">
                                     <input type="email" wire:model="contact.email" class="hb-input" autocomplete="email">
@@ -566,7 +566,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                             <input type="email" wire:model="delegates.{{ $index }}.email" class="hb-input" placeholder="name@gmail.com">
                                         </x-public.field>
                                         <x-public.field :label="__('Phone (WhatsApp)')" name="delegates.{{ $index }}.phone">
-                                            <input type="tel" wire:model="delegates.{{ $index }}.phone" class="hb-input" placeholder="03XX XXXXXXX">
+                                            <input type="tel" wire:model="delegates.{{ $index }}.phone" class="hb-input" inputmode="numeric" x-mask="9999 9999999" placeholder="03XX XXXXXXX">
                                         </x-public.field>
                                         <x-public.field :label="__('1st committee')" name="delegates.{{ $index }}.first_committee_id">
                                             <select wire:model.live="delegates.{{ $index }}.first_committee_id" class="hb-input">
