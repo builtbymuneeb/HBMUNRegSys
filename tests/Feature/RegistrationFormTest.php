@@ -62,8 +62,8 @@ test('the payment step lists the registration heads by name and number', functio
     Livewire::test('pages::registration.create')
         ->set('step', 4)
         ->assertSeeText('Muhammad Muneeb')
-        ->assertSeeHtml('href="tel:03084447764"')
-        ->assertSeeHtml('href="tel:03338460791"');
+        ->assertSeeHtml('href="https://wa.me/923084447764?text=Hi%2C%20I%20am%20looking%20for%20help')
+        ->assertSeeHtml('href="https://wa.me/923338460791?text=');
 });
 
 test('the account number has a button that copies it without spaces', function () {

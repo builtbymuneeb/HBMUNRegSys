@@ -43,4 +43,18 @@ class AllocationPublished extends Notification implements ShouldQueue
             ->line('Log in to your delegate dashboard for study guides, announcements, your session link and your delegate card.')
             ->action('Open my dashboard', route('dashboard'));
     }
+
+    /**
+     * The same message as plain text, for staff to send by WhatsApp.
+     */
+    public function toWhatsApp(): string
+    {
+        $committee = $this->delegate->allocatedCommittee;
+
+        return implode("\n\n", [
+            "Hello {$this->delegate->name},",
+            'Your '.config('conference.name')." allocation is ready:\n*Committee:* {$committee?->label()}\n*".($committee?->portfolioLabel() ?? __('Portfolio')).":* {$this->delegate->allocated_portfolio}",
+            'Log in to your delegate dashboard for study guides, announcements, your session link and your delegate card: '.route('dashboard'),
+        ]);
+    }
 }

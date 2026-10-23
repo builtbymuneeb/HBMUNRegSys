@@ -40,4 +40,17 @@ class RegistrationRejected extends Notification implements ShouldQueue
             ->line('You can upload a new payment screenshot from the status page using your reference number and email.')
             ->action('Upload a new screenshot', route('registration.status'));
     }
+
+    /**
+     * The same message as plain text, for staff to send by WhatsApp.
+     */
+    public function toWhatsApp(): string
+    {
+        return implode("\n\n", [
+            "Hello {$this->registration->contact_name},",
+            "We could not verify the payment for your registration ({$this->registration->reference}).",
+            "*Reason:* {$this->registration->rejection_reason}",
+            'You can upload a new payment screenshot here using your reference number and email: '.route('registration.status'),
+        ]);
+    }
 }

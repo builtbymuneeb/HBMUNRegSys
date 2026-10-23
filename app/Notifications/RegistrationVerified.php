@@ -39,4 +39,17 @@ class RegistrationVerified extends Notification implements ShouldQueue
             ->line('Each delegate has been sent an email to set their password and access their delegate dashboard.')
             ->line('We look forward to welcoming your delegation to '.config('conference.name').'!');
     }
+
+    /**
+     * The same message as plain text, for staff to send by WhatsApp.
+     */
+    public function toWhatsApp(): string
+    {
+        return implode("\n\n", [
+            "Hello {$this->registration->contact_name},",
+            "The payment for {$this->registration->displayName()} ({$this->registration->reference}) has been verified.",
+            'Each delegate has been sent an email to set their password and access their delegate dashboard. Please ask them to check their inbox and spam folder.',
+            'We look forward to welcoming your delegation to '.config('conference.name').'!',
+        ]);
+    }
 }

@@ -45,4 +45,18 @@ class SetPassword extends Notification implements ShouldQueue
             ->action('Set your password', $url)
             ->line('This link expires in '.config('auth.passwords.users.expire') / 60 .' hours. After that, use "Forgot password" on the login page to get a new one.');
     }
+
+    /**
+     * A WhatsApp nudge to go with this email. The password link itself stays in the email,
+     * since it is a login secret; the message points them to it or to "Forgot password".
+     */
+    public static function whatsAppMessage(string $name, string $email): string
+    {
+        return implode("\n\n", [
+            "Hello {$name},",
+            'Your payment for '.config('conference.name').' has been verified and your delegate account is ready.',
+            "We have emailed a link to set your password to *{$email}*. Please check your inbox and spam folder.",
+            'If the link has expired, use "Forgot password" on the login page: '.route('password.request'),
+        ]);
+    }
 }

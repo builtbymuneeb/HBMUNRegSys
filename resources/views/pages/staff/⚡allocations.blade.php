@@ -383,6 +383,8 @@ new #[Title('Allocations')] class extends Component {
                         <div class="flex justify-end gap-2">
                             @if ($delegate->isAllocated() && ! $delegate->hasPublishedAllocation())
                                 <flux:button size="sm" icon="paper-airplane" wire:click="send({{ $delegate->id }})">{{ __('Send') }}</flux:button>
+                            @elseif ($delegate->hasPublishedAllocation())
+                                <x-whatsapp-button :label="__('WhatsApp')" :phone="$delegate->phone" :message="(new AllocationPublished($delegate))->toWhatsApp()" />
                             @endif
                             <flux:button size="sm" wire:click="edit({{ $delegate->id }})">{{ $delegate->isAllocated() ? __('Change') : __('Allocate') }}</flux:button>
                         </div>

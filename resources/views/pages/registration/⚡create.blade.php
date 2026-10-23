@@ -773,7 +773,11 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
                             <div class="flex flex-col gap-2">
                                 <label for="payment-screenshot" class="relative flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2.5 border border-dashed border-[#6e6a75] bg-hb-surface p-6 text-center has-focus-visible:outline-2 has-focus-visible:outline-[#8e6bc8]">
-                                    <svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="#c9b6ea" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4" /><path d="m6 10 6-6 6 6" /><path d="M4 20h16" /></svg>
+                                    @if ($paymentScreenshot && ! $errors->has('paymentScreenshot') && $paymentScreenshot->isPreviewable())
+                                        <img src="{{ $paymentScreenshot->temporaryUrl() }}" alt="{{ __('Payment screenshot preview') }}" class="max-h-72 w-auto max-w-full border border-hb-line object-contain" wire:loading.class="opacity-40" wire:target="paymentScreenshot">
+                                    @else
+                                        <svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="#c9b6ea" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4" /><path d="m6 10 6-6 6 6" /><path d="M4 20h16" /></svg>
+                                    @endif
                                     <span class="font-semibold">
                                         @if ($paymentScreenshot && ! $errors->has('paymentScreenshot'))
                                             {{ $paymentScreenshot->getClientOriginalName() }}
@@ -798,7 +802,12 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                                 @if ($head['name'])
                                                     <dd class="mt-1">{{ $head['name'] }}</dd>
                                                 @endif
-                                                <dd @class(['mt-1' => ! $head['name']])><a href="tel:{{ $head['phone'] }}" class="hover:text-hb-lavender">{{ $head['phone'] }}</a></dd>
+                                                <dd @class(['mt-1' => ! $head['name']])>
+                                                    <a href="{{ \App\Support\WhatsApp::link($head['phone'], __('Hi, I am looking for help with my :conference registration.', ['conference' => config('conference.name')])) ?? 'tel:'.$head['phone'] }}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 hover:text-hb-lavender" title="{{ __('Message on WhatsApp') }}">
+                                                        <svg class="size-4 shrink-0 text-[#5fd68a]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 2s.9 2.3 1 2.5c.1.2 1.7 2.6 4.1 3.6 1.5.7 2.1.7 2.9.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.4-.2Z"/></svg>
+                                                        {{ $head['phone'] }}
+                                                    </a>
+                                                </dd>
                                             </div>
                                         @endforeach
                                         @if (config('conference.contacts.email'))

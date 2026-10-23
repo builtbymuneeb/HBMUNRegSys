@@ -2,9 +2,14 @@
 
 use App\Actions\Registrations\RejectRegistration;
 use App\Actions\Registrations\VerifyRegistration;
+use App\Enums\RegistrationStatus;
 use App\Models\AuditLog;
 use App\Models\Delegate;
 use App\Models\Registration;
+use App\Notifications\RegistrationReceived;
+use App\Notifications\RegistrationRejected;
+use App\Notifications\RegistrationVerified;
+use App\Notifications\SetPassword;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -24,6 +29,19 @@ new #[Title('Review registration')] class extends Component {
     public function mount(Registration $registration): void
     {
         $this->registration = $registration;
+    }
+
+    /**
+     * The email the contact person was last sent for this registration's status, as a WhatsApp message.
+     */
+    #[Computed]
+    public function contactWhatsApp(): string
+    {
+        return match ($this->registration->status) {
+            RegistrationStatus::Pending => (new RegistrationReceived($this->registration))->toWhatsApp(),
+            RegistrationStatus::Verified => (new RegistrationVerified($this->registration))->toWhatsApp(),
+            RegistrationStatus::Rejected => (new RegistrationRejected($this->registration))->toWhatsApp(),
+        };
     }
 
     /**
@@ -140,7 +158,10 @@ new #[Title('Review registration')] class extends Component {
         <div class="flex flex-col gap-6">
             {{-- Contact --}}
             <flux:card class="flex flex-col gap-4">
-                <flux:heading size="lg">{{ __('Contact') }}</flux:heading>
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                    <flux:heading size="lg">{{ __('Contact') }}</flux:heading>
+                    <x-whatsapp-button :phone="$registration->contact_phone" :message="$this->contactWhatsApp" />
+                </div>
                 <dl class="grid gap-4 text-sm sm:grid-cols-2">
                     @foreach ([
                         __('Institution / delegation') => $registration->organisation_name,
@@ -182,7 +203,10 @@ new #[Title('Review registration')] class extends Component {
                                     <div class="text-zinc-500 dark:text-zinc-400">{{ __('Personality') }}: {{ $delegate->personality_preference }}</div>
                                 @endif
                                 @if ($delegate->user)
-                                    <flux:badge size="sm" color="green" class="mt-1">{{ __('Account created') }}</flux:badge>
+                                    <div class="mt-1 flex flex-wrap items-center gap-2">
+                                        <flux:badge size="sm" color="green">{{ __('Account created') }}</flux:badge>
+                                        <x-whatsapp-button size="xs" :label="__('WhatsApp')" :phone="$delegate->phone" :message="SetPassword::whatsAppMessage($delegate->name, $delegate->user->email)" />
+                                    </div>
                                 @endif
                             </div>
                         </div>
