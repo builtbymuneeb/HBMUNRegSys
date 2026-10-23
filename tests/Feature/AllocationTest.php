@@ -24,7 +24,7 @@ test('only the registrations team and admins can open the conference pages', fun
     $this->actingAs(User::factory()->role($role)->create())
         ->get(route($route))
         ->assertStatus($status);
-})->with(['staff.allocations', 'staff.committees', 'staff.guides', 'staff.announcements'])
+})->with(['staff.allocations', 'staff.committees', 'staff.guides', 'staff.announcements', 'staff.emails'])
     ->with([
         [UserRole::Registrations, 200],
         [UserRole::Admin, 200],

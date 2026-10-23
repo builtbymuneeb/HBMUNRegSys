@@ -5,10 +5,13 @@ use App\Actions\Allocations\PublishAllocations;
 use App\Enums\RegistrationStatus;
 use App\Models\Committee;
 use App\Models\Delegate;
+use App\Models\MailLog;
+use App\Notifications\AllocationPublished;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
@@ -81,7 +84,7 @@ new #[Title('Allocations')] class extends Component {
         $committeeId = (int) $this->committee ?: null;
 
         return $this->allocatable()
-            ->with(['registration', 'firstCommittee', 'secondCommittee', 'allocatedCommittee'])
+            ->with(['registration', 'user', 'firstCommittee', 'secondCommittee', 'allocatedCommittee'])
             ->when($this->show === 'unallocated', fn (Builder $query) => $query->whereNull('allocated_committee_id'))
             ->when($this->show === 'unsent', fn (Builder $query) => $query->whereNotNull('allocated_committee_id')->whereNull('allocation_published_at'))
             ->when($this->show === 'sent', fn (Builder $query) => $query->whereNotNull('allocation_published_at'))
@@ -100,6 +103,24 @@ new #[Title('Allocations')] class extends Component {
             ->orderBy('registration_id')
             ->orderBy('id')
             ->paginate(25);
+    }
+
+    /**
+     * The latest allocation email logged for each delegate on this page, keyed by lowercase address.
+     *
+     * @return SupportCollection<string, MailLog>
+     */
+    #[Computed]
+    public function allocationEmails(): SupportCollection
+    {
+        $addresses = collect($this->delegates->items())->map(fn (Delegate $delegate) => strtolower($delegate->user?->email ?? $delegate->email));
+
+        return MailLog::query()
+            ->where('notification', AllocationPublished::class)
+            ->whereIn('to', $addresses)
+            ->orderBy('id')
+            ->get()
+            ->keyBy(fn (MailLog $log) => strtolower($log->to));
     }
 
     #[Computed]
@@ -315,6 +336,14 @@ new #[Title('Allocations')] class extends Component {
                     <flux:table.cell>
                         @if ($delegate->hasPublishedAllocation())
                             <flux:badge size="sm" color="green" inset="top bottom">{{ __('Sent') }}</flux:badge>
+                            @php($mail = $this->allocationEmails->get(strtolower($delegate->user?->email ?? $delegate->email)))
+                            @if (! $mail)
+                                <div class="mt-1 text-xs text-amber-300">{{ __('Email waiting to send') }}</div>
+                            @elseif ($mail->failed())
+                                <div class="mt-1 text-xs text-red-300" title="{{ $mail->error }}">{{ __('Email failed') }}</div>
+                            @else
+                                <div class="mt-1 text-xs">{{ __('Emailed :time', ['time' => $mail->created_at->timezone('Asia/Karachi')->format('j M, g:i a')]) }}</div>
+                            @endif
                         @elseif ($delegate->isAllocated())
                             <flux:badge size="sm" color="amber" inset="top bottom">{{ __('Not sent') }}</flux:badge>
                         @else
