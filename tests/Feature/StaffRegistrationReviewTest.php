@@ -154,3 +154,14 @@ test('a registration that has already been reviewed cannot be verified again', f
     expect($registration->refresh()->status)->toBe(RegistrationStatus::Rejected);
     Notification::assertNothingSent();
 });
+
+test('the registrations list picks up new submissions without a reload', function () {
+    $component = Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.registrations.index');
+
+    $registration = Registration::factory()->create();
+
+    $component->call('poll')
+        ->assertSeeText($registration->reference)
+        ->assertSet('pendingCount', 1);
+});

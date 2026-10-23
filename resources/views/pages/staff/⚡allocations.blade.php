@@ -6,6 +6,8 @@ use App\Enums\RegistrationStatus;
 use App\Models\Committee;
 use App\Models\Delegate;
 use App\Models\MailLog;
+use App\Models\Registration;
+use App\Models\User;
 use App\Models\WhatsAppLog;
 use App\Notifications\AllocationPublished;
 use Flux\Flux;
@@ -39,6 +41,38 @@ new #[Title('Allocations')] class extends Component {
     public string $committeeId = '';
 
     public string $portfolio = '';
+
+    public string $stamp = '';
+
+    public function mount(): void
+    {
+        $this->stamp = $this->fingerprint();
+    }
+
+    /**
+     * Polled by the browser. Leaves the page alone while a delegate is being allocated, and skips the
+     * re-render unless delegates, registrations, committees, sends or passwords have changed.
+     */
+    public function poll(): void
+    {
+        $stamp = $this->editingId === null ? $this->fingerprint() : $this->stamp;
+
+        if ($stamp === $this->stamp) {
+            $this->skipRender();
+
+            return;
+        }
+
+        $this->stamp = $stamp;
+    }
+
+    protected function fingerprint(): string
+    {
+        $changed = collect([Delegate::class, Registration::class, Committee::class, User::class])
+            ->map(fn (string $model) => $model::query()->selectRaw('count(*) as c, max(updated_at) as u')->first()?->only(['c', 'u']));
+
+        return md5(json_encode([$changed, WhatsAppLog::max('id'), MailLog::max('id')]));
+    }
 
     public function updated(string $property): void
     {
@@ -289,7 +323,7 @@ new #[Title('Allocations')] class extends Component {
     }
 }; ?>
 
-<div class="flex w-full flex-col gap-6 p-6 lg:p-8">
+<div wire:poll.15s="poll" class="flex w-full flex-col gap-6 p-6 lg:p-8">
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1">{{ __('Allocations') }}</flux:heading>
@@ -409,7 +443,7 @@ new #[Title('Allocations')] class extends Component {
         </flux:table.rows>
     </flux:table>
 
-    <flux:modal name="allocate-delegate" class="md:w-lg">
+    <flux:modal name="allocate-delegate" class="md:w-lg" wire:close="$set('editingId', null)">
         @if ($delegate = $this->editing)
             <form wire:submit="save" class="space-y-5">
                 <div>

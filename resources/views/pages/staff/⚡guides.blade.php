@@ -182,7 +182,7 @@ new #[Title('Study guides')] class extends Component {
                     <div class="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-white/10" role="progressbar" aria-valuemin="0" aria-valuemax="100" x-bind:aria-valuenow="progress">
                         <div class="h-full rounded-full bg-accent transition-[width] duration-300" x-bind:style="'width: ' + progress + '%'"></div>
                     </div>
-                    <flux:text x-show="offline" class="text-sm !text-red-500">{{ __('You appear to be offline. The upload will continue once your connection is back.') }}</flux:text>
+                    <flux:text x-show="offline" class="text-sm !text-red-500">{{ __('You appear to be offline. If the upload fails, choose the file again once your connection is back.') }}</flux:text>
                     <flux:text x-show="! offline && stalled" class="text-sm !text-amber-500">{{ __('No progress for a few seconds — your connection may have dropped or is very slow.') }}</flux:text>
                     <flux:text x-show="! offline && ! stalled && slow" class="text-sm !text-amber-500">{{ __('Your internet connection looks slow, so this may take a while. Keep this page open.') }}</flux:text>
                 </div>

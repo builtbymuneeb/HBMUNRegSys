@@ -4,6 +4,7 @@ use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
 use App\Models\Delegate;
 use App\Models\Registration;
+use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Computed;
@@ -23,6 +24,51 @@ new #[Title('Registrations')] class extends Component {
 
     #[Url]
     public string $search = '';
+
+    public string $stamp = '';
+
+    public int $pendingCount = 0;
+
+    public function mount(): void
+    {
+        $this->stamp = $this->fingerprint();
+        $this->pendingCount = $this->pendingTotal();
+    }
+
+    /**
+     * Polled by the browser. Skips the re-render unless a registration or delegate has changed.
+     */
+    public function poll(): void
+    {
+        $stamp = $this->fingerprint();
+
+        if ($stamp === $this->stamp) {
+            $this->skipRender();
+
+            return;
+        }
+
+        $this->stamp = $stamp;
+
+        $pending = $this->pendingTotal();
+        if ($pending > $this->pendingCount) {
+            Flux::toast(heading: __('New submissions'), text: trans_choice(':count new registration is waiting for review.|:count new registrations are waiting for review.', $pending - $this->pendingCount));
+        }
+        $this->pendingCount = $pending;
+    }
+
+    protected function fingerprint(): string
+    {
+        return md5(json_encode([
+            Registration::query()->selectRaw('count(*) as c, max(updated_at) as u')->first()?->only(['c', 'u']),
+            Delegate::query()->selectRaw('count(*) as c, max(updated_at) as u')->first()?->only(['c', 'u']),
+        ]));
+    }
+
+    protected function pendingTotal(): int
+    {
+        return Registration::where('status', RegistrationStatus::Pending)->count();
+    }
 
     public function updated(string $property): void
     {
@@ -83,7 +129,7 @@ new #[Title('Registrations')] class extends Component {
     }
 }; ?>
 
-<div class="flex w-full flex-col gap-6 p-6 lg:p-8">
+<div wire:poll.15s="poll" class="flex w-full flex-col gap-6 p-6 lg:p-8">
     <div class="flex flex-wrap items-end justify-between gap-4">
         <div>
             <flux:heading size="xl" level="1">{{ __('Registrations') }}</flux:heading>
@@ -103,11 +149,13 @@ new #[Title('Registrations')] class extends Component {
             <flux:card class="flex flex-col gap-1">
                 <flux:text>{{ $case->label() }}</flux:text>
                 <flux:heading size="xl">{{ $this->statusCounts[$case->value] ?? 0 }}</flux:heading>
+                <flux:text size="sm" class="text-zinc-400">{{ __('delegations') }}</flux:text>
             </flux:card>
         @endforeach
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Verified delegates') }}</flux:text>
             <flux:heading size="xl">{{ $this->verifiedDelegateCount }}</flux:heading>
+            <flux:text size="sm" class="text-zinc-400">{{ __('people across verified delegations') }}</flux:text>
         </flux:card>
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Verified amount') }}</flux:text>

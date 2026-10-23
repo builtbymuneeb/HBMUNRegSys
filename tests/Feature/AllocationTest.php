@@ -187,3 +187,25 @@ test('a character committee still takes any name', function () {
 
     expect($delegate->refresh()->allocated_portfolio)->toBe('Maryam Nawaz');
 });
+
+test('the allocations page picks up newly verified delegates without a reload', function () {
+    $component = Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.allocations');
+
+    $delegate = verifiedDelegate();
+
+    $component->call('poll')->assertSeeText($delegate->name);
+});
+
+test('the allocations page does not refresh while a delegate is being allocated', function () {
+    $editing = verifiedDelegate();
+
+    $component = Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.allocations')
+        ->call('edit', $editing->id);
+
+    $stamp = $component->get('stamp');
+    verifiedDelegate();
+
+    $component->call('poll')->assertSet('stamp', $stamp);
+});
