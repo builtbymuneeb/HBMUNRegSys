@@ -117,8 +117,7 @@ test('individual (private delegate) registration is not offered', function () {
         ->assertSet('type', RegistrationType::InstitutionDelegation->value)
         ->assertDontSeeText('Private delegate')
         ->set('type', 'private_delegate')
-        ->assertSet('type', RegistrationType::InstitutionDelegation->value)
-        ->assertCount('delegates', 3);
+        ->assertSet('type', RegistrationType::InstitutionDelegation->value);
 });
 
 test('a private delegation registers with the head as contact', function () {
@@ -138,9 +137,25 @@ test('a private delegation registers with the head as contact', function () {
         ->and($registration->organisation_name)->toBe('Lahore Debaters');
 });
 
+test('no delegate rows show until a delegate count is chosen', function () {
+    Livewire::test('pages::registration.create')
+        ->set('contact', institutionContact())
+        ->call('next')
+        ->assertSet('delegateCount', null)
+        ->assertCount('delegates', 0)
+        ->assertDontSeeText('Delegate 1')
+        ->assertSeeText('Pick how many delegates are coming')
+        ->call('next')
+        ->assertHasErrors(['delegates' => 'required'])
+        ->assertSeeText('Choose how many delegates are in your delegation.')
+        ->assertSet('step', 2)
+        ->set('delegateCount', 4)
+        ->assertCount('delegates', 4)
+        ->assertSeeText('Delegate 4');
+});
+
 test('the delegate count stays within 3 to 6', function () {
     Livewire::test('pages::registration.create')
-        ->assertCount('delegates', 3)
         ->set('delegateCount', 9)
         ->assertCount('delegates', 6)
         ->set('delegateCount', 1)
@@ -216,6 +231,7 @@ test('each step must be valid before moving on', function () {
         ->call('next')
         ->assertHasNoErrors()
         ->assertSet('step', 2)
+        ->set('delegateCount', 3)
         ->call('next')
         ->assertHasErrors(['delegates.0.name'])
         ->assertSet('step', 2)
@@ -305,6 +321,7 @@ test('the amount due only appears once the delegate count can be chosen', functi
         ->set('contact', institutionContact())
         ->call('next')
         ->assertSeeText('Amount due')
+        ->assertSeeText('Choose the number of delegates to see your total.')
         ->set('delegateCount', 5)
         ->assertSeeText('PKR 6,000');
 });

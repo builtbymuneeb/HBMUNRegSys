@@ -46,7 +46,10 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         'email' => '',
     ];
 
-    public int $delegateCount = 3;
+    /**
+     * How many delegates are coming; null until the registrant picks a number.
+     */
+    public ?int $delegateCount = null;
 
     /** @var list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: string, second_committee_id: string, country_preference: string, personality_preference: string}> */
     public array $delegates = [];
@@ -163,7 +166,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             $this->contact[$key] = $this->cleanString($draft['contact'][$key] ?? '');
         }
 
-        $this->delegateCount = (int) ($draft['delegateCount'] ?? $this->delegateCount);
+        $draftDelegates = is_array($draft['delegates'] ?? null) ? $draft['delegates'] : [];
+        $draftCount = $draft['delegateCount'] ?? ($draftDelegates === [] ? null : count($draftDelegates));
+        $this->delegateCount = is_numeric($draftCount) ? (int) $draftCount : null;
         $this->delegates = [];
         $this->syncDelegateCount();
 
@@ -295,6 +300,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.email.distinct' => 'Each delegate needs their own email address.',
             'delegates.*.cnic.distinct' => 'Each delegate needs their own CNIC / B-Form number.',
             'confirmed.accepted' => 'Please confirm your details and payment amount.',
+            'delegates.required' => 'Choose how many delegates are in your delegation.',
         ];
     }
 
@@ -375,6 +381,12 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     {
         $type = $this->registrationType;
 
+        if ($this->delegateCount === null) {
+            $this->delegates = [];
+
+            return;
+        }
+
         $this->delegateCount = max($type->minimumDelegates(), min($type->maximumDelegates(), $this->delegateCount));
 
         $blankDelegate = [
@@ -437,6 +449,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                         <div class="text-sm leading-relaxed text-hb-muted">
                             {{ __('You’ll choose how many delegates (:min–:max) in the next step, and see your total there.', ['min' => $this->registrationType->minimumDelegates(), 'max' => $this->registrationType->maximumDelegates()]) }}
                         </div>
+                    @elseif ($delegateCount === null)
+                        <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
+                        <div class="text-sm leading-relaxed text-hb-muted">{{ __('Choose the number of delegates to see your total.') }}</div>
                     @else
                         <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
                         <div class="font-display text-4xl font-bold" data-test="amount-due">PKR {{ number_format($this->amountDue) }}</div>
@@ -546,10 +561,14 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     @endforeach
                                 </div>
                             </div>
-                            <div class="flex items-baseline justify-between gap-3 border border-hb-line bg-hb-surface px-4 py-3 lg:hidden">
-                                <span class="text-xs tracking-[0.16em] text-hb-subtle uppercase">{{ __('Total') }}</span>
-                                <span class="font-display text-xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
-                            </div>
+                            @if ($delegateCount === null)
+                                <p class="text-sm leading-relaxed text-hb-muted">{{ __('Pick how many delegates are coming, then fill in each one’s details.') }}</p>
+                            @else
+                                <div class="flex items-baseline justify-between gap-3 border border-hb-line bg-hb-surface px-4 py-3 lg:hidden">
+                                    <span class="text-xs tracking-[0.16em] text-hb-subtle uppercase">{{ __('Total') }}</span>
+                                    <span class="font-display text-xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
+                                </div>
+                            @endif
                             <x-public.error name="delegates" />
 
                             @foreach ($delegates as $index => $delegate)
