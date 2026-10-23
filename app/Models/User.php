@@ -86,6 +86,14 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return in_array($this->role, [UserRole::Registrations, UserRole::Admin], true);
     }
 
+    /**
+     * Allocations, committee details, study guides and announcements.
+     */
+    public function canManageConference(): bool
+    {
+        return in_array($this->role, [UserRole::Registrations, UserRole::Admin], true);
+    }
+
     public function isAdmin(): bool
     {
         return $this->role === UserRole::Admin;

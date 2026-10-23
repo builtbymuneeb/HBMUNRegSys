@@ -91,6 +91,11 @@ new #[Title('Registrations')] class extends Component {
                 {{ auth()->user()->canReviewRegistrations() ? __('Check each payment screenshot, then verify or reject it.') : __('Read-only overview of all registrations.') }}
             </flux:text>
         </div>
+        @can('manage-conference')
+            <flux:button icon="arrow-down-tray" :href="route('staff.delegates.export', ['status' => $status])">
+                {{ $status ? __('Export :status delegates (CSV)', ['status' => strtolower(RegistrationStatus::tryFrom($status)?->label() ?? '')]) : __('Export all delegates (CSV)') }}
+            </flux:button>
+        @endcan
     </div>
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

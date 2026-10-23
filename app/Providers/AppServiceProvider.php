@@ -30,6 +30,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
 
         Gate::define('manage-staff', fn (User $user): bool => $user->isAdmin());
+        Gate::define('manage-conference', fn (User $user): bool => $user->canManageConference());
     }
 
     /**

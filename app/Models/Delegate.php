@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\PortfolioType;
 use Database\Factories\DelegateFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -23,6 +24,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $personality_preference
  * @property int|null $allocated_committee_id
  * @property string|null $allocated_portfolio
+ * @property int|null $allocated_by
+ * @property Carbon|null $allocated_at
+ * @property Carbon|null $allocation_published_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -38,11 +42,27 @@ use Illuminate\Support\Carbon;
     'personality_preference',
     'allocated_committee_id',
     'allocated_portfolio',
+    'allocated_by',
+    'allocated_at',
+    'allocation_published_at',
 ])]
 class Delegate extends Model
 {
     /** @use HasFactory<DelegateFactory> */
     use HasFactory;
+
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'allocated_at' => 'datetime',
+            'allocation_published_at' => 'datetime',
+        ];
+    }
 
     /**
      * @return BelongsTo<Registration, $this>
@@ -82,5 +102,28 @@ class Delegate extends Model
     public function allocatedCommittee(): BelongsTo
     {
         return $this->belongsTo(Committee::class, 'allocated_committee_id');
+    }
+
+    public function isAllocated(): bool
+    {
+        return $this->allocated_committee_id !== null && filled($this->allocated_portfolio);
+    }
+
+    /**
+     * Whether the delegate has been sent their allocation and can see it.
+     */
+    public function hasPublishedAllocation(): bool
+    {
+        return $this->isAllocated() && $this->allocation_published_at !== null;
+    }
+
+    /**
+     * The delegate's preference that applies to the given committee, if any.
+     */
+    public function preferenceFor(Committee $committee): ?string
+    {
+        return $committee->portfolio_type === PortfolioType::Character
+            ? $this->personality_preference
+            : $this->country_preference;
     }
 }
