@@ -23,6 +23,7 @@ use Illuminate\Support\Carbon;
  * @property int $second_committee_id
  * @property string|null $country_preference
  * @property string|null $personality_preference
+ * @property string|null $mun_experience
  * @property int|null $allocated_committee_id
  * @property string|null $allocated_portfolio
  * @property int|null $allocated_by
@@ -41,6 +42,7 @@ use Illuminate\Support\Carbon;
     'second_committee_id',
     'country_preference',
     'personality_preference',
+    'mun_experience',
     'allocated_committee_id',
     'allocated_portfolio',
     'allocated_by',

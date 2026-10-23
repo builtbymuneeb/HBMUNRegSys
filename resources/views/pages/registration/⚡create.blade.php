@@ -51,7 +51,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
      */
     public ?int $delegateCount = null;
 
-    /** @var list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: string, second_committee_id: string, country_preference: string, personality_preference: string}> */
+    /** @var list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: string, second_committee_id: string, country_preference: string, personality_preference: string, mun_experience: string}> */
     public array $delegates = [];
 
     public $paymentScreenshot;
@@ -203,7 +203,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
         foreach ($this->delegates as $index => $delegate) {
             foreach (array_keys($delegate) as $key) {
-                $this->delegates[$index][$key] = $this->cleanString($draft['delegates'][$index][$key] ?? '');
+                $this->delegates[$index][$key] = $this->cleanString($draft['delegates'][$index][$key] ?? '', $key === 'mun_experience' ? 1000 : 255);
             }
         }
 
@@ -255,6 +255,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             ...Arr::only($delegate, ['name', 'cnic', 'email', 'phone', 'first_committee_id', 'second_committee_id']),
             'country_preference' => $delegate['country_preference'] ?: null,
             'personality_preference' => $delegate['personality_preference'] ?: null,
+            'mun_experience' => trim($delegate['mun_experience'] ?? '') ?: null,
         ], $validated['delegates']);
 
         $registration = $submitRegistration->handle($this->registrationType, $validated['contact'], $delegates, $this->paymentScreenshot);
@@ -290,6 +291,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.second_committee_id' => ['required', Rule::exists('committees', 'id'), 'different:delegates.*.first_committee_id'],
             'delegates.*.country_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Country)],
             'delegates.*.personality_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Character)],
+            'delegates.*.mun_experience' => ['nullable', 'string', 'max:1000'],
             'paymentScreenshot' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'confirmed' => ['accepted'],
         ];
@@ -315,6 +317,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.second_committee_id' => '2nd committee',
             'delegates.*.country_preference' => 'country preference',
             'delegates.*.personality_preference' => 'personality preference',
+            'delegates.*.mun_experience' => 'previous MUN experience',
             'paymentScreenshot' => 'payment screenshot',
         ];
     }
@@ -375,9 +378,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         $this->js("document.getElementById('registration-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' })");
     }
 
-    private function cleanString(mixed $value): string
+    private function cleanString(mixed $value, int $limit = 255): string
     {
-        return is_scalar($value) ? Str::limit(trim((string) $value), 255, '') : '';
+        return is_scalar($value) ? Str::limit(trim((string) $value), $limit, '') : '';
     }
 
     /**
@@ -443,6 +446,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'second_committee_id' => '',
             'country_preference' => '',
             'personality_preference' => '',
+            'mun_experience' => '',
         ];
 
         $this->delegates = array_slice(
@@ -662,6 +666,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                                 @endif
                                             </x-public.field>
                                         @endif
+                                        <x-public.field :label="__('Previous MUN experience (optional)')" name="delegates.{{ $index }}.mun_experience" :hint="__('Conferences attended, committees and any awards. Leave blank if this is your first MUN.')" class="col-span-full">
+                                            <textarea wire:model="delegates.{{ $index }}.mun_experience" class="hb-input min-h-24 resize-y" rows="3" maxlength="1000" placeholder="{{ __('e.g. LUMUN ’25, UNSC, Honourable Mention') }}"></textarea>
+                                        </x-public.field>
                                     </div>
                                 </div>
                             @endforeach
@@ -712,6 +719,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                             {{ __('1st: :committee', ['committee' => $first?->code]) }}@if ($first && ($pref = $first->portfolio_type === PortfolioType::Character ? $delegate['personality_preference'] : $delegate['country_preference'])) ({{ $pref }})@endif
                                             · {{ __('2nd: :committee', ['committee' => $second?->code]) }}@if ($second && ($pref = $second->portfolio_type === PortfolioType::Character ? $delegate['personality_preference'] : $delegate['country_preference'])) ({{ $pref }})@endif
                                         </div>
+                                        <div class="break-words whitespace-pre-line text-hb-muted">{{ __('Experience: :experience', ['experience' => trim($delegate['mun_experience'] ?? '') ?: __('First MUN')]) }}</div>
                                     </div>
                                 @endforeach
                             </section>

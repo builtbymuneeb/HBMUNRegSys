@@ -365,3 +365,18 @@ test('the amount due only appears once the delegate count can be chosen', functi
         ->set('delegateCount', 5)
         ->assertSeeText('PKR 6,000');
 });
+
+test('delegates can add their previous MUN experience, or leave it blank', function () {
+    filledDelegationForm([['mun_experience' => '  LUMUN ’25, UNSC, Honourable Mention ']])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(Delegate::orderBy('id')->pluck('mun_experience')->all())
+        ->toBe(['LUMUN ’25, UNSC, Honourable Mention', null, null]);
+});
+
+test('previous MUN experience is limited to 1000 characters', function () {
+    filledDelegationForm([['mun_experience' => str_repeat('a', 1001)]])
+        ->call('submit')
+        ->assertHasErrors('delegates.0.mun_experience');
+});

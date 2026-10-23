@@ -33,7 +33,7 @@ class DelegateExportController extends Controller
                 'Reference', 'Registration status', 'Type', 'Institution / delegation', 'City',
                 'Contact name', 'Contact phone', 'Contact email',
                 'Delegate name', 'CNIC / B-Form', 'Email', 'Phone',
-                '1st committee', '2nd committee', 'Country preference', 'Personality preference',
+                '1st committee', '2nd committee', 'Country preference', 'Personality preference', 'Previous MUN experience',
                 'Allocated committee', 'Allocated portfolio', 'Allocation sent',
             ]);
 
@@ -63,6 +63,7 @@ class DelegateExportController extends Controller
                             $delegate->secondCommittee->code,
                             $delegate->country_preference,
                             $delegate->personality_preference,
+                            $delegate->mun_experience,
                             $delegate->allocatedCommittee?->code,
                             $delegate->allocated_portfolio,
                             $delegate->allocation_published_at?->timezone('Asia/Karachi')->format('Y-m-d H:i'),
