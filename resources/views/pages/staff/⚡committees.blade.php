@@ -94,11 +94,11 @@ new #[Title('Committees')] class extends Component {
                 </div>
 
                 <div>
-                    <flux:text class="text-xs font-medium uppercase">{{ __('Agenda') }}</flux:text>
+                    <div class="hb-kicker">{{ __('Agenda') }}</div>
                     <flux:text class="whitespace-pre-line">{{ $committee->agenda ?: __('Not set') }}</flux:text>
                 </div>
                 <div>
-                    <flux:text class="text-xs font-medium uppercase">{{ __('Meeting link') }}</flux:text>
+                    <div class="hb-kicker">{{ __('Meeting link') }}</div>
                     @if ($committee->meeting_url)
                         <flux:link :href="$committee->meeting_url" target="_blank" class="break-all">{{ $committee->meeting_url }}</flux:link>
                     @else
@@ -106,7 +106,7 @@ new #[Title('Committees')] class extends Component {
                     @endif
                 </div>
                 <div>
-                    <flux:text class="text-xs font-medium uppercase">{{ __('Schedule') }}</flux:text>
+                    <div class="hb-kicker">{{ __('Schedule') }}</div>
                     <flux:text class="whitespace-pre-line">{{ $committee->meeting_notes ?: __('Not set') }}</flux:text>
                 </div>
             </flux:card>

@@ -18,7 +18,7 @@
             <flux:card class="flex flex-col gap-4">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <flux:text class="text-xs font-medium uppercase">{{ __('Your allocation') }}</flux:text>
+                        <div class="hb-kicker">{{ __('Your allocation') }}</div>
                         @if ($committee)
                             <flux:heading size="xl" class="mt-1">{{ $delegate->allocated_portfolio }}</flux:heading>
                             <flux:text class="mt-1">{{ $committee->label() }}</flux:text>
@@ -39,7 +39,7 @@
 
                 @if ($committee?->agenda)
                     <div>
-                        <flux:text class="text-xs font-medium uppercase">{{ __('Agenda') }}</flux:text>
+                        <div class="hb-kicker">{{ __('Agenda') }}</div>
                         <flux:text class="whitespace-pre-line">{{ $committee->agenda }}</flux:text>
                     </div>
                 @endif
@@ -47,7 +47,7 @@
 
             {{-- Session --}}
             <flux:card class="flex flex-col gap-3">
-                <flux:text class="text-xs font-medium uppercase">{{ __('Your session') }}</flux:text>
+                <div class="hb-kicker">{{ __('Your session') }}</div>
                 <div x-data="{ s: Math.max(0, Math.floor(({{ $startsAt->getTimestampMs() }} - Date.now()) / 1000)) }" x-init="setInterval(() => s = Math.max(0, s - 1), 1000)">
                     <template x-if="s > 0">
                         <flux:heading size="lg">
@@ -77,7 +77,7 @@
 
             {{-- Study guides --}}
             <flux:card class="flex flex-col gap-3">
-                <flux:text class="text-xs font-medium uppercase">{{ __('Study guides') }}</flux:text>
+                <div class="hb-kicker">{{ __('Study guides') }}</div>
                 @forelse ($guides as $guide)
                     <div class="flex items-center justify-between gap-4 border-t border-zinc-200 pt-3 first-of-type:border-0 first-of-type:pt-0 dark:border-zinc-700">
                         <div class="min-w-0">
@@ -99,7 +99,7 @@
             {{-- Delegate card --}}
             @if ($committee)
                 <flux:card class="flex flex-col gap-4">
-                    <flux:text class="text-xs font-medium uppercase">{{ __('Your delegate card') }}</flux:text>
+                    <div class="hb-kicker">{{ __('Your delegate card') }}</div>
                     <div class="overflow-x-auto">
                         <div id="delegate-card" class="relative w-full max-w-[360px] overflow-hidden rounded-md border border-[#5b2a8c] bg-[#120a1c] p-6 text-white" style="background-image: radial-gradient(circle at 85% 0%, #3b0a6b 0%, transparent 60%);">
                             <div class="flex items-center gap-3">
@@ -142,7 +142,7 @@
 
             {{-- Announcements --}}
             <flux:card class="flex flex-col gap-3">
-                <flux:text class="text-xs font-medium uppercase">{{ __('Announcements') }}</flux:text>
+                <div class="hb-kicker">{{ __('Announcements') }}</div>
                 @forelse ($announcements as $announcement)
                     <div class="border-t border-zinc-200 pt-3 first-of-type:border-0 first-of-type:pt-0 dark:border-zinc-700">
                         <div class="font-medium text-zinc-800 dark:text-white">{{ $announcement->title }}</div>
@@ -162,7 +162,7 @@
             {{-- Delegation --}}
             <flux:card class="flex flex-col gap-3">
                 <div>
-                    <flux:text class="text-xs font-medium uppercase">{{ __('Your delegation') }}</flux:text>
+                    <div class="hb-kicker">{{ __('Your delegation') }}</div>
                     <flux:text class="mt-1">{{ $registration->displayName() }} · {{ $registration->reference }}</flux:text>
                 </div>
                 @foreach ($registration->delegates as $member)
