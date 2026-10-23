@@ -297,3 +297,14 @@ test('starting over clears the form', function () {
         ->assertSet('restoredDraft', false)
         ->assertDispatched('registration-draft-cleared');
 });
+
+test('the amount due only appears once the delegate count can be chosen', function () {
+    Livewire::test('pages::registration.create')
+        ->assertDontSeeText('Amount due')
+        ->assertSeeText('You’ll choose how many delegates')
+        ->set('contact', institutionContact())
+        ->call('next')
+        ->assertSeeText('Amount due')
+        ->set('delegateCount', 5)
+        ->assertSeeText('PKR 6,000');
+});

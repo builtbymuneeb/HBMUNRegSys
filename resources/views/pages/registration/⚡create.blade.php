@@ -425,14 +425,27 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                     {{ __('Two days of diplomacy, debate, negotiation and collaboration. :dates, online.', ['dates' => config('conference.dates_label')]) }}
                 </p>
                 <div class="hb-art hb-art-library hidden w-full max-w-[300px] border border-hb-line-strong lg:block" aria-hidden="true"></div>
-                <div class="flex flex-col gap-2.5 border border-hb-line bg-hb-surface p-5">
-                    <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
-                    <div class="font-display text-4xl font-bold" data-test="amount-due">PKR {{ number_format($this->amountDue) }}</div>
-                    <div class="text-sm leading-relaxed text-hb-muted">
-                        {{ __(':count delegates × PKR :fee + PKR :delegation delegation fee', ['count' => count($delegates), 'fee' => number_format(config('conference.fees.per_delegate')), 'delegation' => number_format(config('conference.fees.per_delegation'))]) }}
-                    </div>
+                @php($feePerDelegate = number_format(config('conference.fees.per_delegate')))
+                @php($feePerDelegation = number_format(config('conference.fees.per_delegation')))
+                {{-- Phones get the total inline on the delegates step instead, so the form comes first. --}}
+                <div class="hidden flex-col gap-2.5 border border-hb-line bg-hb-surface p-5 lg:flex">
+                    @if ($step === 1)
+                        <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Fees') }}</div>
+                        <div class="text-sm leading-relaxed text-hb-soft">
+                            {{ __('PKR :fee per delegate, plus PKR :delegation per delegation.', ['fee' => $feePerDelegate, 'delegation' => $feePerDelegation]) }}
+                        </div>
+                        <div class="text-sm leading-relaxed text-hb-muted">
+                            {{ __('You’ll choose how many delegates (:min–:max) in the next step, and see your total there.', ['min' => $this->registrationType->minimumDelegates(), 'max' => $this->registrationType->maximumDelegates()]) }}
+                        </div>
+                    @else
+                        <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
+                        <div class="font-display text-4xl font-bold" data-test="amount-due">PKR {{ number_format($this->amountDue) }}</div>
+                        <div class="text-sm leading-relaxed text-hb-muted">
+                            {{ __(':count delegates × PKR :fee + PKR :delegation delegation fee', ['count' => count($delegates), 'fee' => $feePerDelegate, 'delegation' => $feePerDelegation]) }}
+                        </div>
+                    @endif
                     <div class="border-t border-hb-line pt-2 text-xs leading-relaxed text-hb-subtle">
-                        {{ __('Questions about the fee or an adjustment? Contact the registration team below.') }}
+                        {{ __('Questions about the fee or an adjustment? Contact the registration team on the payment step.') }}
                     </div>
                 </div>
             </aside>
@@ -532,6 +545,10 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         </label>
                                     @endforeach
                                 </div>
+                            </div>
+                            <div class="flex items-baseline justify-between gap-3 border border-hb-line bg-hb-surface px-4 py-3 lg:hidden">
+                                <span class="text-xs tracking-[0.16em] text-hb-subtle uppercase">{{ __('Total') }}</span>
+                                <span class="font-display text-xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
                             </div>
                             <x-public.error name="delegates" />
 
