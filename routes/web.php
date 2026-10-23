@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\DelegateExportController;
 use App\Http\Controllers\PaymentScreenshotController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\StudyGuideDownloadController;
 use App\Http\Controllers\WhatsAppController;
 use App\Models\Committee;
@@ -23,6 +24,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
 
     Route::get('study-guides/{guide}', StudyGuideDownloadController::class)->name('study-guides.download');
+
+    Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
+    Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
 });
 
 Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(function () {

@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Minishlink\WebPush\WebPush;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -24,6 +25,12 @@ class AppServiceProvider extends ServiceProvider
     {
         // On Windows, `php artisan serve` drops TEMP/TMP, so PHP cannot store uploaded files.
         ServeCommand::$passthroughVariables = [...ServeCommand::$passthroughVariables, 'TEMP', 'TMP'];
+
+        $this->app->bind(WebPush::class, fn (): WebPush => new WebPush(['VAPID' => [
+            'subject' => config('services.webpush.subject'),
+            'publicKey' => config('services.webpush.public_key'),
+            'privateKey' => config('services.webpush.private_key'),
+        ]]));
     }
 
     /**

@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Push\NotifyDelegates;
 use App\Models\Announcement;
 use App\Models\AuditLog;
 use App\Models\Committee;
@@ -54,6 +55,7 @@ new #[Title('Announcements')] class extends Component {
         ]);
 
         AuditLog::record('announcement_posted', $announcement, Auth::user(), ['title' => $announcement->title]);
+        app(NotifyDelegates::class)->aboutAnnouncement($announcement);
 
         $this->reset('title', 'body', 'committeeId');
         Flux::toast(variant: 'success', text: __('Announcement posted.'));

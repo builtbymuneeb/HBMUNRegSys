@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Push\NotifyDelegates;
 use App\Enums\PortfolioType;
 use App\Models\AuditLog;
 use App\Models\Committee;
@@ -237,6 +238,11 @@ new #[Title('Committee')] class extends Component {
             $session->update($attributes);
         } else {
             $session = $this->committee->sessions()->create($attributes);
+        }
+
+        // Delegates only hear about changes the dashboard shows, not a renamed session.
+        if ($session->wasRecentlyCreated || $session->wasChanged(['starts_at', 'ends_at', 'meeting_url'])) {
+            app(NotifyDelegates::class)->aboutSession($session, $session->wasRecentlyCreated);
         }
 
         AuditLog::record($this->editingSessionId ? 'committee_session_updated' : 'committee_session_added', $this->committee, Auth::user(), [

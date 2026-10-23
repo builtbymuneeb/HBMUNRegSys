@@ -165,7 +165,7 @@ new class extends Component
     }
 }; ?>
 
-<div wire:poll.30s="refresh" x-data x-on:dashboard-updates.window="window.hbNotifications.show($event.detail.updates)" class="flex flex-col gap-6">
+<div wire:poll.30s="refresh" x-data x-init="window.hbNotifications.sync()" x-on:dashboard-updates.window="window.hbNotifications.show($event.detail.updates)" class="flex flex-col gap-6">
     @include('partials.notification-prompt')
     @include('dashboard.delegate', ['user' => auth()->user(), 'fresh' => $fresh])
 </div>

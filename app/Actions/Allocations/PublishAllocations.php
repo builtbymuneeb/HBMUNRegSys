@@ -2,6 +2,7 @@
 
 namespace App\Actions\Allocations;
 
+use App\Actions\Push\NotifyDelegates;
 use App\Models\AuditLog;
 use App\Models\Delegate;
 use App\Models\User;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Notification;
 
 class PublishAllocations
 {
+    public function __construct(protected NotifyDelegates $notifyDelegates) {}
+
     /**
      * Show allocations on the delegates' dashboards and email each delegate theirs.
      *
@@ -38,6 +41,7 @@ class PublishAllocations
             $delegate->user
                 ? $delegate->user->notify($notification)
                 : Notification::route('mail', $delegate->email)->notify($notification);
+            $this->notifyDelegates->aboutAllocation($delegate);
 
             $sent++;
         }

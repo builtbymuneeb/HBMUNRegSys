@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Push\NotifyDelegates;
 use App\Models\AuditLog;
 use App\Models\Committee;
 use App\Models\StudyGuide;
@@ -68,6 +69,7 @@ new #[Title('Study guides')] class extends Component {
         ]);
 
         AuditLog::record('study_guide_uploaded', $guide, Auth::user(), ['title' => $guide->title]);
+        app(NotifyDelegates::class)->aboutStudyGuide($guide);
 
         $this->reset('title', 'description', 'committeeId', 'file');
         Flux::toast(variant: 'success', text: __('Study guide uploaded.'));
