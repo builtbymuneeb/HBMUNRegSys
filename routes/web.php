@@ -3,6 +3,7 @@
 use App\Http\Controllers\DelegateExportController;
 use App\Http\Controllers\PaymentScreenshotController;
 use App\Http\Controllers\StudyGuideDownloadController;
+use App\Http\Controllers\WhatsAppController;
 use App\Models\Committee;
 use App\Models\Registration;
 use Illuminate\Support\Facades\Route;
@@ -35,6 +36,10 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
 
     Route::get('registrations/{registration}/payment-screenshot', PaymentScreenshotController::class)
         ->name('registrations.payment-screenshot');
+
+    Route::get('whatsapp/contact/{registration}', [WhatsAppController::class, 'contact'])->name('whatsapp.contact');
+    Route::get('whatsapp/account/{delegate}', [WhatsAppController::class, 'account'])->name('whatsapp.account');
+    Route::get('whatsapp/allocation/{delegate}', [WhatsAppController::class, 'allocation'])->name('whatsapp.allocation');
 
     Route::get('delegates/export', DelegateExportController::class)
         ->can('manage-conference')

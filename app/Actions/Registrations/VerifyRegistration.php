@@ -64,6 +64,7 @@ class VerifyRegistration
             $user->forceFill([
                 'name' => $delegate->name,
                 'password' => Str::password(32),
+                'password_set_at' => null,
                 'email_verified_at' => now(),
             ])->save();
         }

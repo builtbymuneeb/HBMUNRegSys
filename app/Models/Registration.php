@@ -123,4 +123,25 @@ class Registration extends Model
     {
         return $this->organisation_name ?: $this->contact_name;
     }
+
+    /**
+     * @return HasMany<WhatsAppLog, $this>
+     */
+    public function whatsAppLogs(): HasMany
+    {
+        return $this->hasMany(WhatsAppLog::class)->latest('id');
+    }
+
+    /**
+     * The WhatsApp message the contact person was sent about the current status, if any.
+     * A status change (verified, rejected, resubmitted) needs a new message.
+     */
+    public function contactWhatsApp(): ?WhatsAppLog
+    {
+        $since = $this->reviewed_at ?? $this->updated_at;
+
+        return $this->whatsAppLogs
+            ->where('kind', WhatsAppLog::CONTACT.'_'.$this->status->value)
+            ->first(fn (WhatsAppLog $log) => ! $since || $log->created_at->gte($since->copy()->startOfSecond()));
+    }
 }

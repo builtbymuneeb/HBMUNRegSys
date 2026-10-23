@@ -6,6 +6,7 @@ use App\Enums\RegistrationStatus;
 use App\Models\Committee;
 use App\Models\Delegate;
 use App\Models\MailLog;
+use App\Models\WhatsAppLog;
 use App\Notifications\AllocationPublished;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -85,10 +86,15 @@ new #[Title('Allocations')] class extends Component {
         $committeeId = (int) $this->committee ?: null;
 
         return $this->allocatable()
-            ->with(['registration', 'user', 'firstCommittee', 'secondCommittee', 'allocatedCommittee'])
+            ->with(['registration', 'user', 'firstCommittee', 'secondCommittee', 'allocatedCommittee', 'whatsAppLogs.sender'])
             ->when($this->show === 'unallocated', fn (Builder $query) => $query->whereNull('allocated_committee_id'))
             ->when($this->show === 'unsent', fn (Builder $query) => $query->whereNotNull('allocated_committee_id')->whereNull('allocation_published_at'))
             ->when($this->show === 'sent', fn (Builder $query) => $query->whereNotNull('allocation_published_at'))
+            ->when($this->show === 'no-whatsapp', fn (Builder $query) => $query->whereNotNull('allocation_published_at')
+                ->whereDoesntHave('whatsAppLogs', fn (Builder $log) => $log
+                    ->where('kind', WhatsAppLog::ALLOCATION)
+                    ->whereColumn('whatsapp_logs.created_at', '>=', 'delegates.allocation_published_at')))
+            ->when($this->show === 'no-password', fn (Builder $query) => $query->whereHas('user', fn (Builder $user) => $user->whereNull('password_set_at')))
             ->when($committeeId, fn (Builder $query) => $query->where(fn (Builder $query) => $query
                 ->where('allocated_committee_id', $committeeId)
                 ->orWhere(fn (Builder $query) => $query->whereNull('allocated_committee_id')->where('first_committee_id', $committeeId))))
@@ -319,6 +325,8 @@ new #[Title('Allocations')] class extends Component {
             <flux:select.option value="unallocated">{{ __('Not allocated') }}</flux:select.option>
             <flux:select.option value="unsent">{{ __('Allocated, not sent') }}</flux:select.option>
             <flux:select.option value="sent">{{ __('Sent') }}</flux:select.option>
+            <flux:select.option value="no-whatsapp">{{ __('Sent, not on WhatsApp yet') }}</flux:select.option>
+            <flux:select.option value="no-password">{{ __('Password not set yet') }}</flux:select.option>
             <flux:select.option value="all">{{ __('All verified delegates') }}</flux:select.option>
         </flux:select>
         <flux:select wire:model.live="committee" :label="__('Committee')">
@@ -345,6 +353,9 @@ new #[Title('Allocations')] class extends Component {
                     <flux:table.cell>
                         <div class="font-medium text-zinc-800 dark:text-white">{{ $delegate->name }}</div>
                         <div class="text-xs">{{ $delegate->registration->reference }} · {{ $delegate->registration->displayName() }}</div>
+                        @if ($delegate->user && ! $delegate->user->password_set_at)
+                            <div class="mt-0.5 text-xs text-amber-600 dark:text-amber-300" title="{{ __('They haven’t used the set-password email yet') }}">{{ __('Password not set') }}</div>
+                        @endif
                     </flux:table.cell>
                     <flux:table.cell>
                         <div class="font-medium">{{ $delegate->firstCommittee->code }}</div>
@@ -384,7 +395,7 @@ new #[Title('Allocations')] class extends Component {
                             @if ($delegate->isAllocated() && ! $delegate->hasPublishedAllocation())
                                 <flux:button size="sm" icon="paper-airplane" wire:click="send({{ $delegate->id }})">{{ __('Send') }}</flux:button>
                             @elseif ($delegate->hasPublishedAllocation())
-                                <x-whatsapp-button :label="__('WhatsApp')" :phone="$delegate->phone" :message="(new AllocationPublished($delegate))->toWhatsApp()" />
+                                <x-whatsapp-button :label="__('WhatsApp')" :href="route('staff.whatsapp.allocation', $delegate)" :phone="$delegate->phone" :sent="$delegate->allocationWhatsApp()" class="justify-end" />
                             @endif
                             <flux:button size="sm" wire:click="edit({{ $delegate->id }})">{{ $delegate->isAllocated() ? __('Change') : __('Allocate') }}</flux:button>
                         </div>

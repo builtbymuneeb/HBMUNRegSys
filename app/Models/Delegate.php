@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -125,5 +126,37 @@ class Delegate extends Model
         return $committee->portfolio_type === PortfolioType::Character
             ? $this->personality_preference
             : $this->country_preference;
+    }
+
+    /**
+     * @return HasMany<WhatsAppLog, $this>
+     */
+    public function whatsAppLogs(): HasMany
+    {
+        return $this->hasMany(WhatsAppLog::class)->latest('id');
+    }
+
+    /**
+     * The WhatsApp message telling them their account is ready, if one was sent.
+     */
+    public function accountWhatsApp(): ?WhatsAppLog
+    {
+        return $this->whatsAppLogs->firstWhere('kind', WhatsAppLog::ACCOUNT);
+    }
+
+    /**
+     * The WhatsApp message with their current allocation, if one was sent since it last changed.
+     */
+    public function allocationWhatsApp(): ?WhatsAppLog
+    {
+        if (! $this->allocation_published_at) {
+            return null;
+        }
+
+        $since = $this->allocation_published_at->copy()->startOfSecond();
+
+        return $this->whatsAppLogs
+            ->where('kind', WhatsAppLog::ALLOCATION)
+            ->first(fn (WhatsAppLog $log) => $log->created_at->gte($since));
     }
 }

@@ -25,6 +25,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property UserRole|null $requested_role
  * @property Carbon|null $email_verified_at
  * @property string $password
+ * @property Carbon|null $password_set_at
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
@@ -49,6 +50,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'password_set_at' => 'datetime',
             'role' => UserRole::class,
             'requested_role' => UserRole::class,
         ];
@@ -62,6 +64,20 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     protected $attributes = [
         'role' => 'delegate',
     ];
+
+    /**
+     * Note when someone chooses a password (from the set-password email, "Forgot password"
+     * or settings), so staff can see who has opened their email. Code that sets
+     * password_set_at itself, like the random placeholder for new delegates, wins.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (User $user): void {
+            if ($user->isDirty('password') && ! $user->isDirty('password_set_at')) {
+                $user->password_set_at = now();
+            }
+        });
+    }
 
     /**
      * @return HasOne<Delegate, $this>
