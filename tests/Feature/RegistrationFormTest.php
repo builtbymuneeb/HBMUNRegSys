@@ -66,6 +66,16 @@ test('the payment step lists the registration heads by name and number', functio
         ->assertSeeHtml('href="tel:03338460791"');
 });
 
+test('the account number has a button that copies it without spaces', function () {
+    config(['conference.payment.account_number' => 'PK22 HABB 0010 8879 0065 8301']);
+
+    Livewire::test('pages::registration.create')
+        ->set('step', 4)
+        ->assertSeeText('PK22 HABB 0010 8879 0065 8301')
+        ->assertSeeHtml('title="Copy account number"')
+        ->assertSeeHtml('PK22HABB0010887900658301');
+});
+
 test('an institution delegation registers with all its delegates and payment screenshot', function () {
     $component = Livewire::test('pages::registration.create')
         ->set('type', RegistrationType::InstitutionDelegation->value)

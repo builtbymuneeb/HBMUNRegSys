@@ -733,7 +733,36 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 ] as $label => $value)
                                     <div>
                                         <dt class="text-xs tracking-[0.16em] text-[#dccff0] uppercase">{{ $label }}</dt>
-                                        <dd class="mt-1 font-semibold break-words">{{ $value ?: __('To be announced') }}</dd>
+                                        @if ($value && $loop->last)
+                                            {{-- The account number is the one people retype into their banking app, so it gets a copy button. --}}
+                                            <dd class="mt-1 flex items-start gap-2" x-data="{
+                                                copied: false,
+                                                async copy() {
+                                                    const text = @js(preg_replace('/\s+/', '', $value));
+                                                    try {
+                                                        await navigator.clipboard.writeText(text);
+                                                    } catch {
+                                                        const field = Object.assign(document.createElement('textarea'), { value: text });
+                                                        document.body.append(field);
+                                                        field.select();
+                                                        document.execCommand('copy');
+                                                        field.remove();
+                                                    }
+                                                    this.copied = true;
+                                                    clearTimeout(this.timer);
+                                                    this.timer = setTimeout(() => this.copied = false, 2000);
+                                                },
+                                            }">
+                                                <span class="min-w-0 font-semibold break-all">{{ $value }}</span>
+                                                <button type="button" x-on:click="copy()" class="-mt-0.5 shrink-0 rounded-xs p-1 text-[#dccff0] transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-[#dccff0]" x-bind:aria-label="copied ? @js(__('Copied')) : @js(__('Copy account number'))" title="{{ __('Copy account number') }}">
+                                                    <svg x-show="! copied" class="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="1.5" /><path d="M5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5V5" /></svg>
+                                                    <svg x-show="copied" x-cloak class="size-5 text-green-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                                                </button>
+                                                <span class="sr-only" role="status" x-text="copied ? @js(__('Account number copied')) : ''"></span>
+                                            </dd>
+                                        @else
+                                            <dd class="mt-1 font-semibold break-words">{{ $value ?: __('To be announced') }}</dd>
+                                        @endif
                                     </div>
                                 @endforeach
                                 <div>
