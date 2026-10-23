@@ -1,4 +1,5 @@
 @props([
+    'options' => null,
     'taken' => [],
     'placeholder' => __('Search for a country…'),
     'variant' => 'public',
@@ -8,14 +9,14 @@
     $staff = $variant === 'staff';
 @endphp
 
-{{-- Searchable, strict country picker: whatever is typed, the bound value is only ever a listed country or empty. --}}
+{{-- Searchable, strict portfolio picker: whatever is typed, the bound value is only ever a listed option or empty. Defaults to every country. --}}
 <div
     x-data="{
         value: '',
         query: '',
         open: false,
         active: 0,
-        options: @js(\App\Support\Countries::options()),
+        options: @js(\App\Support\Countries::options($options)),
         taken: @js(array_values($taken)),
         normalise(text) {
             return (text || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
@@ -154,7 +155,7 @@
             </li>
         </template>
         <li x-show="! filtered.length" @class(['px-3.5 py-2', 'text-hb-subtle' => ! $staff, 'text-zinc-500 dark:text-zinc-400' => $staff])>
-            {{ __('No country matches that.') }}
+            {{ __('Nothing on the list matches that.') }}
         </li>
     </ul>
 </div>

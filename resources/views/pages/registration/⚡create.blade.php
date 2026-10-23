@@ -6,7 +6,6 @@ use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
 use App\Models\Committee;
 use App\Models\Delegate;
-use App\Support\Countries;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -121,6 +120,35 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         return $this->committees
             ->whereIn('id', $chosen)
             ->contains('portfolio_type', $portfolioType);
+    }
+
+    /**
+     * What the delegate may pick as their preference of this type: the public lists of the
+     * committees they chose, combined. Null means they type it freely, because one of those
+     * committees has no public list (the Special Committee keeps its cast secret).
+     *
+     * @return list<string>|null
+     */
+    public function preferenceOptions(int $index, PortfolioType $portfolioType): ?array
+    {
+        $chosen = array_filter([
+            $this->delegates[$index]['first_committee_id'] ?? null,
+            $this->delegates[$index]['second_committee_id'] ?? null,
+        ]);
+
+        $options = [];
+
+        foreach ($this->committees->whereIn('id', $chosen)->where('portfolio_type', $portfolioType) as $committee) {
+            $list = $committee->publicPortfolioOptions();
+
+            if ($list === null) {
+                return null;
+            }
+
+            array_push($options, ...$list);
+        }
+
+        return array_values(array_unique($options));
     }
 
     /**
@@ -260,8 +288,8 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.phone' => $phone,
             'delegates.*.first_committee_id' => ['required', Rule::exists('committees', 'id')],
             'delegates.*.second_committee_id' => ['required', Rule::exists('committees', 'id'), 'different:delegates.*.first_committee_id'],
-            'delegates.*.country_preference' => ['nullable', 'string', Rule::in(Countries::names())],
-            'delegates.*.personality_preference' => ['nullable', 'string', 'max:255'],
+            'delegates.*.country_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Country)],
+            'delegates.*.personality_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Character)],
             'paymentScreenshot' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'confirmed' => ['accepted'],
         ];
@@ -285,6 +313,8 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.phone' => 'phone number',
             'delegates.*.first_committee_id' => '1st committee',
             'delegates.*.second_committee_id' => '2nd committee',
+            'delegates.*.country_preference' => 'country preference',
+            'delegates.*.personality_preference' => 'personality preference',
             'paymentScreenshot' => 'payment screenshot',
         ];
     }
@@ -353,6 +383,20 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     /**
      * Reject an email that already belongs to a pending or verified registration.
      */
+    /**
+     * A preference must be on the list the delegate was shown, when they were shown one.
+     */
+    private function onPreferenceList(PortfolioType $portfolioType): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($portfolioType): void {
+            $options = $this->preferenceOptions((int) explode('.', $attribute)[1], $portfolioType);
+
+            if ($options !== null && ! in_array($value, $options, true)) {
+                $fail(__('Choose your :attribute from the list.'));
+            }
+        };
+    }
+
     private function notAlreadyRegistered(string $attribute, mixed $value, Closure $fail): void
     {
         $alreadyRegistered = Delegate::query()
@@ -606,12 +650,16 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         </x-public.field>
                                         @if ($this->delegateNeedsPortfolio($index, PortfolioType::Country))
                                             <x-public.field :label="__('Country preference')" name="delegates.{{ $index }}.country_preference" :hint="__('For UNW / UNSC')">
-                                                <x-country-select wire:model="delegates.{{ $index }}.country_preference" wire:key="country-{{ $index }}" :placeholder="__('Search, e.g. France')" />
+                                                <x-portfolio-select wire:model="delegates.{{ $index }}.country_preference" wire:key="country-{{ $index }}-{{ $delegate['first_committee_id'] }}-{{ $delegate['second_committee_id'] }}" :options="$this->preferenceOptions($index, PortfolioType::Country)" :placeholder="__('Search, e.g. France')" />
                                             </x-public.field>
                                         @endif
                                         @if ($this->delegateNeedsPortfolio($index, PortfolioType::Character))
                                             <x-public.field :label="__('Personality preference')" name="delegates.{{ $index }}.personality_preference" :hint="__('For PNA / Special Committee')">
-                                                <input type="text" wire:model="delegates.{{ $index }}.personality_preference" class="hb-input" placeholder="{{ __('e.g. Maryam Nawaz') }}">
+                                                @if (($personalities = $this->preferenceOptions($index, PortfolioType::Character)) !== null)
+                                                    <x-portfolio-select wire:model="delegates.{{ $index }}.personality_preference" wire:key="personality-{{ $index }}-{{ $delegate['first_committee_id'] }}-{{ $delegate['second_committee_id'] }}" :options="$personalities" :placeholder="__('Search, e.g. Maryam Nawaz')" />
+                                                @else
+                                                    <input type="text" wire:model="delegates.{{ $index }}.personality_preference" class="hb-input" placeholder="{{ __('e.g. Maryam Nawaz') }}">
+                                                @endif
                                             </x-public.field>
                                         @endif
                                     </div>

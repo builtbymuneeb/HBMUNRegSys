@@ -1,14 +1,18 @@
 <?php
 
+use App\Enums\PortfolioType;
 use App\Models\AuditLog;
 use App\Models\Committee;
 use App\Models\CommitteeSession;
 use App\Models\Delegate;
+use App\Support\Countries;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -17,6 +21,10 @@ new #[Title('Committee')] class extends Component {
     public Committee $committee;
 
     public string $agenda = '';
+
+    public string $portfolioList = '';
+
+    public bool $portfoliosPublic = true;
 
     public ?int $editingSessionId = null;
 
@@ -87,6 +95,71 @@ new #[Title('Committee')] class extends Component {
 
         Flux::modal('committee-agenda')->close();
         Flux::toast(variant: 'success', text: __('Agenda saved.'));
+    }
+
+    /**
+     * Open the portfolio list editor, one name per line.
+     */
+    public function editPortfolios(): void
+    {
+        Gate::authorize('manage-conference');
+
+        $this->resetValidation();
+        $this->portfolioList = implode("\n", $this->committee->portfolios ?? []);
+        $this->portfoliosPublic = $this->committee->portfolios_public;
+
+        Flux::modal('committee-portfolios')->show();
+    }
+
+    /**
+     * Save the portfolio list. Countries are matched to their listed names ("usa" becomes
+     * United States) and repeated names are dropped.
+     */
+    public function savePortfolios(): void
+    {
+        Gate::authorize('manage-conference');
+
+        $this->validate([
+            'portfolioList' => ['nullable', 'string', 'max:20000'],
+            'portfoliosPublic' => ['boolean'],
+        ]);
+
+        $names = collect(preg_split('/\R/', $this->portfolioList))
+            ->map(fn (string $line) => Str::squish($line))
+            ->filter();
+
+        if ($this->committee->portfolio_type === PortfolioType::Country) {
+            $unknown = $names->reject(fn (string $name) => Countries::canonical($name));
+
+            if ($unknown->isNotEmpty()) {
+                throw ValidationException::withMessages([
+                    'portfolioList' => __('Not recognised as countries: :names', ['names' => $unknown->implode(', ')]),
+                ]);
+            }
+
+            $names = $names->map(fn (string $name) => Countries::canonical($name));
+        }
+
+        if ($tooLong = $names->first(fn (string $name) => mb_strlen($name) > 120)) {
+            throw ValidationException::withMessages([
+                'portfolioList' => __(':name is too long (120 characters at most).', ['name' => Str::limit($tooLong, 40)]),
+            ]);
+        }
+
+        $names = $names->unique(fn (string $name) => mb_strtolower($name))->values()->all();
+
+        $this->committee->update([
+            'portfolios' => $names,
+            'portfolios_public' => $this->portfoliosPublic,
+        ]);
+
+        AuditLog::record('committee_portfolios_updated', $this->committee, Auth::user(), [
+            'count' => count($names),
+            'public' => $this->portfoliosPublic,
+        ]);
+
+        Flux::modal('committee-portfolios')->close();
+        Flux::toast(variant: 'success', text: trans_choice(':count portfolio saved.|:count portfolios saved.', count($names), ['count' => count($names)]));
     }
 
     /**
@@ -221,6 +294,40 @@ new #[Title('Committee')] class extends Component {
         @endif
     </flux:card>
 
+    {{-- Portfolios --}}
+    @php($portfolios = $committee->portfolios ?? [])
+    @php($taken = $this->delegates->pluck('allocated_portfolio')->map(fn ($name) => mb_strtolower((string) $name))->all())
+    <flux:card class="flex flex-col gap-3">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex flex-col gap-1">
+                <div class="hb-kicker">{{ $committee->portfolio_type === PortfolioType::Character ? __('Characters') : __('Countries') }}</div>
+                <flux:text class="text-sm">
+                    @if ($portfolios)
+                        {{ trans_choice(':count on the list|:count on the list', count($portfolios), ['count' => count($portfolios)]) }}
+                        · {{ trans_choice(':count taken|:count taken', count($taken), ['count' => count($taken)]) }}
+                        · {{ $committee->portfolios_public ? __('delegates pick from it when registering') : __('hidden from the registration form') }}
+                    @elseif ($committee->portfolio_type === PortfolioType::Country)
+                        {{ __('No list yet, so any country can be chosen.') }}
+                    @else
+                        {{ __('No list yet, so names are typed freely.') }}
+                    @endif
+                </flux:text>
+            </div>
+            <flux:button size="sm" :variant="$portfolios ? 'ghost' : 'primary'" icon="pencil-square" wire:click="editPortfolios">{{ $portfolios ? __('Edit list') : __('Add list') }}</flux:button>
+        </div>
+        @if ($portfolios)
+            <div class="flex flex-wrap gap-1.5">
+                @foreach ($portfolios as $name)
+                    @if (in_array(mb_strtolower($name), $taken, true))
+                        <flux:badge size="sm" color="zinc" class="line-through opacity-60">{{ $name }}</flux:badge>
+                    @else
+                        <flux:badge size="sm">{{ $name }}</flux:badge>
+                    @endif
+                @endforeach
+            </div>
+        @endif
+    </flux:card>
+
     {{-- Sessions --}}
     <div class="flex flex-col gap-3">
         <div class="flex flex-wrap items-end justify-between gap-3">
@@ -335,6 +442,24 @@ new #[Title('Committee')] class extends Component {
                     <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
                 </flux:modal.close>
                 <flux:button type="submit" variant="primary">{{ __('Save agenda') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
+
+    <flux:modal name="committee-portfolios" class="md:w-xl">
+        <form wire:submit="savePortfolios" class="space-y-5">
+            <div>
+                <flux:heading size="lg">{{ $committee->portfolio_type === PortfolioType::Character ? __('Characters') : __('Countries') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('One per line. Staff can only allocate names on this list, and each one only once.') }}</flux:text>
+            </div>
+            <flux:textarea wire:model="portfolioList" rows="14" :label="__('Portfolio list')" />
+            <flux:switch wire:model="portfoliosPublic" :label="__('Delegates choose from this list when registering')" :description="__('Turn off to keep the list secret; delegates then type their preference freely.')" />
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary">{{ __('Save list') }}</flux:button>
             </div>
         </form>
     </flux:modal>

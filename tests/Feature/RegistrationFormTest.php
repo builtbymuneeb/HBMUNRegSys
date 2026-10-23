@@ -182,9 +182,31 @@ test('a delegate must choose two different committees', function () {
 test('a country preference must be a country from the list', function () {
     filledDelegationForm([['country_preference' => 'Frances']])
         ->call('submit')
-        ->assertHasErrors(['delegates.0.country_preference' => 'in']);
+        ->assertHasErrors('delegates.0.country_preference');
 
     expect(Registration::count())->toBe(0);
+});
+
+test('a country preference must be on the chosen committee list', function () {
+    filledDelegationForm([['country_preference' => 'Brazil']])
+        ->call('submit')
+        ->assertHasErrors('delegates.0.country_preference');
+});
+
+test('a personality preference must be on the list when the committee shows one', function () {
+    filledDelegationForm([['personality_preference' => 'Someone Unlisted']])
+        ->call('submit')
+        ->assertHasErrors('delegates.0.personality_preference');
+});
+
+test('the special committee list stays secret, so its preference is typed freely', function () {
+    $pna = (string) Committee::where('code', 'PNA')->value('id');
+    $special = (string) Committee::where('code', 'SPECIAL')->value('id');
+
+    filledDelegationForm([['first_committee_id' => $pna, 'second_committee_id' => $special, 'personality_preference' => 'Anyone at all']])
+        ->call('submit')
+        ->assertHasNoErrors('delegates.0.personality_preference')
+        ->assertDontSeeText('Tony Stark');
 });
 
 test('delegates in one delegation need different emails', function () {

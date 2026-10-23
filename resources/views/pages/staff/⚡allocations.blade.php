@@ -2,13 +2,11 @@
 
 use App\Actions\Allocations\AllocateDelegate;
 use App\Actions\Allocations\PublishAllocations;
-use App\Enums\PortfolioType;
 use App\Enums\RegistrationStatus;
 use App\Models\Committee;
 use App\Models\Delegate;
 use App\Models\MailLog;
 use App\Notifications\AllocationPublished;
-use App\Support\Countries;
 use Flux\Flux;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -133,12 +131,23 @@ new #[Title('Allocations')] class extends Component {
     }
 
     /**
-     * Whether the committee being allocated uses country portfolios, which must come from the fixed list.
+     * The committee being allocated, as chosen in the form.
      */
     #[Computed]
-    public function allocatingCountry(): bool
+    public function allocatingCommittee(): ?Committee
     {
-        return $this->committees->firstWhere('id', (int) $this->committeeId)?->portfolio_type === PortfolioType::Country;
+        return $this->committees->firstWhere('id', (int) $this->committeeId);
+    }
+
+    /**
+     * The portfolios that committee can be given from, or null when it takes any name.
+     *
+     * @return list<string>|null
+     */
+    #[Computed]
+    public function portfolioOptions(): ?array
+    {
+        return $this->allocatingCommittee?->portfolioOptions();
     }
 
     /**
@@ -200,13 +209,11 @@ new #[Title('Allocations')] class extends Component {
     }
 
     /**
-     * A country typed loosely at registration ("usa", "turkey") becomes its listed name, or blank if it isn't one.
+     * A name typed loosely at registration ("usa", "maryam nawaz") becomes its listed name, or blank if it isn't on the list.
      */
     private function forCommittee(Committee $committee, ?string $portfolio): string
     {
-        return $committee->portfolio_type === PortfolioType::Country
-            ? (string) Countries::canonical($portfolio)
-            : (string) $portfolio;
+        return (string) $committee->matchPortfolio($portfolio);
     }
 
     public function save(AllocateDelegate $allocateDelegate): void
@@ -215,8 +222,8 @@ new #[Title('Allocations')] class extends Component {
 
         $this->validate([
             'committeeId' => ['required', 'exists:committees,id'],
-            'portfolio' => ['required', 'string', 'max:120', ...($this->allocatingCountry ? [Rule::in(Countries::names())] : [])],
-        ], ['portfolio.in' => __('Choose a country from the list.')], ['committeeId' => 'committee']);
+            'portfolio' => ['required', 'string', 'max:120', ...($this->portfolioOptions !== null ? [Rule::in($this->portfolioOptions)] : [])],
+        ], ['portfolio.in' => __('Choose one from the committee’s list.')], ['committeeId' => 'committee']);
 
         $delegate = $this->allocatable()->findOrFail($this->editingId);
 
@@ -414,14 +421,14 @@ new #[Title('Allocations')] class extends Component {
                 </flux:select>
 
                 <div>
-                    @if ($this->allocatingCountry)
+                    @if ($this->portfolioOptions !== null)
                         <flux:field>
-                            <flux:label>{{ __('Country') }}</flux:label>
-                            <x-country-select wire:model="portfolio" wire:key="portfolio-country-{{ $editingId }}-{{ $committeeId }}" variant="staff" :taken="$this->takenPortfolios" />
+                            <flux:label>{{ $this->allocatingCommittee->portfolioLabel() }}</flux:label>
+                            <x-portfolio-select wire:model="portfolio" wire:key="portfolio-{{ $editingId }}-{{ $committeeId }}" variant="staff" :options="$this->portfolioOptions" :taken="$this->takenPortfolios" :placeholder="__('Search the committee’s list…')" />
                             <flux:error name="portfolio" />
                         </flux:field>
                     @else
-                        <flux:input wire:model="portfolio" :label="__('Character')" :placeholder="__('e.g. Maryam Nawaz')" />
+                        <flux:input wire:model="portfolio" :label="$this->allocatingCommittee?->portfolioLabel() ?? __('Portfolio')" :placeholder="__('e.g. Maryam Nawaz')" />
                     @endif
                     @if ($this->takenPortfolios)
                         <flux:text class="mt-2 text-xs">{{ __('Already taken here:') }} {{ implode(', ', $this->takenPortfolios) }}</flux:text>

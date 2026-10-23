@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Enums\PortfolioType;
 use App\Models\Committee;
+use App\Support\DefaultPortfolios;
 use Illuminate\Database\Seeder;
 
 class CommitteeSeeder extends Seeder
@@ -21,10 +22,18 @@ class CommitteeSeeder extends Seeder
         ];
 
         foreach ($committees as $sortOrder => $committee) {
-            Committee::updateOrCreate(
+            $committee = Committee::updateOrCreate(
                 ['code' => $committee['code']],
                 [...$committee, 'sort_order' => $sortOrder],
             );
+
+            // Fill the starting portfolio list once; after that the team owns it.
+            if ($committee->portfolios === null) {
+                $committee->update([
+                    'portfolios' => DefaultPortfolios::for($committee->code),
+                    'portfolios_public' => ! in_array($committee->code, DefaultPortfolios::HIDDEN, true),
+                ]);
+            }
         }
     }
 }

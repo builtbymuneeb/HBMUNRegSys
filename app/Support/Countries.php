@@ -223,22 +223,26 @@ class Countries
     }
 
     /**
-     * Options for the country picker: the name and every lowercase, accent-free term it matches.
+     * Options for a searchable picker: each name and every lowercase, accent-free term it
+     * matches. Countries also match their other names, so "usa" finds United States.
      *
+     * @param  list<string>|null  $names  Defaults to every country.
      * @return list<array{name: string, terms: list<string>}>
      */
-    public static function options(): array
+    public static function options(?array $names = null): array
     {
         return array_map(fn (string $name) => [
             'name' => $name,
-            'terms' => array_map(self::normalise(...), [$name, ...self::ALL[$name]]),
-        ], self::names());
+            'terms' => array_map(self::normalise(...), [$name, ...(self::ALL[$name] ?? [])]),
+        ], $names ?? self::names());
     }
 
     /**
-     * The listed name for something typed loosely ("turkey", "usa", "Cote d'Ivoire"), if it matches one.
+     * The entry in $names that a loosely typed value refers to, if any.
+     *
+     * @param  list<string>  $names
      */
-    public static function canonical(?string $value): ?string
+    public static function match(?string $value, array $names): ?string
     {
         $value = self::normalise((string) $value);
 
@@ -246,13 +250,21 @@ class Countries
             return null;
         }
 
-        foreach (self::ALL as $name => $aliases) {
-            if (in_array($value, array_map(self::normalise(...), [$name, ...$aliases]), true)) {
-                return $name;
+        foreach (self::options($names) as $option) {
+            if (in_array($value, $option['terms'], true)) {
+                return $option['name'];
             }
         }
 
         return null;
+    }
+
+    /**
+     * The listed name for something typed loosely ("turkey", "usa", "Cote d'Ivoire"), if it matches one.
+     */
+    public static function canonical(?string $value): ?string
+    {
+        return self::match($value, self::names());
     }
 
     private static function normalise(string $value): string

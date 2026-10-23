@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\PortfolioType;
+use App\Support\Countries;
 use Database\Factories\CommitteeFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,12 +17,14 @@ use Illuminate\Support\Carbon;
  * @property string $code
  * @property string $name
  * @property PortfolioType $portfolio_type
+ * @property list<string>|null $portfolios
+ * @property bool $portfolios_public
  * @property string|null $agenda
  * @property int $sort_order
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['code', 'name', 'portfolio_type', 'agenda', 'sort_order'])]
+#[Fillable(['code', 'name', 'portfolio_type', 'portfolios', 'portfolios_public', 'agenda', 'sort_order'])]
 class Committee extends Model
 {
     /** @use HasFactory<CommitteeFactory> */
@@ -36,6 +39,8 @@ class Committee extends Model
     {
         return [
             'portfolio_type' => PortfolioType::class,
+            'portfolios' => 'array',
+            'portfolios_public' => 'boolean',
         ];
     }
 
@@ -75,6 +80,49 @@ class Committee extends Model
     public function sessions(): HasMany
     {
         return $this->hasMany(CommitteeSession::class)->orderBy('starts_at')->orderBy('id');
+    }
+
+    /**
+     * The portfolios staff can allocate here, or null when the committee has no list yet
+     * (a country committee then falls back to every country; a character one to free text).
+     *
+     * @return list<string>|null
+     */
+    public function portfolioOptions(): ?array
+    {
+        if ($this->portfolios) {
+            return array_values($this->portfolios);
+        }
+
+        return $this->portfolio_type === PortfolioType::Country ? Countries::names() : null;
+    }
+
+    /**
+     * The options delegates may pick from at registration, or null to let them type freely.
+     *
+     * @return list<string>|null
+     */
+    public function publicPortfolioOptions(): ?array
+    {
+        if ($this->portfolios && ! $this->portfolios_public) {
+            return $this->portfolio_type === PortfolioType::Country ? Countries::names() : null;
+        }
+
+        return $this->portfolioOptions();
+    }
+
+    /**
+     * The listed portfolio a loosely typed name refers to ("usa", "maryam nawaz"), if any.
+     */
+    public function matchPortfolio(?string $value): ?string
+    {
+        $options = $this->portfolioOptions();
+
+        if ($options === null) {
+            return filled($value) ? trim($value) : null;
+        }
+
+        return Countries::match($value, $options);
     }
 
     /**
