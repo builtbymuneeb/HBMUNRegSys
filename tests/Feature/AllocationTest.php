@@ -2,6 +2,7 @@
 
 use App\Enums\UserRole;
 use App\Models\Committee;
+use App\Models\CommitteeSession;
 use App\Models\Delegate;
 use App\Models\Registration;
 use App\Models\User;
@@ -125,5 +126,25 @@ test('delegates cannot call allocation actions', function () {
     Livewire::actingAs($delegate->user)
         ->test('pages::staff.allocations')
         ->call('edit', $delegate->id)
+        ->assertForbidden();
+});
+
+test('a committee page lists its allocated delegates and sessions', function () {
+    $committee = Committee::factory()->create(['code' => 'UNW']);
+    $member = verifiedDelegate(['name' => 'Ayesha Khan', 'allocated_committee_id' => $committee->id, 'allocated_portfolio' => 'Norway']);
+    verifiedDelegate(['name' => 'Someone Else']);
+    CommitteeSession::factory()->for($committee)->create(['title' => 'Opening session']);
+
+    $this->actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->get(route('staff.committees.show', $committee))
+        ->assertOk()
+        ->assertSeeText('Ayesha Khan')
+        ->assertSeeText('Norway')
+        ->assertSeeText($member->registration->reference)
+        ->assertDontSeeText('Someone Else')
+        ->assertSeeText('Opening session');
+
+    $this->actingAs(User::factory()->role(UserRole::Delegate)->create())
+        ->get(route('staff.committees.show', $committee))
         ->assertForbidden();
 });

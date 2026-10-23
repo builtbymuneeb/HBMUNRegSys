@@ -42,7 +42,8 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
 
     Route::middleware('can:manage-conference')->group(function () {
         Route::livewire('allocations', 'pages::staff.allocations')->name('allocations');
-        Route::livewire('committees', 'pages::staff.committees')->name('committees');
+        Route::livewire('committees', 'pages::staff.committees.index')->name('committees');
+        Route::livewire('committees/{committee}', 'pages::staff.committees.show')->name('committees.show');
         Route::livewire('guides', 'pages::staff.guides')->name('guides');
         Route::livewire('announcements', 'pages::staff.announcements')->name('announcements');
     });

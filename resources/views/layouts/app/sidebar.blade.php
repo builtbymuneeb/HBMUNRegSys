@@ -26,7 +26,7 @@
                             <flux:sidebar.item icon="user-group" :href="route('staff.allocations')" :current="request()->routeIs('staff.allocations')" wire:navigate>
                                 {{ __('Allocations') }}
                             </flux:sidebar.item>
-                            <flux:sidebar.item icon="building-library" :href="route('staff.committees')" :current="request()->routeIs('staff.committees')" wire:navigate>
+                            <flux:sidebar.item icon="building-library" :href="route('staff.committees')" :current="request()->routeIs('staff.committees*')" wire:navigate>
                                 {{ __('Committees') }}
                             </flux:sidebar.item>
                             <flux:sidebar.item icon="book-open" :href="route('staff.guides')" :current="request()->routeIs('staff.guides')" wire:navigate>

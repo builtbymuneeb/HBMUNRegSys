@@ -1,5 +1,5 @@
 @php
-    $delegate = $user->delegate?->load(['registration.delegates.allocatedCommittee', 'allocatedCommittee', 'firstCommittee', 'secondCommittee']);
+    $delegate = $user->delegate?->load(['registration.delegates.allocatedCommittee', 'allocatedCommittee.sessions', 'firstCommittee', 'secondCommittee']);
     $registration = $delegate?->registration;
     $isVerified = $registration?->status === \App\Enums\RegistrationStatus::Verified;
     $committee = $delegate?->hasPublishedAllocation() ? $delegate->allocatedCommittee : null;
@@ -47,7 +47,7 @@
 
             {{-- Session --}}
             <flux:card class="flex flex-col gap-3">
-                <div class="hb-kicker">{{ __('Your session') }}</div>
+                <div class="hb-kicker">{{ __('Your sessions') }}</div>
                 <div x-data="{ s: Math.max(0, Math.floor(({{ $startsAt->getTimestampMs() }} - Date.now()) / 1000)) }" x-init="setInterval(() => s = Math.max(0, s - 1), 1000)">
                     <template x-if="s > 0">
                         <flux:heading size="lg">
@@ -62,16 +62,36 @@
                     <flux:text class="mt-1">{{ config('conference.dates_label') }} · {{ __('Online') }}</flux:text>
                 </div>
 
-                @if ($committee?->meeting_notes)
-                    <flux:text class="whitespace-pre-line">{{ $committee->meeting_notes }}</flux:text>
-                @endif
-
-                @if ($committee?->meeting_url)
-                    <div>
-                        <flux:button variant="primary" icon="video-camera" :href="$committee->meeting_url" target="_blank">{{ __('Join :committee session', ['committee' => $committee->code]) }}</flux:button>
-                    </div>
+                @if ($committee)
+                    @php($sessions = $committee->sessions)
+                    @php($next = $sessions->first(fn ($session) => $session->isUpcoming()))
+                    @forelse ($sessions as $session)
+                        <div @class([
+                            'flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-700',
+                            'opacity-60' => ! $session->isUpcoming(),
+                        ])>
+                            <div>
+                                <div class="font-medium text-zinc-800 dark:text-white">
+                                    {{ $session->title }}
+                                    @if ($next?->is($session))
+                                        <flux:badge size="sm" color="purple" class="ms-1">{{ __('Next') }}</flux:badge>
+                                    @endif
+                                </div>
+                                <flux:text class="text-sm">{{ $session->timeLabel() }}</flux:text>
+                            </div>
+                            @if ($session->meeting_url && $session->isUpcoming())
+                                <flux:button size="sm" :variant="$next?->is($session) ? 'primary' : 'filled'" icon="video-camera" :href="$session->meeting_url" target="_blank">{{ __('Join') }}</flux:button>
+                            @elseif ($session->isUpcoming())
+                                <flux:text class="text-xs">{{ __('Link coming soon') }}</flux:text>
+                            @else
+                                <flux:text class="text-xs">{{ __('Ended') }}</flux:text>
+                            @endif
+                        </div>
+                    @empty
+                        <flux:text class="text-sm">{{ __('Your session times and meeting links will appear here before the conference.') }}</flux:text>
+                    @endforelse
                 @else
-                    <flux:text class="text-sm">{{ $committee ? __('Your meeting link will appear here before the conference.') : __('Your meeting link will appear here once you’re allocated.') }}</flux:text>
+                    <flux:text class="text-sm">{{ __('Your session times and meeting links will appear here once you’re allocated.') }}</flux:text>
                 @endif
             </flux:card>
 
