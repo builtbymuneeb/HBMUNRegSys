@@ -163,8 +163,45 @@ select:focus[data-flux-control] {
     animation-play-state: paused;
 }
 
+/* Special Committee teaser: a classified file until the theme is revealed. */
+.hb-scanlines {
+    background: repeating-linear-gradient(0deg, rgb(0 0 0 / 0.28) 0 1px, transparent 1px 3px);
+}
+
+@keyframes hb-sweep {
+    from { top: -35%; }
+    to { top: 100%; }
+}
+
+.hb-sweep {
+    background: linear-gradient(180deg, transparent, rgb(201 182 234 / 0.12), transparent);
+    animation: hb-sweep 4.5s linear infinite;
+}
+
+.hb-stamp {
+    padding: 0.35em 0.7em;
+    border: 2px solid #e0475b;
+    color: #f0717f;
+    background: rgb(10 8 13 / 0.55);
+    transform: rotate(-12deg);
+    box-shadow: 0 0 24px rgb(224 71 91 / 0.25);
+    transition: transform 0.4s ease;
+}
+
+.hb-classified:hover .hb-stamp {
+    transform: rotate(-8deg) scale(1.05);
+}
+
+.hb-redact {
+    display: inline-block;
+    height: 0.8em;
+    background: var(--color-hb-soft);
+}
+
 @media (prefers-reduced-motion: reduce) {
     .hb-marquee { animation: none; }
+    .hb-sweep { animation: none; display: none; }
+    .hb-stamp { transition: none; }
 }
 
 @layer components {

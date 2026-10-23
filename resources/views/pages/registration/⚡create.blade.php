@@ -516,7 +516,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     <input type="text" wire:model="contact.name" class="hb-input" autocomplete="name">
                                 </x-public.field>
                                 <x-public.field :label="$who.' '.__('CNIC / B-Form')" name="contact.cnic">
-                                    <input type="text" wire:model="contact.cnic" class="hb-input" inputmode="numeric" placeholder="35202-1234567-1">
+                                    <input type="text" wire:model="contact.cnic" class="hb-input" inputmode="numeric" x-mask="99999-9999999-9" placeholder="35202-1234567-1">
                                 </x-public.field>
                                 <x-public.field :label="$who.' '.__('phone (WhatsApp)')" name="contact.phone">
                                     <input type="tel" wire:model="contact.phone" class="hb-input" placeholder="03XX XXXXXXX" autocomplete="tel">
@@ -560,7 +560,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                             <input type="text" wire:model="delegates.{{ $index }}.name" class="hb-input">
                                         </x-public.field>
                                         <x-public.field :label="__('CNIC / B-Form')" name="delegates.{{ $index }}.cnic">
-                                            <input type="text" wire:model="delegates.{{ $index }}.cnic" class="hb-input" inputmode="numeric" placeholder="35202-1234567-1">
+                                            <input type="text" wire:model="delegates.{{ $index }}.cnic" class="hb-input" inputmode="numeric" x-mask="99999-9999999-9" placeholder="35202-1234567-1">
                                         </x-public.field>
                                         <x-public.field :label="__('Email (Gmail)')" name="delegates.{{ $index }}.email">
                                             <input type="email" wire:model="delegates.{{ $index }}.email" class="hb-input" placeholder="name@gmail.com">

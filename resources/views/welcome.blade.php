@@ -153,11 +153,40 @@
             </div>
             <div class="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
                 @foreach ($committees as $committee)
-                    <article @class([
-                        'flex flex-col border',
-                        'border-[#5a2d8c] bg-[#160a24]' => $committee->code === 'SPECIAL',
-                        'border-hb-line bg-hb-surface' => $committee->code !== 'SPECIAL',
-                    ])>
+                    @if ($committee->code === 'SPECIAL')
+                        <article class="hb-classified group flex flex-col border border-[#5a2d8c] bg-[#160a24]">
+                            <div class="relative overflow-hidden" aria-hidden="true">
+                                <div class="hb-art hb-art-banner w-full opacity-40 blur-[2px] grayscale transition duration-700 group-hover:opacity-55 group-hover:blur-[1px]"></div>
+                                <div class="absolute inset-0 bg-[linear-gradient(115deg,rgb(122_20_36/0.55)_0%,transparent_48%,transparent_52%,rgb(59_10_107/0.7)_100%)]"></div>
+                                <div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 rotate-[12deg] bg-white/25"></div>
+                                <div class="hb-scanlines absolute inset-0"></div>
+                                <div class="hb-sweep absolute inset-x-0 h-1/3"></div>
+                                <div class="absolute top-2.5 left-2.5 hidden font-mono sm:block text-[9px] tracking-[0.2em] text-hb-lavender/80 uppercase lg:top-4 lg:left-4 lg:text-[10px]">File IV</div>
+                                <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5 text-[9px] tracking-[0.18em] text-white/85 uppercase lg:top-4 lg:right-4 lg:text-[10px]">
+                                    <span class="relative flex size-1.5"><span class="absolute inline-flex size-full animate-ping rounded-full bg-[#e0475b] opacity-75 motion-reduce:animate-none"></span><span class="relative inline-flex size-1.5 rounded-full bg-[#e0475b]"></span></span>
+                                    {{ __('Reveal soon') }}
+                                </div>
+                                <div class="absolute inset-0 flex items-center justify-center">
+                                    <span class="hb-stamp font-display text-sm font-bold tracking-[0.3em] uppercase lg:text-xl">{{ __('Classified') }}</span>
+                                </div>
+                            </div>
+                            <div class="flex grow flex-col gap-1.5 p-3.5 lg:gap-2.5 lg:p-6">
+                                <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ __('Special') }}</h3>
+                                <div class="text-[13px] leading-snug text-hb-soft lg:text-sm">{{ $committee->name }}</div>
+                                <div class="flex flex-wrap items-center gap-1 text-[11px] text-hb-muted lg:text-xs" aria-label="{{ __('Theme redacted') }}">
+                                    <span>{{ __('Theme') }}:</span>
+                                    <span class="hb-redact w-12 lg:w-16"></span>
+                                    <span class="hb-redact w-8 lg:w-10"></span>
+                                </div>
+                                <p class="font-display text-[13px] text-[#e8a0aa] italic lg:text-base">{{ __('Whose side are you on?') }}</p>
+                                <div class="mt-auto pt-1 text-[10px] tracking-[0.1em] text-hb-lavender uppercase lg:pt-2 lg:text-xs lg:tracking-[0.12em]">
+                                    {{ __('Crisis') }} · {{ __('Characters') }}
+                                </div>
+                            </div>
+                        </article>
+                        @continue
+                    @endif
+                    <article class="flex flex-col border border-hb-line bg-hb-surface">
                         <div class="hb-art {{ $committeeArt[$committee->code] ?? 'hb-art-globe' }} w-full" aria-hidden="true"></div>
                         <div class="flex grow flex-col gap-1.5 p-3.5 lg:gap-2.5 lg:p-6">
                             <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ $committee->code === 'SPECIAL' ? __('Special') : $committee->code }}</h3>
