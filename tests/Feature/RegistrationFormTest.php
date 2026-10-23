@@ -190,3 +190,97 @@ test('the registrant must confirm their details', function () {
         ->call('submit')
         ->assertHasErrors(['confirmed' => 'accepted']);
 });
+
+test('each step must be valid before moving on', function () {
+    $component = Livewire::test('pages::registration.create')
+        ->assertSet('step', 1)
+        ->call('next')
+        ->assertHasErrors(['contact.organisation_name', 'contact.email'])
+        ->assertHasNoErrors(['delegates.0.name', 'paymentScreenshot'])
+        ->assertSet('step', 1);
+
+    $component->set('contact', institutionContact())
+        ->call('next')
+        ->assertHasNoErrors()
+        ->assertSet('step', 2)
+        ->call('next')
+        ->assertHasErrors(['delegates.0.name'])
+        ->assertSet('step', 2)
+        ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 3)))
+        ->call('next')
+        ->assertSet('step', 3)
+        ->assertSeeText('Check your details')
+        ->assertSeeText('Delegate 2')
+        ->assertSeeText('Homebridge College')
+        ->call('next')
+        ->assertSet('step', 4)
+        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('confirmed', true)
+        ->call('submit')
+        ->assertHasNoErrors()
+        ->assertSet('submittedReference', 'HB26-0001')
+        ->assertDispatched('registration-draft-cleared');
+});
+
+test('going back keeps the answers, and edit only jumps to earlier steps', function () {
+    Livewire::test('pages::registration.create')
+        ->set('contact', institutionContact())
+        ->call('next')
+        ->call('editStep', 4)
+        ->assertSet('step', 2)
+        ->call('back')
+        ->assertSet('step', 1)
+        ->assertSet('contact.city', 'Lahore');
+});
+
+test('a failed submit returns to the step with the problem', function () {
+    Livewire::test('pages::registration.create')
+        ->set('step', 4)
+        ->set('contact', [...institutionContact(), 'email' => 'not-an-email'])
+        ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 3)))
+        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('confirmed', true)
+        ->call('submit')
+        ->assertHasErrors('contact.email')
+        ->assertSet('step', 1);
+});
+
+test('a saved draft is restored to the furthest valid step', function () {
+    $delegates = array_map(fn (int $number) => delegateInput($number), range(1, 4));
+
+    Livewire::test('pages::registration.create')
+        ->call('restoreDraft', [
+            'type' => RegistrationType::PrivateDelegation->value,
+            'step' => 4,
+            'contact' => institutionContact(),
+            'delegateCount' => 4,
+            'delegates' => $delegates,
+        ])
+        ->assertSet('type', RegistrationType::PrivateDelegation->value)
+        ->assertSet('step', 4)
+        ->assertSet('restoredDraft', true)
+        ->assertCount('delegates', 4)
+        ->assertSet('delegates.3.email', 'delegate4@gmail.com')
+        ->assertHasNoErrors();
+
+    Livewire::test('pages::registration.create')
+        ->call('restoreDraft', [
+            'step' => 4,
+            'contact' => institutionContact(),
+            'delegates' => [delegateInput(1), ['name' => ['not', 'a', 'string']]],
+        ])
+        ->assertSet('step', 2)
+        ->assertSet('delegates.1.name', '')
+        ->assertHasNoErrors();
+});
+
+test('starting over clears the form', function () {
+    Livewire::test('pages::registration.create')
+        ->call('restoreDraft', ['step' => 2, 'contact' => institutionContact()])
+        ->assertSet('step', 2)
+        ->call('startOver')
+        ->assertSet('step', 1)
+        ->assertSet('contact.city', '')
+        ->assertSet('restoredDraft', false)
+        ->assertDispatched('registration-draft-cleared');
+});
