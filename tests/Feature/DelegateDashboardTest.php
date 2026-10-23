@@ -206,3 +206,20 @@ test('delegates cannot export', function () {
         ->get(route('staff.delegates.export'))
         ->assertForbidden();
 });
+
+test('the delegate dashboard picks up new announcements and allocations without a reload', function () {
+    $committee = Committee::factory()->create(['code' => 'UNSC']);
+    $delegate = dashboardDelegate();
+
+    $component = Livewire::actingAs($delegate->user)->test('delegate-dashboard')
+        ->assertSeeText('Allocation pending')
+        ->assertDontSeeText('Roll call moved');
+
+    Announcement::create(['title' => 'Roll call moved', 'body' => 'Now at 11.']);
+    $delegate->update(['allocated_committee_id' => $committee->id, 'allocated_portfolio' => 'Pakistan', 'allocation_published_at' => now()]);
+    cache()->forget('delegate-dashboard:stamp');
+
+    $component->call('refresh')
+        ->assertSeeText('Roll call moved')
+        ->assertSeeText('Pakistan');
+});

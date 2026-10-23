@@ -55,7 +55,7 @@
                 @endcan
             </div>
         @else
-            @include('dashboard.delegate')
+            <livewire:delegate-dashboard />
         @endif
     </div>
 </x-layouts::app>
