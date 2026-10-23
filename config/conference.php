@@ -55,10 +55,10 @@ return [
     */
 
     'contacts' => [
-        'phones' => array_filter([
-            env('REGISTRATION_HEAD_1_PHONE'),
-            env('REGISTRATION_HEAD_2_PHONE'),
-        ]),
+        'heads' => array_values(array_filter([
+            ['name' => env('REGISTRATION_HEAD_1_NAME'), 'phone' => env('REGISTRATION_HEAD_1_PHONE')],
+            ['name' => env('REGISTRATION_HEAD_2_NAME'), 'phone' => env('REGISTRATION_HEAD_2_PHONE')],
+        ], fn (array $head): bool => filled($head['phone']))),
         'email' => env('REGISTRATION_EMAIL'),
     ],
 

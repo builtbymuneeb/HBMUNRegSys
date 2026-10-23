@@ -674,14 +674,17 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 <x-public.error name="paymentScreenshot" />
                             </div>
 
-                            @if (config('conference.contacts.phones') || config('conference.contacts.email'))
+                            @if (config('conference.contacts.heads') || config('conference.contacts.email'))
                                 <div class="flex flex-col gap-3 border border-hb-line p-5">
                                     <div class="font-display font-semibold">{{ __('Need help?') }}</div>
                                     <dl class="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3 text-sm">
-                                        @foreach (config('conference.contacts.phones') as $phone)
+                                        @foreach (config('conference.contacts.heads') as $head)
                                             <div>
                                                 <dt class="text-xs text-hb-subtle">{{ __('Registration Head :number', ['number' => $loop->iteration]) }}</dt>
-                                                <dd class="mt-1"><a href="tel:{{ $phone }}" class="hover:text-hb-lavender">{{ $phone }}</a></dd>
+                                                @if ($head['name'])
+                                                    <dd class="mt-1">{{ $head['name'] }}</dd>
+                                                @endif
+                                                <dd @class(['mt-1' => ! $head['name']])><a href="tel:{{ $head['phone'] }}" class="hover:text-hb-lavender">{{ $head['phone'] }}</a></dd>
                                             </div>
                                         @endforeach
                                         @if (config('conference.contacts.email'))

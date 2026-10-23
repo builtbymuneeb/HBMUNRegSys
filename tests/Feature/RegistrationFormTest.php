@@ -53,6 +53,19 @@ test('the registration page renders for guests', function () {
     $this->get(route('register'))->assertOk()->assertSeeText('How would you like to register?');
 });
 
+test('the payment step lists the registration heads by name and number', function () {
+    config(['conference.contacts.heads' => [
+        ['name' => 'Muhammad Muneeb', 'phone' => '03084447764'],
+        ['name' => null, 'phone' => '03338460791'],
+    ]]);
+
+    Livewire::test('pages::registration.create')
+        ->set('step', 4)
+        ->assertSeeText('Muhammad Muneeb')
+        ->assertSeeHtml('href="tel:03084447764"')
+        ->assertSeeHtml('href="tel:03338460791"');
+});
+
 test('an institution delegation registers with all its delegates and payment screenshot', function () {
     $component = Livewire::test('pages::registration.create')
         ->set('type', RegistrationType::InstitutionDelegation->value)
