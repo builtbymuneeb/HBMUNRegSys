@@ -22,8 +22,6 @@ new #[Layout('layouts::auth')] #[Title('Request staff access')] class extends Co
 
     public string $password_confirmation = '';
 
-    public string $requestedRole = 'registrations';
-
     public bool $requested = false;
 
     /**
@@ -43,12 +41,11 @@ new #[Layout('layouts::auth')] #[Title('Request staff access')] class extends Co
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'password' => $this->passwordRules(),
-            'requestedRole' => ['required', Rule::in(array_map(fn (UserRole $role) => $role->value, UserRole::requestableRoles()))],
         ]);
 
         RateLimiter::hit($throttleKey, 3600);
 
-        $requestStaffAccess->handle($validated['name'], $validated['email'], $validated['password'], UserRole::from($validated['requestedRole']));
+        $requestStaffAccess->handle($validated['name'], $validated['email'], $validated['password'], UserRole::Registrations);
 
         $this->reset('password', 'password_confirmation');
         $this->requested = true;
@@ -60,19 +57,13 @@ new #[Layout('layouts::auth')] #[Title('Request staff access')] class extends Co
         <x-auth-header :title="__('Request sent')" :description="__('An admin will review your request. You’ll get an email once you’re approved, then you can log in.')" />
         <flux:button :href="route('login')" variant="primary" class="w-full">{{ __('Go to login') }}</flux:button>
     @else
-        <x-auth-header :title="__('Join the organising team')" :description="__('Request staff access. An admin approves every request.')" />
+        <x-auth-header :title="__('Join the organising team')" :description="__('Request access to the registrations team. An admin approves every request.')" />
 
         <form wire:submit="submit" class="flex flex-col gap-6">
             <flux:input wire:model="name" :label="__('Full name')" type="text" required autofocus autocomplete="name" />
             <flux:input wire:model="email" :label="__('Email address')" type="email" required autocomplete="email" placeholder="email@example.com" />
 
-            <flux:radio.group wire:model="requestedRole" :label="__('Which team are you on?')" variant="cards" class="flex-col">
-                @foreach (UserRole::requestableRoles() as $role)
-                    <flux:radio :value="$role->value" :label="$role->label()" :description="$role->description()" />
-                @endforeach
-            </flux:radio.group>
-
-            <flux:input wire:model="password" :label="__('Password')" type="password" required autocomplete="new-password" viewable />
+            <flux:input wire:model="password" :label="__('Password')" :description="__('At least 8 characters, with upper and lower case letters and a number.')" type="password" required autocomplete="new-password" viewable />
             <flux:input wire:model="password_confirmation" :label="__('Confirm password')" type="password" required autocomplete="new-password" viewable />
 
             <flux:button type="submit" variant="primary" class="w-full" data-test="request-staff-access">{{ __('Request access') }}</flux:button>

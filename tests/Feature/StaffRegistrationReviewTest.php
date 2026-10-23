@@ -109,10 +109,10 @@ test('admins can verify registrations', function () {
     expect($registration->refresh()->status)->toBe(RegistrationStatus::Verified);
 });
 
-test('the allocations team cannot verify or reject registrations', function () {
+test('delegates cannot verify or reject registrations', function () {
     $registration = Registration::factory()->institutionDelegation()->create();
 
-    Livewire::actingAs(User::factory()->role(UserRole::Allocations)->create())
+    Livewire::actingAs(User::factory()->create())
         ->test('pages::staff.registrations.show', ['registration' => $registration])
         ->call('verify')
         ->assertForbidden();

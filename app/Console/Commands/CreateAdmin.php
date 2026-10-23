@@ -54,7 +54,7 @@ class CreateAdmin extends Command
 
         $name = $this->stringOption('name') ?? text(label: 'Full name', required: true);
 
-        $password = password(label: 'Password', required: true, hint: 'At least 12 characters with upper and lower case, a number and a symbol in production.');
+        $password = password(label: 'Password', required: true, hint: 'At least 8 characters with upper and lower case letters and a number.');
         $confirmation = password(label: 'Confirm password', required: true);
 
         $validator = Validator::make(

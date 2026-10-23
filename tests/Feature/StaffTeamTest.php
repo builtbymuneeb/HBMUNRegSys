@@ -16,9 +16,8 @@ test('someone can request staff access and admins are notified', function () {
     Livewire::test('pages::staff.join')
         ->set('name', 'New Volunteer')
         ->set('email', 'volunteer@example.com')
-        ->set('password', 'password')
-        ->set('password_confirmation', 'password')
-        ->set('requestedRole', UserRole::Allocations->value)
+        ->set('password', 'Password123')
+        ->set('password_confirmation', 'Password123')
         ->call('submit')
         ->assertHasNoErrors()
         ->assertSet('requested', true);
@@ -26,20 +25,9 @@ test('someone can request staff access and admins are notified', function () {
     $applicant = User::where('email', 'volunteer@example.com')->sole();
 
     expect($applicant->role)->toBe(UserRole::Applicant)
-        ->and($applicant->requested_role)->toBe(UserRole::Allocations);
+        ->and($applicant->requested_role)->toBe(UserRole::Registrations);
 
     Notification::assertSentTo($admin, StaffAccessRequested::class);
-});
-
-test('staff access cannot be requested for the admin role', function () {
-    Livewire::test('pages::staff.join')
-        ->set('name', 'Sneaky')
-        ->set('email', 'sneaky@example.com')
-        ->set('password', 'password')
-        ->set('password_confirmation', 'password')
-        ->set('requestedRole', UserRole::Admin->value)
-        ->call('submit')
-        ->assertHasErrors('requestedRole');
 });
 
 test('an applicant has no staff access until approved', function () {
@@ -56,7 +44,7 @@ test('only admins can open the team page', function (UserRole $role) {
     $this->actingAs(User::factory()->role($role)->create())
         ->get(route('staff.team'))
         ->assertForbidden();
-})->with([UserRole::Registrations, UserRole::Allocations, UserRole::Delegate]);
+})->with([UserRole::Registrations, UserRole::Delegate]);
 
 test('an admin approves a request with the requested role', function () {
     $admin = User::factory()->role(UserRole::Admin)->create();
@@ -91,13 +79,13 @@ test('an admin adds a member who is emailed a set-password link', function () {
         ->test('pages::staff.team')
         ->set('newName', 'Allocation Lead')
         ->set('newEmail', 'alloc@example.com')
-        ->set('newRole', UserRole::Allocations->value)
+        ->set('newRole', UserRole::Registrations->value)
         ->call('invite')
         ->assertHasNoErrors();
 
     $member = User::where('email', 'alloc@example.com')->sole();
 
-    expect($member->role)->toBe(UserRole::Allocations);
+    expect($member->role)->toBe(UserRole::Registrations);
     Notification::assertSentTo($member, StaffInvitation::class);
 });
 
@@ -105,9 +93,9 @@ test('an admin changes a member’s role', function () {
     $admin = User::factory()->role(UserRole::Admin)->create();
     $member = User::factory()->role(UserRole::Registrations)->create();
 
-    Livewire::actingAs($admin)->test('pages::staff.team')->call('changeRole', $member->id, UserRole::Allocations->value);
+    Livewire::actingAs($admin)->test('pages::staff.team')->call('changeRole', $member->id, UserRole::Admin->value);
 
-    expect($member->refresh()->role)->toBe(UserRole::Allocations);
+    expect($member->refresh()->role)->toBe(UserRole::Admin);
 });
 
 test('the last admin cannot be demoted', function () {
@@ -133,12 +121,12 @@ test('an admin removes a member but not themselves', function () {
 
 test('team actions are refused for non-admins', function () {
     $registrations = User::factory()->role(UserRole::Registrations)->create();
-    $member = User::factory()->role(UserRole::Allocations)->create();
+    $member = User::factory()->role(UserRole::Registrations)->create();
 
     Livewire::actingAs($registrations)
         ->test('pages::staff.team')
         ->call('changeRole', $member->id, UserRole::Admin->value)
         ->assertForbidden();
 
-    expect($member->refresh()->role)->toBe(UserRole::Allocations);
+    expect($member->refresh()->role)->toBe(UserRole::Registrations);
 });

@@ -184,6 +184,7 @@ new #[Title('Security settings')] class extends Component {
             <flux:input
                 wire:model="password"
                 :label="__('New password')"
+                :description="__('At least 8 characters, with upper and lower case letters and a number.')"
                 type="password"
                 required
                 autocomplete="new-password"

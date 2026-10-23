@@ -87,13 +87,13 @@ test('password can be updated', function () {
 
     $response = Livewire::test('pages::settings.security')
         ->set('current_password', 'password')
-        ->set('password', 'new-password')
-        ->set('password_confirmation', 'new-password')
+        ->set('password', 'NewPassword1')
+        ->set('password_confirmation', 'NewPassword1')
         ->call('updatePassword');
 
     $response->assertHasNoErrors();
 
-    expect(Hash::check('new-password', $user->refresh()->password))->toBeTrue();
+    expect(Hash::check('NewPassword1', $user->refresh()->password))->toBeTrue();
 });
 
 test('correct password must be provided to update password', function () {
@@ -105,9 +105,27 @@ test('correct password must be provided to update password', function () {
 
     $response = Livewire::test('pages::settings.security')
         ->set('current_password', 'wrong-password')
-        ->set('password', 'new-password')
-        ->set('password_confirmation', 'new-password')
+        ->set('password', 'NewPassword1')
+        ->set('password_confirmation', 'NewPassword1')
         ->call('updatePassword');
 
     $response->assertHasErrors(['current_password']);
 });
+
+test('passwords need 8 characters with mixed case and a number, but no symbol', function (string $password, bool $valid) {
+    $user = User::factory()->create(['password' => Hash::make('password')]);
+
+    $component = Livewire::actingAs($user)
+        ->test('pages::settings.security')
+        ->set('current_password', 'password')
+        ->set('password', $password)
+        ->set('password_confirmation', $password)
+        ->call('updatePassword');
+
+    $valid ? $component->assertHasNoErrors() : $component->assertHasErrors('password');
+})->with([
+    ['Abcdefg1', true],
+    ['abcdefg1', false],
+    ['Abcdefgh', false],
+    ['Abcde1', false],
+]);
