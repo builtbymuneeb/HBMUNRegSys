@@ -28,6 +28,8 @@
             </flux:toast.group>
         @endpersist
 
+        @include('partials.offline-banner')
+
         @fluxScripts
     </body>
 </html>

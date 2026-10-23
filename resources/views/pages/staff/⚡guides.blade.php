@@ -102,12 +102,100 @@ new #[Title('Study guides')] class extends Component {
                 @endforeach
             </flux:select>
             <flux:textarea wire:model="description" :label="__('Description (optional)')" rows="2" class="md:col-span-2" />
-            <div class="md:col-span-2">
+            <div
+                class="md:col-span-2"
+                x-data="{
+                    uploading: false,
+                    progress: 0,
+                    totalBytes: 0,
+                    startedAt: 0,
+                    lastProgressAt: 0,
+                    now: 0,
+                    bytesPerSecond: 0,
+                    stalled: false,
+                    offline: ! navigator.onLine,
+                    failed: false,
+                    timer: null,
+                    start(event) {
+                        this.totalBytes = event.target.files?.[0]?.size ?? 0;
+                        this.uploading = true;
+                        this.failed = false;
+                        this.progress = 0;
+                        this.bytesPerSecond = 0;
+                        this.stalled = false;
+                        this.startedAt = this.lastProgressAt = this.now = Date.now();
+                        clearInterval(this.timer);
+                        this.timer = setInterval(() => {
+                            this.now = Date.now();
+                            this.stalled = this.now - this.lastProgressAt > 5000;
+                        }, 1000);
+                    },
+                    update(percent) {
+                        if (percent !== this.progress) {
+                            this.lastProgressAt = Date.now();
+                            this.stalled = false;
+                        }
+                        this.progress = percent;
+                        const seconds = (Date.now() - this.startedAt) / 1000;
+                        if (seconds > 0) {
+                            this.bytesPerSecond = (this.totalBytes * percent / 100) / seconds;
+                        }
+                    },
+                    stop(failed = false) {
+                        clearInterval(this.timer);
+                        this.uploading = false;
+                        this.failed = failed;
+                    },
+                    get slow() {
+                        return this.uploading && this.now - this.startedAt > 3000 && this.bytesPerSecond < 100 * 1024;
+                    },
+                    size(bytes) {
+                        return bytes >= 1048576 ? (bytes / 1048576).toFixed(1) + ' MB' : Math.round(bytes / 1024) + ' KB';
+                    },
+                    get eta() {
+                        if (! this.bytesPerSecond) return '';
+                        const seconds = Math.ceil(this.totalBytes * (100 - this.progress) / 100 / this.bytesPerSecond);
+                        return seconds >= 60 ? Math.ceil(seconds / 60) + ' min left' : seconds + ' s left';
+                    },
+                }"
+                x-on:livewire-upload-start="start($event)"
+                x-on:livewire-upload-progress="update($event.detail.progress)"
+                x-on:livewire-upload-finish="stop()"
+                x-on:livewire-upload-error="stop(true)"
+                x-on:livewire-upload-cancel="stop()"
+                x-on:online.window="offline = false"
+                x-on:offline.window="offline = true"
+            >
                 <flux:input type="file" wire:model="file" :label="__('File')" :description="__('PDF, Word or PowerPoint, up to 10 MB.')" accept=".pdf,.doc,.docx,.ppt,.pptx" />
-                <div wire:loading wire:target="file" class="mt-2 text-sm text-zinc-500">{{ __('Uploading…') }}</div>
+
+                <div x-show="uploading" x-cloak class="mt-3 space-y-2">
+                    <div class="flex items-center justify-between text-sm">
+                        <span class="text-zinc-700 dark:text-zinc-200">
+                            {{ __('Uploading') }} <span x-text="progress + '%'"></span>
+                            <span class="text-zinc-500" x-show="totalBytes" x-text="'· ' + size(totalBytes * progress / 100) + ' of ' + size(totalBytes)"></span>
+                        </span>
+                        <span class="flex items-center gap-3">
+                            <span class="text-zinc-500" x-show="bytesPerSecond" x-text="size(bytesPerSecond) + '/s · ' + eta"></span>
+                            <button type="button" class="text-sm text-zinc-500 underline hover:text-zinc-800 dark:hover:text-white" x-on:click="$wire.cancelUpload('file')">{{ __('Cancel') }}</button>
+                        </span>
+                    </div>
+                    <div class="h-2 w-full overflow-hidden rounded-full bg-zinc-200 dark:bg-white/10" role="progressbar" aria-valuemin="0" aria-valuemax="100" x-bind:aria-valuenow="progress">
+                        <div class="h-full rounded-full bg-accent transition-[width] duration-300" x-bind:style="'width: ' + progress + '%'"></div>
+                    </div>
+                    <flux:text x-show="offline" class="text-sm !text-red-500">{{ __('You appear to be offline. The upload will continue once your connection is back.') }}</flux:text>
+                    <flux:text x-show="! offline && stalled" class="text-sm !text-amber-500">{{ __('No progress for a few seconds — your connection may have dropped or is very slow.') }}</flux:text>
+                    <flux:text x-show="! offline && ! stalled && slow" class="text-sm !text-amber-500">{{ __('Your internet connection looks slow, so this may take a while. Keep this page open.') }}</flux:text>
+                </div>
+
+                <div x-show="! uploading && progress === 100 && ! failed" x-cloak class="mt-2 text-sm text-emerald-500">{{ __('File ready. Click “Upload guide” to save it.') }}</div>
+                <div x-show="failed" x-cloak class="mt-2 text-sm text-red-500">{{ __('The upload failed. Check your connection and choose the file again.') }}</div>
             </div>
             <div class="md:col-span-2">
-                <flux:button type="submit" variant="primary" icon="arrow-up-tray" wire:loading.attr="disabled" wire:target="file,upload">{{ __('Upload guide') }}</flux:button>
+                <flux:button type="submit" variant="primary" icon="arrow-up-tray" :loading="false" wire:loading.attr="disabled" wire:target="file,upload">
+                    <span wire:loading.remove wire:target="file,upload">{{ __('Upload guide') }}</span>
+                    <span wire:loading wire:target="file">{{ __('Waiting for file…') }}</span>
+                    <span wire:loading wire:target="upload">{{ __('Saving…') }}</span>
+                </flux:button>
             </div>
         </form>
     </flux:card>
