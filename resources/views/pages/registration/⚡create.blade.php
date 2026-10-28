@@ -36,7 +36,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
     public int $step = 1;
 
-    /** @var array{organisation_name: string, city: string, name: string, cnic: string, phone: string, email: string} */
+    /** @var array{organisation_name: string, city: string, name: string, cnic: string, phone: string, email: string, referral_code: string} */
     public array $contact = [
         'organisation_name' => '',
         'city' => '',
@@ -44,6 +44,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         'cnic' => '',
         'phone' => '',
         'email' => '',
+        'referral_code' => '',
     ];
 
     /**
@@ -258,7 +259,12 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'mun_experience' => trim($delegate['mun_experience'] ?? '') ?: null,
         ], $validated['delegates']);
 
-        $registration = $submitRegistration->handle($this->registrationType, $validated['contact'], $delegates, $this->paymentScreenshot);
+        $contact = [
+            ...$validated['contact'],
+            'referral_code' => Str::upper(trim($validated['contact']['referral_code'] ?? '')) ?: null,
+        ];
+
+        $registration = $submitRegistration->handle($this->registrationType, $contact, $delegates, $this->paymentScreenshot);
 
         $this->submittedReference = $registration->reference;
         $this->dispatch('registration-draft-cleared');
@@ -282,6 +288,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'contact.cnic' => $cnic,
             'contact.phone' => $phone,
             'contact.email' => ['required', 'email', 'max:255'],
+            'contact.referral_code' => ['nullable', 'string', 'max:50'],
             'delegates' => ['required', 'array', 'min:'.$type->minimumDelegates(), 'max:'.$type->maximumDelegates()],
             'delegates.*.name' => ['required', 'string', 'max:255'],
             'delegates.*.cnic' => [...$cnic, 'distinct'],
@@ -309,6 +316,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'contact.cnic' => 'CNIC / B-Form',
             'contact.phone' => 'phone number',
             'contact.email' => 'email',
+            'contact.referral_code' => 'referral code',
             'delegates.*.name' => 'full name',
             'delegates.*.cnic' => 'CNIC / B-Form',
             'delegates.*.email' => 'email',
@@ -588,6 +596,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 <x-public.field :label="$who.' '.__('email')" name="contact.email">
                                     <input type="email" wire:model="contact.email" class="hb-input" autocomplete="email">
                                 </x-public.field>
+                                <x-public.field :label="__('Referral code (optional)')" name="contact.referral_code" :hint="__('If a delegate referred you, enter their referral code.')">
+                                    <input type="text" wire:model="contact.referral_code" class="hb-input uppercase" maxlength="50" autocomplete="off" autocapitalize="characters" spellcheck="false">
+                                </x-public.field>
                             </div>
                         </fieldset>
                     @elseif ($step === 2)
@@ -695,6 +706,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         __('CNIC / B-Form') => $contact['cnic'],
                                         __('Phone') => $contact['phone'],
                                         __('Email') => $contact['email'],
+                                        __('Referral code') => Str::upper(trim($contact['referral_code'] ?? '')) ?: __('None'),
                                     ] as $label => $value)
                                         <div class="min-w-0">
                                             <dt class="text-xs text-hb-subtle">{{ $label }}</dt>

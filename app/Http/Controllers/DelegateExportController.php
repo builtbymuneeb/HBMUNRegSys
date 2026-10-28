@@ -31,7 +31,7 @@ class DelegateExportController extends Controller
 
             fputcsv($out, [
                 'Reference', 'Registration status', 'Type', 'Institution / delegation', 'City',
-                'Contact name', 'Contact phone', 'Contact email',
+                'Contact name', 'Contact phone', 'Contact email', 'Referral code',
                 'Delegate name', 'CNIC / B-Form', 'Email', 'Phone',
                 '1st committee', '2nd committee', 'Country preference', 'Personality preference', 'Previous MUN experience',
                 'Allocated committee', 'Allocated portfolio', 'Allocation sent',
@@ -55,6 +55,7 @@ class DelegateExportController extends Controller
                             $registration->contact_name,
                             $registration->contact_phone,
                             $registration->contact_email,
+                            $registration->referral_code,
                             $delegate->name,
                             $delegate->cnic,
                             $delegate->email,

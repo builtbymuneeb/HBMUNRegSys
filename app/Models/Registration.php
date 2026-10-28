@@ -24,6 +24,7 @@ use Illuminate\Support\Carbon;
  * @property string $contact_cnic
  * @property string $contact_phone
  * @property string $contact_email
+ * @property string|null $referral_code
  * @property int $amount_due
  * @property string $payment_screenshot_path
  * @property string|null $rejection_reason
@@ -41,6 +42,7 @@ use Illuminate\Support\Carbon;
     'contact_cnic',
     'contact_phone',
     'contact_email',
+    'referral_code',
     'amount_due',
     'payment_screenshot_path',
     'rejection_reason',

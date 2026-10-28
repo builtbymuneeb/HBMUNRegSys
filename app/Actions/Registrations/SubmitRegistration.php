@@ -16,7 +16,7 @@ class SubmitRegistration
     /**
      * Store a new registration with its delegates and payment screenshot.
      *
-     * @param  array{organisation_name?: string|null, city: string, name: string, cnic: string, phone: string, email: string}  $contact
+     * @param  array{organisation_name?: string|null, city: string, name: string, cnic: string, phone: string, email: string, referral_code?: string|null}  $contact
      * @param  list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: int, second_committee_id: int, country_preference?: string|null, personality_preference?: string|null, mun_experience?: string|null}>  $delegates
      */
     public function handle(RegistrationType $type, array $contact, array $delegates, UploadedFile $paymentScreenshot): Registration
@@ -33,6 +33,7 @@ class SubmitRegistration
                 'contact_cnic' => $contact['cnic'],
                 'contact_phone' => $contact['phone'],
                 'contact_email' => $contact['email'],
+                'referral_code' => $contact['referral_code'] ?? null,
                 'amount_due' => $type->amountDueFor(count($delegates)),
                 'payment_screenshot_path' => $screenshotPath,
             ]);

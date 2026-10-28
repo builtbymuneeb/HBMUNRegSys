@@ -380,3 +380,27 @@ test('previous MUN experience is limited to 1000 characters', function () {
         ->call('submit')
         ->assertHasErrors('delegates.0.mun_experience');
 });
+
+test('a registration can include a delegate referral code, or leave it blank', function () {
+    filledDelegationForm()
+        ->set('contact.referral_code', '  hb-ali26 ')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(Registration::sole()->referral_code)->toBe('HB-ALI26');
+});
+
+test('the referral code is optional', function () {
+    filledDelegationForm()
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(Registration::sole()->referral_code)->toBeNull();
+});
+
+test('the referral code is limited to 50 characters', function () {
+    filledDelegationForm()
+        ->set('contact.referral_code', str_repeat('A', 51))
+        ->call('submit')
+        ->assertHasErrors('contact.referral_code');
+});

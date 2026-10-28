@@ -152,6 +152,7 @@ new #[Title('Review registration')] class extends Component {
                         __('CNIC / B-Form') => $registration->contact_cnic,
                         __('Phone') => $registration->contact_phone,
                         __('Email') => $registration->contact_email,
+                        __('Referral code') => $registration->referral_code,
                         __('Submitted') => $registration->created_at->timezone('Asia/Karachi')->format('j M Y, g:i a'),
                         __('Reviewed') => $registration->reviewed_at ? $registration->reviewed_at->timezone('Asia/Karachi')->format('j M Y, g:i a').' · '.$registration->reviewer?->name : null,
                     ] as $label => $value)
