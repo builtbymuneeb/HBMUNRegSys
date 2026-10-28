@@ -25,6 +25,7 @@ use Illuminate\Support\Carbon;
  * @property string $contact_phone
  * @property string $contact_email
  * @property string|null $referral_code
+ * @property int|null $campus_ambassador_id
  * @property int $amount_due
  * @property string $payment_screenshot_path
  * @property string|null $rejection_reason
@@ -43,6 +44,7 @@ use Illuminate\Support\Carbon;
     'contact_phone',
     'contact_email',
     'referral_code',
+    'campus_ambassador_id',
     'amount_due',
     'payment_screenshot_path',
     'rejection_reason',
@@ -90,6 +92,16 @@ class Registration extends Model
     public function delegates(): HasMany
     {
         return $this->hasMany(Delegate::class);
+    }
+
+    /**
+     * The campus ambassador whose referral code was entered, if it matched one.
+     *
+     * @return BelongsTo<CampusAmbassador, $this>
+     */
+    public function campusAmbassador(): BelongsTo
+    {
+        return $this->belongsTo(CampusAmbassador::class);
     }
 
     /**

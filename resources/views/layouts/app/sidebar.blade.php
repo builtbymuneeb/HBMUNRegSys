@@ -35,6 +35,9 @@
                             <flux:sidebar.item icon="megaphone" :href="route('staff.announcements')" :current="request()->routeIs('staff.announcements')" wire:navigate>
                                 {{ __('Announcements') }}
                             </flux:sidebar.item>
+                            <flux:sidebar.item icon="ticket" :href="route('staff.ambassadors')" :current="request()->routeIs('staff.ambassadors*')" wire:navigate>
+                                {{ __('Campus ambassadors') }}
+                            </flux:sidebar.item>
                             <flux:sidebar.item icon="envelope" :href="route('staff.emails')" :current="request()->routeIs('staff.emails')" wire:navigate>
                                 {{ __('Email log') }}
                             </flux:sidebar.item>

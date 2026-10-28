@@ -121,6 +121,7 @@ new #[Title('Registrations')] class extends Component {
                 ->orWhere('contact_name', 'like', "%{$search}%")
                 ->orWhere('contact_email', 'like', "%{$search}%")
                 ->orWhere('contact_phone', 'like', "%{$search}%")
+                ->orWhere('referral_code', 'like', "%{$search}%")
                 ->orWhereHas('delegates', fn ($delegates) => $delegates
                     ->where('name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%"))))
@@ -164,7 +165,7 @@ new #[Title('Registrations')] class extends Component {
     </div>
 
     <div class="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search reference, name, email, phone, institution…')" :label="__('Search')" />
+        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search reference, name, email, phone, institution, referral code…')" :label="__('Search')" />
         <flux:select wire:model.live="status" :label="__('Status')">
             <flux:select.option value="">{{ __('All statuses') }}</flux:select.option>
             @foreach (RegistrationStatus::cases() as $case)

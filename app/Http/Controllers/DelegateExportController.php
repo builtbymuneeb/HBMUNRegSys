@@ -31,14 +31,14 @@ class DelegateExportController extends Controller
 
             fputcsv($out, [
                 'Reference', 'Registration status', 'Type', 'Institution / delegation', 'City',
-                'Contact name', 'Contact phone', 'Contact email', 'Referral code',
+                'Contact name', 'Contact phone', 'Contact email', 'Referral code', 'Campus ambassador',
                 'Delegate name', 'CNIC / B-Form', 'Email', 'Phone',
                 '1st committee', '2nd committee', 'Country preference', 'Personality preference', 'Previous MUN experience',
                 'Allocated committee', 'Allocated portfolio', 'Allocation sent',
             ]);
 
             Delegate::query()
-                ->with(['registration', 'firstCommittee', 'secondCommittee', 'allocatedCommittee'])
+                ->with(['registration.campusAmbassador', 'firstCommittee', 'secondCommittee', 'allocatedCommittee'])
                 ->when($status, fn (Builder $query) => $query->whereHas('registration', fn (Builder $query) => $query->where('status', $status)))
                 ->orderBy('registration_id')
                 ->orderBy('id')
@@ -56,6 +56,7 @@ class DelegateExportController extends Controller
                             $registration->contact_phone,
                             $registration->contact_email,
                             $registration->referral_code,
+                            $registration->campusAmbassador?->name,
                             $delegate->name,
                             $delegate->cnic,
                             $delegate->email,

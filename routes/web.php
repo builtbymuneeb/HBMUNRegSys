@@ -57,6 +57,8 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
         Route::livewire('guides', 'pages::staff.guides')->name('guides');
         Route::livewire('announcements', 'pages::staff.announcements')->name('announcements');
         Route::livewire('emails', 'pages::staff.emails')->name('emails');
+        Route::livewire('ambassadors', 'pages::staff.ambassadors.index')->name('ambassadors');
+        Route::livewire('ambassadors/{ambassador}', 'pages::staff.ambassadors.show')->name('ambassadors.show');
     });
 
     Route::livewire('team', 'pages::staff.team')

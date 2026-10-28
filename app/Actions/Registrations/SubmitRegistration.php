@@ -6,6 +6,7 @@ use App\Enums\MunExperience;
 use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
 use App\Models\AuditLog;
+use App\Models\CampusAmbassador;
 use App\Models\Registration;
 use App\Notifications\RegistrationReceived;
 use Illuminate\Http\UploadedFile;
@@ -35,6 +36,7 @@ class SubmitRegistration
                 'contact_phone' => $contact['phone'],
                 'contact_email' => $contact['email'],
                 'referral_code' => $contact['referral_code'] ?? null,
+                'campus_ambassador_id' => CampusAmbassador::forCode($contact['referral_code'] ?? null)?->id,
                 'amount_due' => $type->amountDueFor(count($delegates)),
                 'payment_screenshot_path' => $screenshotPath,
             ]);

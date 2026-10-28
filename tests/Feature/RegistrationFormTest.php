@@ -3,6 +3,7 @@
 use App\Enums\MunExperience;
 use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
+use App\Models\CampusAmbassador;
 use App\Models\Committee;
 use App\Models\Delegate;
 use App\Models\Registration;
@@ -406,4 +407,15 @@ test('the referral code is limited to 50 characters', function () {
         ->set('contact.referral_code', str_repeat('A', 51))
         ->call('submit')
         ->assertHasErrors('contact.referral_code');
+});
+
+test('a registration with an ambassador’s code is linked to them', function () {
+    $ambassador = CampusAmbassador::factory()->create(['code' => 'HB-007']);
+
+    filledDelegationForm()
+        ->set('contact.referral_code', 'hb7')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(Registration::sole()->campus_ambassador_id)->toBe($ambassador->id);
 });
