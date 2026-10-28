@@ -64,7 +64,7 @@ class DelegateExportController extends Controller
                             $delegate->secondCommittee->code,
                             $delegate->country_preference,
                             $delegate->personality_preference,
-                            $delegate->mun_experience,
+                            $delegate->mun_experience?->label(),
                             $delegate->allocatedCommittee?->code,
                             $delegate->allocated_portfolio,
                             $delegate->allocation_published_at?->timezone('Asia/Karachi')->format('Y-m-d H:i'),

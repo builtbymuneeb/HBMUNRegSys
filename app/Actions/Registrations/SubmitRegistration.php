@@ -2,6 +2,7 @@
 
 namespace App\Actions\Registrations;
 
+use App\Enums\MunExperience;
 use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
 use App\Models\AuditLog;
@@ -17,7 +18,7 @@ class SubmitRegistration
      * Store a new registration with its delegates and payment screenshot.
      *
      * @param  array{organisation_name?: string|null, city: string, name: string, cnic: string, phone: string, email: string, referral_code?: string|null}  $contact
-     * @param  list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: int, second_committee_id: int, country_preference?: string|null, personality_preference?: string|null, mun_experience?: string|null}>  $delegates
+     * @param  list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: int, second_committee_id: int, country_preference?: string|null, personality_preference?: string|null, mun_experience?: MunExperience|null}>  $delegates
      */
     public function handle(RegistrationType $type, array $contact, array $delegates, UploadedFile $paymentScreenshot): Registration
     {

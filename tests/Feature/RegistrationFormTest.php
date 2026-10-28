@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\MunExperience;
 use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
 use App\Models\Committee;
@@ -366,17 +367,19 @@ test('the amount due only appears once the delegate count can be chosen', functi
         ->assertSeeText('PKR 6,000');
 });
 
-test('delegates can add their previous MUN experience, or leave it blank', function () {
-    filledDelegationForm([['mun_experience' => '  LUMUN ’25, UNSC, Honourable Mention ']])
+test('delegates can pick their previous MUN experience, or leave it blank', function () {
+    filledDelegationForm([['mun_experience' => 'first_timer'], ['mun_experience' => 'experienced']])
+        ->set('step', 2)
+        ->assertSeeText(['First MUN', '1–4 MUNs', '5+ MUNs'])
         ->call('submit')
         ->assertHasNoErrors();
 
     expect(Delegate::orderBy('id')->pluck('mun_experience')->all())
-        ->toBe(['LUMUN ’25, UNSC, Honourable Mention', null, null]);
+        ->toBe([MunExperience::FirstTimer, MunExperience::Experienced, null]);
 });
 
-test('previous MUN experience is limited to 1000 characters', function () {
-    filledDelegationForm([['mun_experience' => str_repeat('a', 1001)]])
+test('previous MUN experience must be one of the listed options', function () {
+    filledDelegationForm([['mun_experience' => 'LUMUN ’25, UNSC']])
         ->call('submit')
         ->assertHasErrors('delegates.0.mun_experience');
 });

@@ -185,7 +185,7 @@ new #[Title('Review registration')] class extends Component {
                                 @if ($delegate->personality_preference)
                                     <div class="text-zinc-500 dark:text-zinc-400">{{ __('Personality') }}: {{ $delegate->personality_preference }}</div>
                                 @endif
-                                <div class="break-words whitespace-pre-line text-zinc-500 dark:text-zinc-400">{{ __('Experience') }}: {{ $delegate->mun_experience ?: __('First MUN') }}</div>
+                                <div class="text-zinc-500 dark:text-zinc-400">{{ __('Experience') }}: {{ $delegate->mun_experience ? __($delegate->mun_experience->label()) : __('Not given') }}</div>
                                 @if ($delegate->user)
                                     <div class="mt-2 flex flex-col gap-1.5">
                                         @if ($delegate->user->password_set_at)

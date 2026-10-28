@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Registrations\SubmitRegistration;
+use App\Enums\MunExperience;
 use App\Enums\PortfolioType;
 use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
@@ -204,7 +205,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
         foreach ($this->delegates as $index => $delegate) {
             foreach (array_keys($delegate) as $key) {
-                $this->delegates[$index][$key] = $this->cleanString($draft['delegates'][$index][$key] ?? '', $key === 'mun_experience' ? 1000 : 255);
+                $this->delegates[$index][$key] = $this->cleanString($draft['delegates'][$index][$key] ?? '');
             }
         }
 
@@ -256,7 +257,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             ...Arr::only($delegate, ['name', 'cnic', 'email', 'phone', 'first_committee_id', 'second_committee_id']),
             'country_preference' => $delegate['country_preference'] ?: null,
             'personality_preference' => $delegate['personality_preference'] ?: null,
-            'mun_experience' => trim($delegate['mun_experience'] ?? '') ?: null,
+            'mun_experience' => MunExperience::tryFrom($delegate['mun_experience'] ?? ''),
         ], $validated['delegates']);
 
         $contact = [
@@ -298,7 +299,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.second_committee_id' => ['required', Rule::exists('committees', 'id'), 'different:delegates.*.first_committee_id'],
             'delegates.*.country_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Country)],
             'delegates.*.personality_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Character)],
-            'delegates.*.mun_experience' => ['nullable', 'string', 'max:1000'],
+            'delegates.*.mun_experience' => ['nullable', Rule::enum(MunExperience::class)],
             'paymentScreenshot' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
             'confirmed' => ['accepted'],
         ];
@@ -386,9 +387,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         $this->js("document.getElementById('registration-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' })");
     }
 
-    private function cleanString(mixed $value, int $limit = 255): string
+    private function cleanString(mixed $value): string
     {
-        return is_scalar($value) ? Str::limit(trim((string) $value), $limit, '') : '';
+        return is_scalar($value) ? Str::limit(trim((string) $value), 255, '') : '';
     }
 
     /**
@@ -677,8 +678,15 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                                 @endif
                                             </x-public.field>
                                         @endif
-                                        <x-public.field :label="__('Previous MUN experience (optional)')" name="delegates.{{ $index }}.mun_experience" :hint="__('Conferences attended, committees and any awards. Leave blank if this is your first MUN.')" class="col-span-full">
-                                            <textarea wire:model="delegates.{{ $index }}.mun_experience" class="hb-input min-h-24 resize-y" rows="3" maxlength="1000" placeholder="{{ __('e.g. LUMUN ’25, UNSC, Honourable Mention') }}"></textarea>
+                                        <x-public.field :label="__('Previous MUN experience (optional)')" name="delegates.{{ $index }}.mun_experience" class="col-span-full">
+                                            <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="{{ __('Previous MUN experience') }}">
+                                                @foreach (MunExperience::cases() as $level)
+                                                    <label wire:key="experience-{{ $index }}-{{ $level->value }}" class="flex h-11 cursor-pointer items-center rounded-xs border border-[#3a3542] bg-hb-field px-4 text-sm text-white hover:border-[#6e6a75] has-checked:border-white has-checked:bg-white has-checked:font-semibold has-checked:text-hb-purple has-focus-visible:outline-2 has-focus-visible:outline-[#8e6bc8]">
+                                                        <input type="radio" wire:model="delegates.{{ $index }}.mun_experience" name="delegates-{{ $index }}-mun-experience" value="{{ $level->value }}" class="sr-only">
+                                                        {{ __($level->label()) }}
+                                                    </label>
+                                                @endforeach
+                                            </div>
                                         </x-public.field>
                                     </div>
                                 </div>
@@ -731,7 +739,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                             {{ __('1st: :committee', ['committee' => $first?->code]) }}@if ($first && ($pref = $first->portfolio_type === PortfolioType::Character ? $delegate['personality_preference'] : $delegate['country_preference'])) ({{ $pref }})@endif
                                             · {{ __('2nd: :committee', ['committee' => $second?->code]) }}@if ($second && ($pref = $second->portfolio_type === PortfolioType::Character ? $delegate['personality_preference'] : $delegate['country_preference'])) ({{ $pref }})@endif
                                         </div>
-                                        <div class="break-words whitespace-pre-line text-hb-muted">{{ __('Experience: :experience', ['experience' => trim($delegate['mun_experience'] ?? '') ?: __('First MUN')]) }}</div>
+                                        @if ($experience = MunExperience::tryFrom($delegate['mun_experience'] ?? ''))
+                                            <div class="text-hb-muted">{{ __('Experience: :experience', ['experience' => __($experience->label())]) }}</div>
+                                        @endif
                                     </div>
                                 @endforeach
                             </section>

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\MunExperience;
 use App\Enums\PortfolioType;
 use Database\Factories\DelegateFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -23,7 +24,7 @@ use Illuminate\Support\Carbon;
  * @property int $second_committee_id
  * @property string|null $country_preference
  * @property string|null $personality_preference
- * @property string|null $mun_experience
+ * @property MunExperience|null $mun_experience
  * @property int|null $allocated_committee_id
  * @property string|null $allocated_portfolio
  * @property int|null $allocated_by
@@ -64,6 +65,7 @@ class Delegate extends Model
         return [
             'allocated_at' => 'datetime',
             'allocation_published_at' => 'datetime',
+            'mun_experience' => MunExperience::class,
         ];
     }
 
