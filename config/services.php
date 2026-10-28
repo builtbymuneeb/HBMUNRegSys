@@ -34,6 +34,10 @@ return [
         'subject' => env('VAPID_SUBJECT', 'mailto:contact@hbmun.info'),
     ],
 
+    'clarity' => [
+        'project_id' => env('CLARITY_PROJECT_ID'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

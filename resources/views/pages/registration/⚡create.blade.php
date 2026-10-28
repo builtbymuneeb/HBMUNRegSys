@@ -694,7 +694,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                         </fieldset>
                     @elseif ($step === 3)
                         {{-- 3. Review --}}
-                        <div class="flex flex-col gap-6" data-test="review-step">
+                        <div class="flex flex-col gap-6" data-test="review-step" data-clarity-mask="true">
                             <div>
                                 <h2 class="hb-legend">{{ __('Check your details') }}</h2>
                                 <p class="text-sm leading-relaxed text-hb-muted">{{ __('Make sure everything is spelled correctly. Names and emails are used for certificates and logins.') }}</p>

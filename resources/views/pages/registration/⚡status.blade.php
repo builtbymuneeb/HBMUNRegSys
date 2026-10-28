@@ -182,7 +182,7 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
     @else
         @php($registration = $this->registration)
 
-        <section class="flex flex-col gap-6 border border-hb-line bg-hb-surface p-6" aria-live="polite">
+        <section class="flex flex-col gap-6 border border-hb-line bg-hb-surface p-6" aria-live="polite" data-clarity-mask="true">
             <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
                     <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Reference') }}</div>

@@ -11,6 +11,8 @@
         @fonts
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+        @include('partials.clarity')
     </head>
     <body class="min-h-screen bg-hb-ink font-sans text-white antialiased">
         <header class="border-b border-hb-line bg-black/85">
