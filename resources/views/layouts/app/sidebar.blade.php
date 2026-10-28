@@ -43,6 +43,9 @@
                             <flux:sidebar.item icon="users" :href="route('staff.team')" :current="request()->routeIs('staff.team')" wire:navigate>
                                 {{ __('Team') }}
                             </flux:sidebar.item>
+                            <flux:sidebar.item icon="chart-bar" :href="route('staff.analytics')" :current="request()->routeIs('staff.analytics')" wire:navigate>
+                                {{ __('Visitors') }}
+                            </flux:sidebar.item>
                         @endcan
                     </flux:sidebar.group>
                 @endcan

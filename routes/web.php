@@ -5,20 +5,21 @@ use App\Http\Controllers\PaymentScreenshotController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\StudyGuideDownloadController;
 use App\Http\Controllers\WhatsAppController;
+use App\Http\Middleware\RecordPageView;
 use App\Models\Committee;
 use App\Models\Registration;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => view('welcome', [
     'committees' => Committee::ordered()->get(),
-]))->name('home');
+]))->middleware(RecordPageView::class)->name('home');
 
 Route::middleware('guest')->group(function () {
-    Route::livewire('register', 'pages::registration.create')->name('register');
+    Route::livewire('register', 'pages::registration.create')->middleware(RecordPageView::class)->name('register');
     Route::livewire('staff/join', 'pages::staff.join')->name('staff.join');
 });
 
-Route::livewire('status', 'pages::registration.status')->name('registration.status');
+Route::livewire('status', 'pages::registration.status')->middleware(RecordPageView::class)->name('registration.status');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
@@ -61,6 +62,10 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
     Route::livewire('team', 'pages::staff.team')
         ->can('manage-staff')
         ->name('team');
+
+    Route::livewire('analytics', 'pages::staff.analytics')
+        ->can('manage-staff')
+        ->name('analytics');
 });
 
 require __DIR__.'/settings.php';
