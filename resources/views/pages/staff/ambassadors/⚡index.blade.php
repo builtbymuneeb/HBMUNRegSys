@@ -269,7 +269,7 @@ new #[Title('Campus ambassadors')] class extends Component {
             <div>
                 <flux:heading size="lg">{{ __('Import campus ambassadors') }}</flux:heading>
                 <flux:text class="mt-1">
-                    {{ __('Upload the sign-up sheet as .xlsx or .csv. In Google Sheets: File → Download → Microsoft Excel or CSV. The first row must hold the headings; name, email, phone, institution, city and code columns are picked up by their headings. Anyone without a code gets the next HB-### code. Rows with a phone or email that looks wrong, or with something in a “note” or “status” column, are flagged for checking.') }}
+                    {{ __('Upload the sign-up sheet as .xlsx or .csv. In Google Sheets: File → Download → Microsoft Excel or CSV. The first row must hold the headings; name, email, phone, institution, city and code columns are picked up by their headings. Anyone without a code gets the next HB## code. Rows with a phone or email that looks wrong, or with something in a “note” or “status” column, are flagged for checking.') }}
                 </flux:text>
             </div>
 

@@ -7,7 +7,7 @@ use Illuminate\Support\Str;
 class ReferralCode
 {
     /**
-     * Prefix for codes the system hands out, e.g. HB-001.
+     * Prefix for codes the system hands out, e.g. HB01.
      */
     public const PREFIX = 'HB';
 
@@ -22,7 +22,7 @@ class ReferralCode
     }
 
     /**
-     * The key two codes are matched on, so "hb 1", "HB001" and "HB-001" all count as HB-001.
+     * The key two codes are matched on, so "hb 1", "HB01" and "HB-001" all count as HB01.
      */
     public static function key(?string $code): ?string
     {
@@ -36,15 +36,15 @@ class ReferralCode
     }
 
     /**
-     * Format a code number the way the system hands them out, e.g. 7 → HB-007.
+     * Format a code number the way the system hands them out, e.g. 7 → HB07, 120 → HB120.
      */
     public static function format(int $number): string
     {
-        return sprintf('%s-%03d', self::PREFIX, $number);
+        return sprintf('%s%02d', self::PREFIX, $number);
     }
 
     /**
-     * The number in one of our own codes (HB-007 → 7), or null for any other code.
+     * The number in one of our own codes (HB07 → 7), or null for any other code.
      */
     public static function number(string $code): ?int
     {

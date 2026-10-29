@@ -14,7 +14,7 @@ use Illuminate\Validation\ValidationException;
  * Turns the rows of a campus ambassador sign-up sheet (e.g. a Google Forms
  * export) into ambassador profiles. Columns are found by their headings, so
  * the sheet doesn't need a fixed layout; rows without a code get the next
- * free HB-### code. Rows with doubtful contact details, or a note in a
+ * free HB## code. Rows with doubtful contact details, or a note in a
  * "note"/"flag"/"status" column, are flagged for staff to check.
  */
 class ImportAmbassadors

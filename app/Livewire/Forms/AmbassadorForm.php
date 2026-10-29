@@ -81,7 +81,7 @@ class AmbassadorForm extends Form
     protected function messages(): array
     {
         return [
-            'code.regex' => __('Use letters, numbers and dashes only, e.g. HB-001.'),
+            'code.regex' => __('Use letters, numbers and dashes only, e.g. HB01.'),
         ];
     }
 

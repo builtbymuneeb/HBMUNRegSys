@@ -5,7 +5,7 @@
             <flux:text class="mt-1">{{ __('Registrations that enter this code are counted for them, including any that came in before they were added.') }}</flux:text>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
-            <flux:input wire:model="form.code" :label="__('Referral code')" placeholder="HB-001" class="uppercase" />
+            <flux:input wire:model="form.code" :label="__('Referral code')" placeholder="HB01" class="uppercase" />
             <flux:input wire:model="form.name" :label="__('Full name')" />
             <flux:input wire:model="form.email" type="email" :label="__('Email')" />
             <flux:input wire:model="form.phone" type="tel" :label="__('Phone (WhatsApp)')" placeholder="03XX XXXXXXX" />

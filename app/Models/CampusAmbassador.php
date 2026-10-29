@@ -108,7 +108,7 @@ class CampusAmbassador extends Model
     }
 
     /**
-     * The next unused HB-### code.
+     * The next unused HB## code.
      */
     public static function nextCode(): string
     {

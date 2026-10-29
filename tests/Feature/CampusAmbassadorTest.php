@@ -106,13 +106,13 @@ test('staff add an ambassador with the next free code', function () {
     Livewire::actingAs(staffMember())
         ->test('pages::staff.ambassadors.index')
         ->call('add')
-        ->assertSet('form.code', 'HB-005')
+        ->assertSet('form.code', 'HB05')
         ->set('form.name', 'Ayesha Khan')
         ->set('form.institution', 'Beaconhouse')
         ->call('save')
         ->assertHasNoErrors();
 
-    expect(CampusAmbassador::where('code', 'HB-005')->value('name'))->toBe('Ayesha Khan');
+    expect(CampusAmbassador::where('code', 'HB05')->value('name'))->toBe('Ayesha Khan');
 });
 
 test('two ambassadors cannot share a code, however it is written', function () {
@@ -184,7 +184,7 @@ test('a Google Forms sheet is imported by its headings, giving codes to anyone w
 
     $preview = app(ImportAmbassadors::class)->preview($rows);
 
-    expect(collect($preview)->whereNull('skip')->pluck('code')->all())->toBe(['HB-011', 'HB-010'])
+    expect(collect($preview)->whereNull('skip')->pluck('code')->all())->toBe(['HB11', 'HB-010'])
         ->and(collect($preview)->whereNotNull('skip')->count())->toBe(2);
 
     $path = xlsxFile($rows);
@@ -199,7 +199,7 @@ test('a Google Forms sheet is imported by its headings, giving codes to anyone w
 
     $hamza = CampusAmbassador::where('name', 'Hamza Ali')->sole();
 
-    expect($hamza->code)->toBe('HB-011')
+    expect($hamza->code)->toBe('HB11')
         ->and($hamza->phone)->toBe('03001234567')
         ->and($hamza->institution)->toBe('LGS')
         ->and(CampusAmbassador::where('code', 'HB-010')->value('email'))->toBe('sara@example.com')
