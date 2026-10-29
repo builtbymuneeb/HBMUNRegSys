@@ -27,6 +27,7 @@ new #[Title('Visitors')] class extends Component {
         '/' => 'Landing page',
         '/register' => 'Registration form',
         '/status' => 'Status check',
+        '/links' => 'Link tree',
     ];
 
     /**

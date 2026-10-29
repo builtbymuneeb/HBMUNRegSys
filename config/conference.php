@@ -62,4 +62,16 @@ return [
         'email' => env('REGISTRATION_EMAIL'),
     ],
 
+    /*
+    | Social profiles shown on the /links page. Leave one empty to hide it.
+    */
+
+    'socials' => [
+        'instagram' => env('SOCIAL_INSTAGRAM_URL'),
+        'whatsapp' => env('SOCIAL_WHATSAPP_URL'),
+        'linkedin' => env('SOCIAL_LINKEDIN_URL'),
+        'facebook' => env('SOCIAL_FACEBOOK_URL'),
+        'tiktok' => env('SOCIAL_TIKTOK_URL'),
+    ],
+
 ];

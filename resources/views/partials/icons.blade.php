@@ -3,7 +3,7 @@
 <meta name="description" content="{{ $description }}">
 <meta name="theme-color" content="#3b0a6b">
 <link rel="canonical" href="{{ url()->current() }}">
-@unless (request()->routeIs('home', 'register'))
+@unless (request()->routeIs('home', 'register', 'links'))
     <meta name="robots" content="noindex">
 @endunless
 

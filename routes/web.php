@@ -14,6 +14,8 @@ Route::get('/', fn () => view('welcome', [
     'committees' => Committee::ordered()->get(),
 ]))->middleware(RecordPageView::class)->name('home');
 
+Route::view('links', 'links')->middleware(RecordPageView::class)->name('links');
+
 Route::middleware('guest')->group(function () {
     Route::livewire('register', 'pages::registration.create')->middleware(RecordPageView::class)->name('register');
     Route::livewire('staff/join', 'pages::staff.join')->name('staff.join');
