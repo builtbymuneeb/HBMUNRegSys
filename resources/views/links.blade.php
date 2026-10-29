@@ -38,7 +38,8 @@
             <div class="pointer-events-none absolute inset-0 -z-10 [border-style:solid] [border-width:120px_92px] [border-image:url('/images/links-frame.webp')_390_300_fill] sm:[border-width:165px_127px]" aria-hidden="true"></div>
 
         <main class="mx-auto flex min-h-screen w-full max-w-md flex-col items-center px-9 pt-16 pb-28 sm:px-4 sm:pt-24 sm:pb-36">
-            <span class="hb-art hb-art-crest block w-24 sm:w-28" aria-hidden="true"></span>
+            <img src="/images/logo.webp" width="480" height="480" alt="{{ __('Homebridge MUN ’26 logo') }}" class="block w-40 rounded-md shadow-lg ring-1 shadow-black/40 ring-white/25 sm:w-48">
+
 
             <h1 class="mt-5 text-center font-display text-[21px] font-bold tracking-[0.05em] whitespace-nowrap sm:text-[28px] sm:tracking-[0.08em]">HOMEBRIDGE MUN ’26</h1>
             <p class="mt-2 text-center font-script text-xl text-[#e6e1ec] italic">{{ __('Different voices. One purpose.') }}</p>
