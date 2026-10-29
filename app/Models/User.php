@@ -67,6 +67,12 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     ];
 
     /**
+     * The admin's own role while they view the site as another role. Set by the
+     * PreviewRole middleware for the current request only; never saved.
+     */
+    public ?UserRole $actualRole = null;
+
+    /**
      * Note when someone chooses a password (from the set-password email, "Forgot password"
      * or settings), so staff can see who has opened their email. Code that sets
      * password_set_at itself, like the random placeholder for new delegates, wins.
@@ -125,6 +131,20 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function canManageAmbassadors(): bool
     {
         return in_array($this->role, [UserRole::Registrations, UserRole::Ambassadors, UserRole::Admin], true);
+    }
+
+    /**
+     * Whether this account may view the site as another role. Checks the real role,
+     * so an admin can switch roles while already previewing one.
+     */
+    public function canPreviewRoles(): bool
+    {
+        return ($this->actualRole ?? $this->role) === UserRole::Admin;
+    }
+
+    public function isPreviewingRole(): bool
+    {
+        return $this->actualRole !== null;
     }
 
     public function isAdmin(): bool

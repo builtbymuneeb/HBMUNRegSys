@@ -126,7 +126,7 @@ new class extends Component
      */
     protected function snapshot(): array
     {
-        $delegate = Auth::user()->delegate()->first();
+        $delegate = Auth::user()->isPreviewingRole() ? Auth::user()->delegate : Auth::user()->delegate()->first();
         $verified = Registration::whereKey($delegate?->registration_id)->value('status') === RegistrationStatus::Verified;
         $committee = $delegate?->hasPublishedAllocation() ? $delegate->allocatedCommittee : null;
 

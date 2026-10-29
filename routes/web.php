@@ -3,6 +3,7 @@
 use App\Http\Controllers\DelegateExportController;
 use App\Http\Controllers\PaymentScreenshotController;
 use App\Http\Controllers\PushSubscriptionController;
+use App\Http\Controllers\RolePreviewController;
 use App\Http\Controllers\StudyGuideDownloadController;
 use App\Http\Controllers\WhatsAppController;
 use App\Http\Middleware\RecordPageView;
@@ -30,6 +31,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');
     Route::delete('push-subscriptions', [PushSubscriptionController::class, 'destroy'])->name('push-subscriptions.destroy');
+
+    Route::post('view-as', [RolePreviewController::class, 'store'])->name('role-preview.store');
+    Route::delete('view-as', [RolePreviewController::class, 'destroy'])->name('role-preview.destroy');
 });
 
 Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(function () {

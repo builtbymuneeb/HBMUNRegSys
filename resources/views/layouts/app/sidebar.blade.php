@@ -108,6 +108,8 @@
                         </flux:menu.item>
                     </flux:menu.radio.group>
 
+                    @include('partials.view-as-menu')
+
                     <flux:menu.separator />
 
                     <form method="POST" action="{{ route('logout') }}" class="w-full">
@@ -135,6 +137,7 @@
         @endpersist
 
         @include('partials.offline-banner')
+        @include('partials.role-preview-banner')
 
         @fluxScripts
     </body>

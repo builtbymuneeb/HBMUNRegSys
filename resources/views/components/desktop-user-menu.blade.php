@@ -35,5 +35,6 @@
                 </flux:menu.item>
             </form>
         </flux:menu.radio.group>
+        @include('partials.view-as-menu')
     </flux:menu>
 </flux:dropdown>

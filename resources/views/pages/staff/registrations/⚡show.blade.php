@@ -194,6 +194,14 @@ new #[Title('Review registration')] class extends Component {
                                             <flux:badge size="sm" color="amber" class="self-start" :title="__('They haven’t used the set-password email yet')">{{ __('Password not set') }}</flux:badge>
                                         @endif
                                         <x-whatsapp-button size="xs" :label="__('WhatsApp')" :href="route('staff.whatsapp.account', $delegate)" :phone="$delegate->phone" :sent="$delegate->accountWhatsApp()" />
+                                        @if (auth()->user()->canPreviewRoles())
+                                            <form method="POST" action="{{ route('role-preview.store') }}">
+                                                @csrf
+                                                <input type="hidden" name="role" value="delegate">
+                                                <input type="hidden" name="delegate" value="{{ $delegate->id }}">
+                                                <flux:button size="xs" type="submit" icon="eye" data-test="view-as-delegate-{{ $delegate->id }}">{{ __('View their dashboard') }}</flux:button>
+                                            </form>
+                                        @endif
                                     </div>
                                 @endif
                             </div>
