@@ -4,18 +4,9 @@
     $links = [
         ['label' => __('Register your delegation'), 'note' => __('Registrations are open'), 'href' => route('register'), 'primary' => true],
         ['label' => __('Check your registration status'), 'href' => route('registration.status')],
-        ['label' => __('Committees'), 'href' => route('home').'#committees'],
-        ['label' => __('Fees and payment'), 'href' => route('home').'#fees'],
-        ['label' => __('Official website'), 'href' => route('home')],
+        ['label' => __('Apply as a Regular Campus Ambassador'), 'href' => 'https://forms.gle/r7Lk6X6m5gQYrUgp7', 'external' => true],
+        ['label' => __('Apply as an HB Campus Ambassador'), 'href' => 'https://forms.gle/JC5Kqun1i1weDtk7A', 'external' => true],
     ];
-
-    foreach ($contacts['heads'] as $i => $head) {
-        $links[] = [
-            'label' => __('WhatsApp the registration desk').(count($contacts['heads']) > 1 ? ' '.($i + 1) : ''),
-            'note' => $head['phone'],
-            'href' => 'https://wa.me/'.preg_replace('/^0/', '92', preg_replace('/\D/', '', $head['phone'])),
-        ];
-    }
 
     if ($contacts['email']) {
         $links[] = ['label' => __('Email us'), 'note' => $contacts['email'], 'href' => 'mailto:'.$contacts['email']];
@@ -57,7 +48,7 @@
                 @foreach ($links as $link)
                     <a
                         href="{{ $link['href'] }}"
-                        @if (str_starts_with($link['href'], 'https://wa.me')) target="_blank" rel="noopener" @endif
+                        @if ($link['external'] ?? false) target="_blank" rel="noopener" @endif
                         @class([
                             'flex min-h-14 flex-col items-center justify-center rounded-xs px-5 py-3 text-center transition',
                             'bg-white text-hb-purple hover:bg-hb-lavender' => $link['primary'] ?? false,
