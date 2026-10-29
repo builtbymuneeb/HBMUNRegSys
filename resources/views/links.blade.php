@@ -4,8 +4,7 @@
     $links = [
         ['label' => __('Register your delegation'), 'note' => __('Registrations are open'), 'href' => route('register'), 'primary' => true],
         ['label' => __('Check your registration status'), 'href' => route('registration.status')],
-        ['label' => __('Apply as a Regular Campus Ambassador'), 'href' => 'https://forms.gle/r7Lk6X6m5gQYrUgp7', 'external' => true],
-        ['label' => __('Apply as an HB Campus Ambassador'), 'href' => 'https://forms.gle/JC5Kqun1i1weDtk7A', 'external' => true],
+        ['label' => __('Apply for Campus Ambassador'), 'opens' => 'ambassador-dialog'],
     ];
 
     if ($contacts['email']) {
@@ -40,18 +39,20 @@
         <main class="mx-auto flex min-h-screen w-full max-w-md flex-col items-center px-9 pt-16 pb-28 sm:px-4 sm:pt-24 sm:pb-36">
             <img src="/images/logo.webp" width="480" height="480" alt="{{ __('Homebridge MUN ’26 logo') }}" class="block w-40 rounded-md shadow-lg ring-1 shadow-black/40 ring-white/25 sm:w-48">
 
-
             <h1 class="mt-5 text-center font-display text-[21px] font-bold tracking-[0.05em] whitespace-nowrap sm:text-[28px] sm:tracking-[0.08em]">HOMEBRIDGE MUN ’26</h1>
             <p class="mt-2 text-center font-script text-xl text-[#e6e1ec] italic">{{ __('Different voices. One purpose.') }}</p>
             <p class="mt-3 text-center font-display text-[12px] tracking-[0.24em] text-hb-lavender uppercase">{{ __('Virtual') }} · {{ config('conference.dates_label') }}</p>
 
             <nav class="mt-8 flex w-full flex-col gap-3" aria-label="{{ __('Links') }}">
                 @foreach ($links as $link)
-                    <a
-                        href="{{ $link['href'] }}"
-                        @if ($link['external'] ?? false) target="_blank" rel="noopener" @endif
+                    <{{ isset($link['opens']) ? 'button' : 'a' }}
+                        @isset($link['opens'])
+                            type="button" onclick="document.getElementById('{{ $link['opens'] }}').showModal()"
+                        @else
+                            href="{{ $link['href'] }}"
+                        @endisset
                         @class([
-                            'flex min-h-14 flex-col items-center justify-center rounded-xs px-5 py-3 text-center transition',
+                            'flex min-h-14 cursor-pointer flex-col items-center justify-center rounded-xs px-5 py-3 text-center transition',
                             'bg-white text-hb-purple hover:bg-hb-lavender' => $link['primary'] ?? false,
                             'border border-white/25 bg-black/25 hover:border-hb-lavender hover:bg-hb-purple/60' => ! ($link['primary'] ?? false),
                         ])
@@ -60,7 +61,7 @@
                         @isset($link['note'])
                             <span @class(['mt-0.5 text-sm', 'text-hb-purple/75' => $link['primary'] ?? false, 'text-hb-soft/80' => ! ($link['primary'] ?? false)])>{{ $link['note'] }}</span>
                         @endisset
-                    </a>
+                    </{{ isset($link['opens']) ? 'button' : 'a' }}>
                 @endforeach
             </nav>
 
@@ -75,5 +76,7 @@
             <p class="mt-auto pt-12 text-center font-display text-[11px] tracking-[0.2em] text-hb-lavender/70">DIPLOMACY · LEADERSHIP · DISCUSSION · IMPACT</p>
         </main>
         </div>
+
+        @include('partials.ambassador-dialog')
     </body>
 </html>

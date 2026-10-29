@@ -12,7 +12,7 @@
 
 <x-layouts::public>
     <x-slot:nav>
-        @php($sections = ['#about' => __('About'), '#committees' => __('Committees'), '#fees' => __('Fees'), '#how' => __('How to register'), '#faq' => __('FAQ')])
+        @php($sections = ['#about' => __('About'), '#committees' => __('Committees'), '#fees' => __('Fees'), '#how' => __('How to register'), '#ambassadors' => __('Ambassadors'), '#faq' => __('FAQ')])
 
         {{-- Desktop --}}
         <nav class="hidden items-center gap-7 text-sm lg:flex" aria-label="{{ __('Main') }}">
@@ -255,6 +255,16 @@
                     </li>
                 @endforeach
             </ol>
+        </div>
+    </section>
+
+    {{-- Campus ambassadors --}}
+    <section id="ambassadors" class="border-b border-[#2a2630]">
+        <div class="mx-auto flex max-w-3xl flex-col items-center gap-5 px-6 py-14 text-center lg:gap-6 lg:py-20">
+            <div class="hb-eyebrow">{{ __('Campus Ambassadors') }}</div>
+            <h2 class="font-display text-[clamp(30px,3.6vw,44px)] leading-tight font-semibold">{{ __('Represent Homebridge MUN on your campus.') }}</h2>
+            <p class="max-w-xl text-[17px] leading-relaxed text-hb-muted">{{ __('Bring your classmates to the conference with your own referral code.') }}</p>
+            <button type="button" onclick="document.getElementById('ambassador-dialog').showModal()" class="hb-button-primary min-h-13 px-8 text-base">{{ __('Apply for Campus Ambassador') }}</button>
         </div>
     </section>
 

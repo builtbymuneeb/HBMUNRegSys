@@ -63,6 +63,16 @@ return [
     ],
 
     /*
+    | Google Forms for campus ambassador applications, linked from the
+    | landing page and /links.
+    */
+
+    'ambassador_forms' => [
+        'private' => env('AMBASSADOR_FORM_PRIVATE_URL', 'https://forms.gle/r7Lk6X6m5gQYrUgp7'),
+        'hb' => env('AMBASSADOR_FORM_HB_URL', 'https://forms.gle/JC5Kqun1i1weDtk7A'),
+    ],
+
+    /*
     | Social profiles shown on the /links page. Leave one empty to hide it.
     */
 

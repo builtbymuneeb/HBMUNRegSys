@@ -52,6 +52,7 @@
                         <a href="{{ route('home') }}#committees" class="text-hb-soft hover:text-white">{{ __('Committees') }}</a>
                         <a href="{{ route('home') }}#fees" class="text-hb-soft hover:text-white">{{ __('Fees') }}</a>
                         <a href="{{ route('registration.status') }}" class="text-hb-soft hover:text-white">{{ __('Registration status') }}</a>
+                        <button type="button" onclick="document.getElementById('ambassador-dialog').showModal()" class="cursor-pointer text-hb-soft hover:text-white">{{ __('Campus Ambassadors') }}</button>
                         @if (config('conference.contacts.email'))
                             <a href="mailto:{{ config('conference.contacts.email') }}" class="text-hb-soft hover:text-white">{{ config('conference.contacts.email') }}</a>
                         @endif
@@ -64,5 +65,7 @@
                 </div>
             </div>
         </footer>
+
+        @include('partials.ambassador-dialog')
     </body>
 </html>
