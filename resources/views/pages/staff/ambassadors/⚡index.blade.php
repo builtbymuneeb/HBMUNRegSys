@@ -106,7 +106,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function save(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('manage-ambassadors');
 
         $ambassador = $this->form->save();
 
@@ -139,7 +139,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function import(ImportAmbassadors $importAmbassadors): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('manage-ambassadors');
 
         $count = $importAmbassadors->import($this->sheetRows, Auth::user());
 
@@ -232,7 +232,11 @@ new #[Title('Campus ambassadors')] class extends Component {
             </div>
             <div class="flex flex-wrap gap-2">
                 @foreach ($this->unmatchedCodes as $code => $total)
-                    <flux:badge :href="route('staff.registrations.index', ['status' => '', 'search' => $code])" wire:navigate>{{ $code }} · {{ $total }}</flux:badge>
+                    @can('viewAny', \App\Models\Registration::class)
+                        <flux:badge :href="route('staff.registrations.index', ['status' => '', 'search' => $code])" wire:navigate>{{ $code }} · {{ $total }}</flux:badge>
+                    @else
+                        <flux:badge>{{ $code }} · {{ $total }}</flux:badge>
+                    @endcan
                 @endforeach
             </div>
         </flux:card>

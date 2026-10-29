@@ -17,11 +17,13 @@
                     </flux:sidebar.item>
                 </flux:sidebar.group>
 
-                @can('viewAny', \App\Models\Registration::class)
+                @if (auth()->user()->isStaff())
                     <flux:sidebar.group :heading="__('Staff')" class="grid">
-                        <flux:sidebar.item icon="clipboard-document-check" :href="route('staff.registrations.index')" :current="request()->routeIs('staff.registrations.*')" wire:navigate>
-                            {{ __('Registrations') }}
-                        </flux:sidebar.item>
+                        @can('viewAny', \App\Models\Registration::class)
+                            <flux:sidebar.item icon="clipboard-document-check" :href="route('staff.registrations.index')" :current="request()->routeIs('staff.registrations.*')" wire:navigate>
+                                {{ __('Registrations') }}
+                            </flux:sidebar.item>
+                        @endcan
                         @can('manage-conference')
                             <flux:sidebar.item icon="user-group" :href="route('staff.allocations')" :current="request()->routeIs('staff.allocations')" wire:navigate>
                                 {{ __('Allocations') }}
@@ -35,9 +37,13 @@
                             <flux:sidebar.item icon="megaphone" :href="route('staff.announcements')" :current="request()->routeIs('staff.announcements')" wire:navigate>
                                 {{ __('Announcements') }}
                             </flux:sidebar.item>
+                        @endcan
+                        @can('manage-ambassadors')
                             <flux:sidebar.item icon="ticket" :href="route('staff.ambassadors')" :current="request()->routeIs('staff.ambassadors*')" wire:navigate>
                                 {{ __('Campus ambassadors') }}
                             </flux:sidebar.item>
+                        @endcan
+                        @can('manage-conference')
                             <flux:sidebar.item icon="envelope" :href="route('staff.emails')" :current="request()->routeIs('staff.emails')" wire:navigate>
                                 {{ __('Email log') }}
                             </flux:sidebar.item>
@@ -51,7 +57,7 @@
                             </flux:sidebar.item>
                         @endcan
                     </flux:sidebar.group>
-                @endcan
+                @endif
             </flux:sidebar.nav>
 
             <flux:spacer />

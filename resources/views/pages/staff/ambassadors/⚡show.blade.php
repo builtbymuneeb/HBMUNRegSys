@@ -40,7 +40,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function save(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('manage-ambassadors');
 
         $this->ambassador = $this->form->save();
         unset($this->counts, $this->registrations);
@@ -51,7 +51,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function delete(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('manage-ambassadors');
 
         AuditLog::record('ambassador_deleted', $this->ambassador, Auth::user(), ['code' => $this->ambassador->code, 'name' => $this->ambassador->name]);
         $this->ambassador->delete();
@@ -145,7 +145,9 @@ new #[Title('Campus ambassador')] class extends Component {
                             <flux:badge size="sm" :color="$registration->status->color()" inset="top bottom">{{ $registration->status->label() }}</flux:badge>
                         </flux:table.cell>
                         <flux:table.cell align="end">
-                            <flux:button size="sm" :href="route('staff.registrations.show', $registration)" wire:navigate>{{ __('View') }}</flux:button>
+                            @can('view', $registration)
+                                <flux:button size="sm" :href="route('staff.registrations.show', $registration)" wire:navigate>{{ __('View') }}</flux:button>
+                            @endcan
                         </flux:table.cell>
                     </flux:table.row>
                 @empty

@@ -45,6 +45,14 @@
                         </div>
                     </flux:card>
                 @endcan
+                @can('manage-ambassadors')
+                    <flux:card class="flex flex-col items-start gap-3">
+                        <flux:icon name="ticket" class="size-6 text-hb-lavender" />
+                        <flux:heading size="lg">{{ __('Campus ambassadors') }}</flux:heading>
+                        <flux:text>{{ __('Add or import ambassadors and see how many registrations each code brings in.') }}</flux:text>
+                        <flux:button :href="route('staff.ambassadors')" wire:navigate>{{ __('Open ambassadors') }}</flux:button>
+                    </flux:card>
+                @endcan
                 @can('manage-staff')
                     <flux:card class="flex flex-col items-start gap-3">
                         <flux:icon name="users" class="size-6 text-hb-lavender" />

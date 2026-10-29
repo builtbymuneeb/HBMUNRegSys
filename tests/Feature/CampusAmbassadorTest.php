@@ -39,16 +39,46 @@ function xlsxFile(array $rows): string
     return $path;
 }
 
-test('only the registrations team and admins can open the ambassador pages', function (UserRole $role, int $status) {
+test('the registrations team, ambassador managers and admins can open the ambassador pages', function (UserRole $role, int $status) {
     $ambassador = CampusAmbassador::factory()->create();
 
     $this->actingAs(User::factory()->role($role)->create())->get(route('staff.ambassadors'))->assertStatus($status);
     $this->actingAs(User::factory()->role($role)->create())->get(route('staff.ambassadors.show', $ambassador))->assertStatus($status);
 })->with([
     [UserRole::Registrations, 200],
+    [UserRole::Ambassadors, 200],
     [UserRole::Admin, 200],
     [UserRole::Delegate, 403],
+    [UserRole::Applicant, 403],
 ]);
+
+test('ambassador managers cannot reach registrations or the rest of the conference tools', function () {
+    $manager = User::factory()->role(UserRole::Ambassadors)->create();
+    $registration = Registration::factory()->create();
+
+    $this->actingAs($manager);
+
+    $this->get(route('staff.registrations.index'))->assertForbidden();
+    $this->get(route('staff.registrations.show', $registration))->assertForbidden();
+    $this->get(route('staff.allocations'))->assertForbidden();
+    $this->get(route('staff.team'))->assertForbidden();
+
+    $this->get(route('dashboard'))
+        ->assertOk()
+        ->assertSee(route('staff.ambassadors'))
+        ->assertDontSee(route('staff.registrations.index'))
+        ->assertDontSee(route('staff.allocations'));
+});
+
+test('ambassador managers see who used a code without a link into the registration', function () {
+    $ambassador = CampusAmbassador::factory()->create();
+    $registration = Registration::factory()->create(['referral_code' => $ambassador->code, 'campus_ambassador_id' => $ambassador->id]);
+
+    Livewire::actingAs(User::factory()->role(UserRole::Ambassadors)->create())
+        ->test('pages::staff.ambassadors.show', ['ambassador' => $ambassador])
+        ->assertSeeText($registration->reference)
+        ->assertDontSee(route('staff.registrations.show', $registration));
+});
 
 test('codes typed in different ways match the same ambassador', function (string $typed) {
     expect(ReferralCode::key($typed))->toBe(ReferralCode::key('HB-001'));

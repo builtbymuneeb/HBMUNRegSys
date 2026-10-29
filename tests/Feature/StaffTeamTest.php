@@ -30,6 +30,32 @@ test('someone can request staff access and admins are notified', function () {
     Notification::assertSentTo($admin, StaffAccessRequested::class);
 });
 
+test('someone can ask to join the campus ambassador team instead', function () {
+    Livewire::test('pages::staff.join')
+        ->set('name', 'CA Lead')
+        ->set('email', 'ca@example.com')
+        ->set('password', 'Password123')
+        ->set('password_confirmation', 'Password123')
+        ->set('role', UserRole::Ambassadors->value)
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(User::where('email', 'ca@example.com')->sole()->requested_role)->toBe(UserRole::Ambassadors);
+});
+
+test('nobody can ask to join as an admin', function () {
+    Livewire::test('pages::staff.join')
+        ->set('name', 'Sneaky')
+        ->set('email', 'sneaky@example.com')
+        ->set('password', 'Password123')
+        ->set('password_confirmation', 'Password123')
+        ->set('role', UserRole::Admin->value)
+        ->call('submit')
+        ->assertHasErrors('role');
+
+    expect(User::where('email', 'sneaky@example.com')->exists())->toBeFalse();
+});
+
 test('an applicant has no staff access until approved', function () {
     $applicant = User::factory()->role(UserRole::Applicant)->create(['requested_role' => UserRole::Registrations]);
 

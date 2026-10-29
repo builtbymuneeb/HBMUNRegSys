@@ -7,6 +7,7 @@ enum UserRole: string
     case Delegate = 'delegate';
     case Applicant = 'applicant';
     case Registrations = 'registrations';
+    case Ambassadors = 'ambassadors';
     case Admin = 'admin';
 
     public function label(): string
@@ -15,6 +16,7 @@ enum UserRole: string
             self::Delegate => 'Delegate',
             self::Applicant => 'Awaiting approval',
             self::Registrations => 'Registrations team',
+            self::Ambassadors => 'Campus ambassador management',
             self::Admin => 'Admin',
         };
     }
@@ -27,8 +29,9 @@ enum UserRole: string
         return match ($this) {
             self::Delegate => 'Their own delegate dashboard.',
             self::Applicant => 'Can log in, but has no access until an admin approves them.',
-            self::Registrations => 'Verifies or rejects payments, allocates committees and portfolios, and runs committee pages, study guides and announcements.',
-            self::Admin => 'Everything the registrations team does, plus managing the team.',
+            self::Registrations => 'Verifies or rejects payments, allocates committees and portfolios, and runs committee pages, study guides, announcements and campus ambassadors.',
+            self::Ambassadors => 'Adds and imports campus ambassadors and tracks the registrations their codes bring in. No access to payments, registration details or allocations.',
+            self::Admin => 'Everything the other teams do, plus managing the team.',
         };
     }
 
@@ -44,6 +47,6 @@ enum UserRole: string
      */
     public static function staffRoles(): array
     {
-        return [self::Registrations, self::Admin];
+        return [self::Registrations, self::Ambassadors, self::Admin];
     }
 }
