@@ -41,17 +41,19 @@
 
         @include('partials.clarity')
     </head>
-    <body class="min-h-screen bg-hb-ink font-sans text-white antialiased">
-        <main class="relative mx-auto flex min-h-screen w-full max-w-md flex-col items-center px-4 pt-12 pb-10 sm:pt-16">
-            <div class="pointer-events-none absolute inset-x-0 top-0 -z-0 h-72 bg-[radial-gradient(ellipse_at_top,rgba(59,10,107,0.55),transparent_70%)]" aria-hidden="true"></div>
+    <body class="min-h-screen bg-[#2f1942] font-sans text-white antialiased">
+        <div class="relative isolate min-h-screen">
+            {{-- Ornamental frame: corners keep their shape, the straight edges stretch with the page --}}
+            <div class="pointer-events-none absolute inset-0 -z-10 [border-style:solid] [border-width:120px_92px] [border-image:url('/images/links-frame.webp')_390_300_fill] sm:[border-width:165px_127px]" aria-hidden="true"></div>
 
-            <span class="hb-art hb-art-crest relative block w-24 sm:w-28" aria-hidden="true"></span>
+        <main class="mx-auto flex min-h-screen w-full max-w-md flex-col items-center px-9 pt-16 pb-28 sm:px-4 sm:pt-24 sm:pb-36">
+            <span class="hb-art hb-art-crest block w-24 sm:w-28" aria-hidden="true"></span>
 
-            <h1 class="relative mt-5 text-center font-display text-2xl font-bold tracking-[0.08em] sm:text-[28px]">HOMEBRIDGE MUN ’26</h1>
-            <p class="relative mt-2 text-center font-script text-xl text-[#e6e1ec] italic">{{ __('Different voices. One purpose.') }}</p>
-            <p class="relative mt-3 text-center font-display text-[12px] tracking-[0.24em] text-hb-lavender uppercase">{{ __('Virtual') }} · {{ config('conference.dates_label') }}</p>
+            <h1 class="mt-5 text-center font-display text-[21px] font-bold tracking-[0.05em] whitespace-nowrap sm:text-[28px] sm:tracking-[0.08em]">HOMEBRIDGE MUN ’26</h1>
+            <p class="mt-2 text-center font-script text-xl text-[#e6e1ec] italic">{{ __('Different voices. One purpose.') }}</p>
+            <p class="mt-3 text-center font-display text-[12px] tracking-[0.24em] text-hb-lavender uppercase">{{ __('Virtual') }} · {{ config('conference.dates_label') }}</p>
 
-            <nav class="relative mt-8 flex w-full flex-col gap-3" aria-label="{{ __('Links') }}">
+            <nav class="mt-8 flex w-full flex-col gap-3" aria-label="{{ __('Links') }}">
                 @foreach ($links as $link)
                     <a
                         href="{{ $link['href'] }}"
@@ -59,26 +61,27 @@
                         @class([
                             'flex min-h-14 flex-col items-center justify-center rounded-xs px-5 py-3 text-center transition',
                             'bg-white text-hb-purple hover:bg-hb-lavender' => $link['primary'] ?? false,
-                            'border border-hb-line-strong bg-white/[0.03] hover:border-hb-lavender hover:bg-hb-purple/40' => ! ($link['primary'] ?? false),
+                            'border border-white/25 bg-black/25 hover:border-hb-lavender hover:bg-hb-purple/60' => ! ($link['primary'] ?? false),
                         ])
                     >
                         <span class="font-semibold">{{ $link['label'] }}</span>
                         @isset($link['note'])
-                            <span @class(['mt-0.5 text-sm', 'text-hb-purple/75' => $link['primary'] ?? false, 'text-hb-subtle' => ! ($link['primary'] ?? false)])>{{ $link['note'] }}</span>
+                            <span @class(['mt-0.5 text-sm', 'text-hb-purple/75' => $link['primary'] ?? false, 'text-hb-soft/80' => ! ($link['primary'] ?? false)])>{{ $link['note'] }}</span>
                         @endisset
                     </a>
                 @endforeach
             </nav>
 
             @if ($socials)
-                <div class="relative mt-8 flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm">
+                <div class="mt-8 flex flex-wrap justify-center gap-x-6 gap-y-3 text-sm">
                     @foreach ($socials as $key => $url)
                         <a href="{{ $url }}" target="_blank" rel="noopener" class="text-hb-soft underline-offset-4 hover:text-white hover:underline">{{ $socialNames[$key] }}</a>
                     @endforeach
                 </div>
             @endif
 
-            <p class="relative mt-auto pt-12 text-center font-display text-[11px] tracking-[0.2em] text-[#8f8996]">DIPLOMACY · LEADERSHIP · DISCUSSION · IMPACT</p>
+            <p class="mt-auto pt-12 text-center font-display text-[11px] tracking-[0.2em] text-hb-lavender/70">DIPLOMACY · LEADERSHIP · DISCUSSION · IMPACT</p>
         </main>
+        </div>
     </body>
 </html>
