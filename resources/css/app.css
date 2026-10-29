@@ -89,7 +89,7 @@ select:focus[data-flux-control] {
     background-repeat: no-repeat;
 }
 
-.hb-art-crest { background-size: 281.67% auto; background-position: 44.96% 39.47%; aspect-ratio: 431 / 502; }
+.hb-art-crest { background-image: url('../images/logo.webp'); background-size: cover; aspect-ratio: 1 / 1; border-radius: 4px; }
 .hb-art-window { background-size: 325.47% auto; background-position: 44.23% 0%; aspect-ratio: 373 / 303; }
 .hb-art-globe { background-size: 622.56% auto; background-position: 77.53% 29.95%; aspect-ratio: 3 / 4; }
 .hb-art-seal { background-size: 562.04% auto; background-position: 75.35% 0%; aspect-ratio: 3 / 4; }
