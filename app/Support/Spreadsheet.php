@@ -146,7 +146,7 @@ class Spreadsheet
         }
 
         $text = '';
-        foreach ($item->r as $run) {
+        foreach ($item->r ?? [] as $run) {
             $text .= (string) $run->t;
         }
 

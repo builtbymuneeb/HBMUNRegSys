@@ -27,6 +27,8 @@ class AmbassadorForm extends Form
 
     public string $notes = '';
 
+    public string $flag_reason = '';
+
     /**
      * Start a new ambassador with the next free code filled in.
      */
@@ -43,7 +45,7 @@ class AmbassadorForm extends Form
         $this->ambassador = $ambassador;
         $this->fill([
             ...$ambassador->only(['code', 'name']),
-            ...array_map(fn ($value) => (string) $value, $ambassador->only(['email', 'phone', 'institution', 'city', 'notes'])),
+            ...array_map(fn ($value) => (string) $value, $ambassador->only(['email', 'phone', 'institution', 'city', 'notes', 'flag_reason'])),
         ]);
     }
 
@@ -69,6 +71,7 @@ class AmbassadorForm extends Form
             'institution' => ['nullable', 'string', 'max:255'],
             'city' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:2000'],
+            'flag_reason' => ['nullable', 'string', 'max:1000'],
         ];
     }
 

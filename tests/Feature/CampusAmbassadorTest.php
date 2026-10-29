@@ -3,6 +3,7 @@
 use App\Actions\Ambassadors\ImportAmbassadors;
 use App\Enums\RegistrationStatus;
 use App\Enums\UserRole;
+use App\Models\AuditLog;
 use App\Models\CampusAmbassador;
 use App\Models\Delegate;
 use App\Models\Registration;
@@ -218,4 +219,75 @@ test('CSV exports are read too, and a sheet without a name column is refused', f
         ->test('pages::staff.ambassadors.index')
         ->set('sheet', UploadedFile::fake()->createWithContent('responses.csv', file_get_contents($csv)))
         ->assertSeeText('Couldn’t find a name column');
+});
+
+test('the import flags doubtful phones, missing emails, repeated phones and notes from the sheet', function () {
+    CampusAmbassador::factory()->create(['code' => 'HB01', 'phone' => '03001234567']);
+
+    $rows = [
+        ['Code', 'Full Name', 'Email', 'WhatsApp', 'Phone Note'],
+        ['HB02', 'All Good', 'good@example.com', '+923331234567', ''],
+        ['HB03', 'Gulf Number', 'gulf@example.com', '0529085896', ''],
+        ['HB04', 'No Email', '', '03211234567', ''],
+        ['HB05', 'Repeat Phone', 'repeat@example.com', '+92 300 1234567', ''],
+        ['HB06', 'Has Note', 'note@example.com', '03451234567', 'Signed up twice'],
+    ];
+
+    $flags = collect(app(ImportAmbassadors::class)->preview($rows))->pluck('flag_reason', 'name');
+
+    expect($flags['All Good'])->toBeNull()
+        ->and($flags['Gulf Number'])->toBe('Phone 0529085896 isn’t a Pakistani mobile number')
+        ->and($flags['No Email'])->toBe('No email')
+        ->and($flags['Repeat Phone'])->toBe('Same phone as HB01')
+        ->and($flags['Has Note'])->toBe('Signed up twice');
+
+    app(ImportAmbassadors::class)->import($rows, staffMember());
+
+    expect(CampusAmbassador::flagged()->pluck('code')->all())->toEqualCanonicalizing(['HB03', 'HB04', 'HB05', 'HB06'])
+        ->and(CampusAmbassador::where('code', 'HB02')->sole()->needsCheck())->toBeFalse();
+});
+
+test('staff filter to flagged ambassadors and mark them checked', function () {
+    $flagged = CampusAmbassador::factory()->create(['name' => 'Flagged Person', 'flag_reason' => 'Phone number looks wrong']);
+    CampusAmbassador::factory()->create(['name' => 'Fine Person']);
+    $staff = staffMember();
+
+    Livewire::actingAs($staff)
+        ->test('pages::staff.ambassadors.index')
+        ->assertSeeText(['Flagged Person', 'Fine Person', 'Phone number looks wrong'])
+        ->set('onlyNeedsCheck', true)
+        ->assertSeeText('Flagged Person')
+        ->assertDontSeeText('Fine Person');
+
+    Livewire::actingAs($staff)
+        ->test('pages::staff.ambassadors.show', ['ambassador' => $flagged])
+        ->assertSeeText(['Mark as checked', 'Phone number looks wrong'])
+        ->call('markChecked')
+        ->assertDontSeeText(['Mark as checked', 'Phone number looks wrong']);
+
+    expect($flagged->refresh()->flag_reason)->toBeNull()
+        ->and(AuditLog::where('action', 'ambassador_checked')->exists())->toBeTrue();
+});
+
+test('staff flag an ambassador for checking from the edit form', function () {
+    $ambassador = CampusAmbassador::factory()->create();
+
+    Livewire::actingAs(staffMember())
+        ->test('pages::staff.ambassadors.show', ['ambassador' => $ambassador])
+        ->call('edit')
+        ->set('form.flag_reason', 'Confirm which number he uses')
+        ->call('save')
+        ->assertHasNoErrors();
+
+    expect($ambassador->refresh()->flag_reason)->toBe('Confirm which number he uses');
+});
+
+test('empty text cells written without a value are read as blanks', function () {
+    $path = xlsxFile([['Name', 'Note'], ['Bilal', '']]);
+    $zip = new ZipArchive;
+    $zip->open($path);
+    $zip->addFromString('xl/worksheets/sheet1.xml', str_replace('<is><t></t></is>', '', $zip->getFromName('xl/worksheets/sheet1.xml')));
+    $zip->close();
+
+    expect(Spreadsheet::rows($path, 'xlsx'))->toBe([['Name', 'Note'], ['Bilal', '']]);
 });

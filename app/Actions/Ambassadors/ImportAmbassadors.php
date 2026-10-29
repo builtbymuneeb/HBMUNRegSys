@@ -14,7 +14,8 @@ use Illuminate\Validation\ValidationException;
  * Turns the rows of a campus ambassador sign-up sheet (e.g. a Google Forms
  * export) into ambassador profiles. Columns are found by their headings, so
  * the sheet doesn't need a fixed layout; rows without a code get the next
- * free HB-### code.
+ * free HB-### code. Rows with doubtful contact details, or a note in a
+ * "note"/"flag"/"status" column, are flagged for staff to check.
  */
 class ImportAmbassadors
 {
@@ -30,22 +31,26 @@ class ImportAmbassadors
         'institution' => '/institut|college|school|universit|campus/',
         'city' => '/\bcity\b/',
         'name' => '/name/',
+        'flag' => '/note|flag|status|reason|remark|check/',
     ];
 
     /**
      * Work out what an import would do, without saving anything.
      *
      * @param  list<list<string>>  $rows
-     * @return list<array{name: string, email: string|null, phone: string|null, institution: string|null, city: string|null, code: string, generated: bool, skip: string|null}>
+     * @return list<array{name: string, email: string|null, phone: string|null, institution: string|null, city: string|null, code: string, flag_reason: string|null, generated: bool, skip: string|null}>
      */
     public function preview(array $rows): array
     {
         $rows = array_values(array_filter($rows, fn (array $row) => implode('', $row) !== ''));
         $columns = $this->columns(array_shift($rows) ?? []);
 
-        $existing = CampusAmbassador::all(['code', 'code_key', 'email']);
+        $existing = CampusAmbassador::all(['code', 'code_key', 'email', 'phone']);
         $takenKeys = $existing->pluck('code_key')->flip()->all();
         $takenEmails = $existing->pluck('email')->filter()->map(fn (string $email) => Str::lower($email))->flip()->all();
+        $takenPhones = $existing->filter(fn (CampusAmbassador $ambassador) => CampusAmbassador::phoneKey($ambassador->phone))
+            ->mapWithKeys(fn (CampusAmbassador $ambassador) => [CampusAmbassador::phoneKey($ambassador->phone) => $ambassador->code])
+            ->all();
         $nextNumber = ($existing->map(fn (CampusAmbassador $ambassador) => ReferralCode::number($ambassador->code) ?? 0)->max() ?? 0) + 1;
 
         $preview = [];
@@ -59,6 +64,7 @@ class ImportAmbassadors
                 'institution' => $value('institution'),
                 'city' => $value('city'),
                 'code' => (string) ReferralCode::clean($value('code')),
+                'flag_reason' => $value('flag'),
                 'generated' => false,
                 'skip' => null,
             ];
@@ -90,6 +96,17 @@ class ImportAmbassadors
                 $entry['generated'] = true;
             }
 
+            $problems = CampusAmbassador::contactProblems($entry['email'], $entry['phone']);
+            $phoneKey = CampusAmbassador::phoneKey($entry['phone']);
+            if ($phoneKey !== null && isset($takenPhones[$phoneKey])) {
+                $problems[] = __('Same phone as :code', ['code' => $takenPhones[$phoneKey]]);
+            }
+            $entry['flag_reason'] = implode('. ', array_filter([...$problems, $entry['flag_reason']])) ?: null;
+
+            if ($phoneKey !== null) {
+                $takenPhones[$phoneKey] ??= $entry['code'];
+            }
+
             $takenKeys[ReferralCode::key($entry['code'])] = true;
             if ($entry['email']) {
                 $takenEmails[$entry['email']] = true;
@@ -110,9 +127,9 @@ class ImportAmbassadors
 
         DB::transaction(function () use ($entries, $by) {
             foreach ($entries as $entry) {
-                $ambassador = CampusAmbassador::create(collect($entry)->only(['code', 'name', 'email', 'phone', 'institution', 'city'])->all());
+                $ambassador = CampusAmbassador::create(collect($entry)->only(['code', 'name', 'email', 'phone', 'institution', 'city', 'flag_reason'])->all());
 
-                AuditLog::record('ambassador_imported', $ambassador, $by, ['code' => $ambassador->code]);
+                AuditLog::record('ambassador_imported', $ambassador, $by, ['code' => $ambassador->code, 'flag_reason' => $ambassador->flag_reason]);
             }
         });
 

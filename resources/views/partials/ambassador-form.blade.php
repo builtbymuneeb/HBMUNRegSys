@@ -12,6 +12,7 @@
             <flux:input wire:model="form.institution" :label="__('Institution')" />
             <flux:input wire:model="form.city" :label="__('City')" />
             <flux:textarea wire:model="form.notes" :label="__('Notes')" rows="2" class="sm:col-span-2" />
+            <flux:textarea wire:model="form.flag_reason" :label="__('Needs checking')" :description="__('What to verify, e.g. “Not sure this number is on WhatsApp”. Leave empty when everything is fine.')" rows="2" class="sm:col-span-2" />
         </div>
         <div class="flex gap-2">
             <flux:spacer />

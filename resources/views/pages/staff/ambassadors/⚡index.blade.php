@@ -26,6 +26,9 @@ new #[Title('Campus ambassadors')] class extends Component {
     #[Url]
     public string $search = '';
 
+    #[Url(as: 'check')]
+    public bool $onlyNeedsCheck = false;
+
     public $sheet;
 
     /** @var list<list<string>> Rows read from the uploaded sheet, kept until the import is confirmed. */
@@ -41,6 +44,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
         return CampusAmbassador::query()
             ->withReferralCounts()
+            ->when($this->onlyNeedsCheck, fn ($query) => $query->flagged())
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
                 ->orWhere('name', 'like', "%{$search}%")
@@ -90,7 +94,7 @@ new #[Title('Campus ambassadors')] class extends Component {
     /**
      * What importing the uploaded sheet would do.
      *
-     * @return list<array{name: string, email: string|null, phone: string|null, institution: string|null, city: string|null, code: string, generated: bool, skip: string|null}>
+     * @return list<array{name: string, email: string|null, phone: string|null, institution: string|null, city: string|null, code: string, flag_reason: string|null, generated: bool, skip: string|null}>
      */
     #[Computed]
     public function importPreview(): array
@@ -161,7 +165,7 @@ new #[Title('Campus ambassadors')] class extends Component {
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Ambassadors') }}</flux:text>
             <flux:heading size="xl">{{ CampusAmbassador::count() }}</flux:heading>
@@ -181,6 +185,14 @@ new #[Title('Campus ambassadors')] class extends Component {
             <flux:heading size="xl">{{ $this->unmatchedCodes->sum() }}</flux:heading>
             <flux:text size="sm" class="text-zinc-400">{{ __('registrations with a code no ambassador has') }}</flux:text>
         </flux:card>
+        @php($needsCheckCount = CampusAmbassador::flagged()->count())
+        <button type="button" wire:click="$toggle('onlyNeedsCheck')" @class(['text-left rounded-xl', 'ring-2 ring-amber-400' => $onlyNeedsCheck])>
+            <flux:card class="flex h-full flex-col gap-1">
+                <flux:text>{{ __('Needs checking') }}</flux:text>
+                <flux:heading size="xl" @class(['text-amber-400' => $needsCheckCount])>{{ $needsCheckCount }}</flux:heading>
+                <flux:text size="sm" class="text-zinc-400">{{ $onlyNeedsCheck ? __('showing only these · click to show all') : __('details to verify · click to filter') }}</flux:text>
+            </flux:card>
+        </button>
     </div>
 
     <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search code, name, institution, phone, email…')" class="max-w-xl" />
@@ -201,8 +213,16 @@ new #[Title('Campus ambassadors')] class extends Component {
                 <flux:table.row :key="$ambassador->id">
                     <flux:table.cell variant="strong">{{ $ambassador->code }}</flux:table.cell>
                     <flux:table.cell>
-                        <div class="font-medium text-zinc-800 dark:text-white">{{ $ambassador->name }}</div>
+                        <div class="flex items-center gap-2 font-medium text-zinc-800 dark:text-white">
+                            {{ $ambassador->name }}
+                            @if ($ambassador->needsCheck())
+                                <flux:badge size="sm" color="amber" icon="exclamation-triangle" inset="top bottom">{{ __('Check') }}</flux:badge>
+                            @endif
+                        </div>
                         <div class="text-xs">{{ collect([$ambassador->institution, $ambassador->city])->filter()->implode(', ') }}</div>
+                        @if ($ambassador->needsCheck())
+                            <div class="mt-0.5 max-w-md text-xs whitespace-normal text-amber-500 dark:text-amber-400">{{ $ambassador->flag_reason }}</div>
+                        @endif
                     </flux:table.cell>
                     <flux:table.cell>{{ $ambassador->phone }}</flux:table.cell>
                     <flux:table.cell>{{ $ambassador->registrations_count }}</flux:table.cell>
@@ -217,7 +237,7 @@ new #[Title('Campus ambassadors')] class extends Component {
             @empty
                 <flux:table.row>
                     <flux:table.cell colspan="7" class="py-10 text-center">
-                        {{ trim($search) !== '' ? __('No ambassadors match this search.') : __('No campus ambassadors yet. Add one, or import your sign-up sheet.') }}
+                        {{ trim($search) !== '' || $onlyNeedsCheck ? __('No ambassadors match this search.') : __('No campus ambassadors yet. Add one, or import your sign-up sheet.') }}
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
@@ -249,7 +269,7 @@ new #[Title('Campus ambassadors')] class extends Component {
             <div>
                 <flux:heading size="lg">{{ __('Import campus ambassadors') }}</flux:heading>
                 <flux:text class="mt-1">
-                    {{ __('Upload the sign-up sheet as .xlsx or .csv. In Google Sheets: File → Download → Microsoft Excel or CSV. The first row must hold the headings; name, email, phone, institution, city and code columns are picked up by their headings. Anyone without a code gets the next HB-### code.') }}
+                    {{ __('Upload the sign-up sheet as .xlsx or .csv. In Google Sheets: File → Download → Microsoft Excel or CSV. The first row must hold the headings; name, email, phone, institution, city and code columns are picked up by their headings. Anyone without a code gets the next HB-### code. Rows with a phone or email that looks wrong, or with something in a “note” or “status” column, are flagged for checking.') }}
                 </flux:text>
             </div>
 
@@ -261,6 +281,9 @@ new #[Title('Campus ambassadors')] class extends Component {
                 @php($ready = collect($this->importPreview)->whereNull('skip'))
                 <flux:text>
                     {{ trans_choice(':count new ambassador will be added.|:count new ambassadors will be added.', $ready->count()) }}
+                    @if ($flagged = $ready->whereNotNull('flag_reason')->count())
+                        {{ trans_choice(':count will be flagged for checking.|:count will be flagged for checking.', $flagged) }}
+                    @endif
                     @if ($skipped = count($this->importPreview) - $ready->count())
                         {{ trans_choice(':count row will be skipped.|:count rows will be skipped.', $skipped) }}
                     @endif
@@ -284,11 +307,16 @@ new #[Title('Campus ambassadors')] class extends Component {
                                     <td class="px-3 py-2">{{ $entry['name'] ?: '—' }}<div class="text-xs text-zinc-400">{{ $entry['email'] }}</div></td>
                                     <td class="px-3 py-2">{{ $entry['institution'] }}</td>
                                     <td class="px-3 py-2 whitespace-nowrap">{{ $entry['phone'] }}</td>
-                                    <td class="px-3 py-2 text-xs whitespace-nowrap">
+                                    <td class="px-3 py-2 text-xs">
                                         @if ($entry['skip'])
-                                            <span class="text-amber-400">{{ __('Skipped: :reason', ['reason' => $entry['skip']]) }}</span>
-                                        @elseif ($entry['generated'])
-                                            <span class="text-zinc-400">{{ __('New code') }}</span>
+                                            <span class="whitespace-nowrap text-amber-400">{{ __('Skipped: :reason', ['reason' => $entry['skip']]) }}</span>
+                                        @else
+                                            @if ($entry['generated'])
+                                                <div class="whitespace-nowrap text-zinc-400">{{ __('New code') }}</div>
+                                            @endif
+                                            @if ($entry['flag_reason'])
+                                                <div class="text-amber-400">{{ __('Check: :reason', ['reason' => $entry['flag_reason']]) }}</div>
+                                            @endif
                                         @endif
                                     </td>
                                 </tr>

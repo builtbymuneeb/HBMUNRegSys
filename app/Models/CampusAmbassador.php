@@ -25,10 +25,11 @@ use Illuminate\Support\Carbon;
  * @property string|null $institution
  * @property string|null $city
  * @property string|null $notes
+ * @property string|null $flag_reason
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['code', 'name', 'email', 'phone', 'institution', 'city', 'notes'])]
+#[Fillable(['code', 'name', 'email', 'phone', 'institution', 'city', 'notes', 'flag_reason'])]
 class CampusAmbassador extends Model
 {
     /** @use HasFactory<CampusAmbassadorFactory> */
@@ -57,6 +58,53 @@ class CampusAmbassador extends Model
         $key = ReferralCode::key($code);
 
         return $key === null ? null : self::where('code_key', $key)->first();
+    }
+
+    /**
+     * Problems with the contact details staff should check before relying on them.
+     *
+     * @return list<string>
+     */
+    public static function contactProblems(?string $email, ?string $phone): array
+    {
+        $problems = [];
+
+        if (blank($phone)) {
+            $problems[] = __('No phone number');
+        } elseif (! preg_match('/^(\+92|0)3\d{9}$/', preg_replace('/[\s\-()]/', '', $phone))) {
+            $problems[] = __('Phone :phone isn’t a Pakistani mobile number', ['phone' => $phone]);
+        }
+
+        if (blank($email)) {
+            $problems[] = __('No email');
+        } elseif (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            $problems[] = __('Email :email doesn’t look valid', ['email' => $email]);
+        }
+
+        return $problems;
+    }
+
+    /**
+     * The digits a phone number is compared on, so 0300…, +92 300… and 92300… are the same number.
+     */
+    public static function phoneKey(?string $phone): ?string
+    {
+        $digits = preg_replace('/\D/', '', (string) $phone);
+
+        return $digits === '' ? null : preg_replace('/^(?:92|0)(3\d{9})$/', '$1', $digits);
+    }
+
+    public function needsCheck(): bool
+    {
+        return filled($this->flag_reason);
+    }
+
+    /**
+     * @param  Builder<CampusAmbassador>  $query
+     */
+    public function scopeFlagged(Builder $query): void
+    {
+        $query->whereNotNull('flag_reason')->where('flag_reason', '!=', '');
     }
 
     /**

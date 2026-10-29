@@ -49,6 +49,19 @@ new #[Title('Campus ambassador')] class extends Component {
         Flux::toast(variant: 'success', text: __('Ambassador saved.'));
     }
 
+    /**
+     * Clear the flag once someone has verified the ambassador's details.
+     */
+    public function markChecked(): void
+    {
+        Gate::authorize('manage-ambassadors');
+
+        AuditLog::record('ambassador_checked', $this->ambassador, Auth::user(), ['code' => $this->ambassador->code, 'flag_reason' => $this->ambassador->flag_reason]);
+        $this->ambassador->update(['flag_reason' => null]);
+
+        Flux::toast(variant: 'success', text: __('Marked as checked.'));
+    }
+
     public function delete(): void
     {
         Gate::authorize('manage-ambassadors');
@@ -68,6 +81,9 @@ new #[Title('Campus ambassador')] class extends Component {
             <div class="mt-2 flex flex-wrap items-center gap-3">
                 <flux:heading size="xl" level="1">{{ $ambassador->name }}</flux:heading>
                 <flux:badge color="purple">{{ $ambassador->code }}</flux:badge>
+                @if ($ambassador->needsCheck())
+                    <flux:badge color="amber" icon="exclamation-triangle">{{ __('Needs check') }}</flux:badge>
+                @endif
             </div>
         </div>
         <div class="flex gap-2">
@@ -75,6 +91,16 @@ new #[Title('Campus ambassador')] class extends Component {
             <flux:button icon="trash" variant="ghost" wire:click="delete" wire:confirm="{{ __('Remove this ambassador? Their registrations keep the code they entered, but stop counting for anyone.') }}" :aria-label="__('Remove')" />
         </div>
     </div>
+
+    @if ($ambassador->needsCheck())
+        <flux:callout icon="exclamation-triangle" color="amber" :heading="__('Needs checking')">
+            <flux:callout.text class="whitespace-pre-line">{{ $ambassador->flag_reason }}</flux:callout.text>
+            <x-slot name="actions">
+                <flux:button size="sm" icon="check" wire:click="markChecked">{{ __('Mark as checked') }}</flux:button>
+                <flux:button size="sm" variant="ghost" wire:click="edit">{{ __('Fix details') }}</flux:button>
+            </x-slot>
+        </flux:callout>
+    @endif
 
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <flux:card class="flex flex-col gap-1">
