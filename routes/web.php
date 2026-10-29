@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AmbassadorListController;
 use App\Http\Controllers\DelegateExportController;
 use App\Http\Controllers\PaymentScreenshotController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -67,6 +68,7 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
 
     Route::middleware('can:manage-ambassadors')->group(function () {
         Route::livewire('ambassadors', 'pages::staff.ambassadors.index')->name('ambassadors');
+        Route::get('ambassadors/list', AmbassadorListController::class)->name('ambassadors.list');
         Route::livewire('ambassadors/{ambassador}', 'pages::staff.ambassadors.show')->name('ambassadors.show');
     });
 

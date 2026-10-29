@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Ambassadors\ImportAmbassadors;
+use App\Http\Controllers\AmbassadorListController;
 use App\Enums\RegistrationStatus;
 use App\Livewire\Forms\AmbassadorForm;
 use App\Models\CampusAmbassador;
@@ -8,6 +9,7 @@ use App\Models\Registration;
 use App\Support\Spreadsheet;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection as SupportCollection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -30,6 +32,10 @@ new #[Title('Campus ambassadors')] class extends Component {
     public bool $onlyNeedsCheck = false;
 
     public $sheet;
+
+    public string $exportFrom = '';
+
+    public string $exportTo = '';
 
     /** @var list<list<string>> Rows read from the uploaded sheet, kept until the import is confirmed. */
     public array $sheetRows = [];
@@ -102,6 +108,34 @@ new #[Title('Campus ambassadors')] class extends Component {
         return $this->sheetRows === [] ? [] : app(ImportAmbassadors::class)->preview($this->sheetRows);
     }
 
+    /**
+     * Every code in list order, for the export range pickers.
+     *
+     * @return list<string>
+     */
+    #[Computed]
+    public function exportCodes(): array
+    {
+        return AmbassadorListController::inCodeOrder(CampusAmbassador::all(['id', 'code']))->pluck('code')->all();
+    }
+
+    #[Computed]
+    public function exportCount(): int
+    {
+        $codes = $this->exportCodes;
+        $from = array_search($this->exportFrom, $codes, true);
+        $to = array_search($this->exportTo, $codes, true);
+
+        return $from === false || $to === false ? 0 : abs($to - $from) + 1;
+    }
+
+    public function openExport(): void
+    {
+        $this->exportFrom = $this->exportCodes[0] ?? '';
+        $this->exportTo = Arr::last($this->exportCodes) ?? '';
+        Flux::modal('ambassador-export')->show();
+    }
+
     public function add(): void
     {
         $this->form->create();
@@ -160,6 +194,7 @@ new #[Title('Campus ambassadors')] class extends Component {
             <flux:text class="mt-1">{{ __('Each ambassador has a referral code. Registrations that enter it are counted here.') }}</flux:text>
         </div>
         <div class="flex flex-wrap gap-2">
+            <flux:button icon="document-arrow-down" wire:click="openExport">{{ __('Export list') }}</flux:button>
             <flux:button icon="arrow-up-tray" wire:click="openImport">{{ __('Import from sheet') }}</flux:button>
             <flux:button icon="plus" variant="primary" wire:click="add">{{ __('Add ambassador') }}</flux:button>
         </div>
@@ -263,6 +298,47 @@ new #[Title('Campus ambassadors')] class extends Component {
     @endif
 
     @include('partials.ambassador-form')
+
+    <flux:modal name="ambassador-export" class="w-full md:max-w-lg">
+        <div class="space-y-5">
+            <div>
+                <flux:heading size="lg">{{ __('Export campus ambassador list') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Opens the branded A4 list (code, name, campus) ready to save as a PDF. Pick a range to export only part of it.') }}</flux:text>
+            </div>
+
+            @if ($this->exportCodes === [])
+                <flux:text>{{ __('Add some ambassadors first.') }}</flux:text>
+            @else
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <flux:select wire:model.live="exportFrom" :label="__('From')">
+                        @foreach ($this->exportCodes as $code)
+                            <flux:select.option :value="$code">{{ $code }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:select wire:model.live="exportTo" :label="__('To')">
+                        @foreach ($this->exportCodes as $code)
+                            <flux:select.option :value="$code">{{ $code }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+                <flux:text>
+                    {{ trans_choice(':count ambassador will be included.|:count ambassadors will be included.', $this->exportCount) }}
+                    <flux:button size="xs" variant="ghost" wire:click="openExport" class="ms-1">{{ __('Select all') }}</flux:button>
+                </flux:text>
+            @endif
+
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                @if ($this->exportCodes !== [])
+                    <flux:button variant="primary" icon="document-arrow-down" target="_blank"
+                        :href="route('staff.ambassadors.list', ['from' => $exportFrom, 'to' => $exportTo, 'print' => 1])">{{ __('Open & save as PDF') }}</flux:button>
+                @endif
+            </div>
+        </div>
+    </flux:modal>
 
     <flux:modal name="ambassador-import" class="w-full md:max-w-3xl">
         <div class="space-y-5">

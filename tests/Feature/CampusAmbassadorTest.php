@@ -3,6 +3,7 @@
 use App\Actions\Ambassadors\ImportAmbassadors;
 use App\Enums\RegistrationStatus;
 use App\Enums\UserRole;
+use App\Http\Controllers\AmbassadorListController;
 use App\Models\AuditLog;
 use App\Models\CampusAmbassador;
 use App\Models\Delegate;
@@ -45,6 +46,7 @@ test('the registrations team, ambassador managers and admins can open the ambass
 
     $this->actingAs(User::factory()->role($role)->create())->get(route('staff.ambassadors'))->assertStatus($status);
     $this->actingAs(User::factory()->role($role)->create())->get(route('staff.ambassadors.show', $ambassador))->assertStatus($status);
+    $this->actingAs(User::factory()->role($role)->create())->get(route('staff.ambassadors.list'))->assertStatus($status);
 })->with([
     [UserRole::Registrations, 200],
     [UserRole::Ambassadors, 200],
@@ -290,4 +292,52 @@ test('empty text cells written without a value are read as blanks', function () 
     $zip->close();
 
     expect(Spreadsheet::rows($path, 'xlsx'))->toBe([['Name', 'Note'], ['Bilal', '']]);
+});
+
+test('the exported list runs in code order, over a chosen range in either direction', function () {
+    foreach (['HB10', 'HB02', 'HB01', 'GUEST', 'HB03'] as $code) {
+        CampusAmbassador::factory()->create(['code' => $code, 'name' => "Person {$code}", 'institution' => "Campus {$code}"]);
+    }
+
+    $this->actingAs(staffMember())
+        ->get(route('staff.ambassadors.list'))
+        ->assertOk()
+        ->assertSeeInOrder(['HB01', 'HB02', 'HB03', 'HB10', 'GUEST'])
+        ->assertSeeText('5 Campus Ambassadors');
+
+    $this->actingAs(staffMember())
+        ->get(route('staff.ambassadors.list', ['from' => 'hb-10', 'to' => 'HB2']))
+        ->assertOk()
+        ->assertSeeInOrder(['HB02', 'HB03', 'HB10'])
+        ->assertSeeText(['HB02 – HB10', '3 Campus Ambassadors', 'Campus HB03'])
+        ->assertDontSeeText(['Person HB01', 'Person GUEST']);
+});
+
+test('the list fills the first page under the crest, then continued pages, keeping room for the closing motto', function (int $rows, array $sizes) {
+    $pages = AmbassadorListController::paginate(collect(range(1, $rows)));
+
+    expect(array_map(fn ($page) => $page->count(), $pages))->toBe($sizes)
+        ->and(collect($pages)->flatten()->all())->toBe(range(1, $rows));
+})->with([
+    'the circulated list' => [34, [16, 18]],
+    'one page with the motto' => [12, [12]],
+    'too full for the motto' => [16, [12, 4]],
+    'three pages' => [60, [16, 27, 17]],
+]);
+
+test('staff pick a range in the export dialog', function () {
+    foreach (['HB01', 'HB02', 'HB03', 'HB04'] as $code) {
+        CampusAmbassador::factory()->create(['code' => $code]);
+    }
+
+    Livewire::actingAs(staffMember())
+        ->test('pages::staff.ambassadors.index')
+        ->call('openExport')
+        ->assertSet('exportFrom', 'HB01')
+        ->assertSet('exportTo', 'HB04')
+        ->assertSeeText('4 ambassadors will be included.')
+        ->set('exportFrom', 'HB02')
+        ->set('exportTo', 'HB03')
+        ->assertSeeText('2 ambassadors will be included.')
+        ->assertSeeHtml(e(route('staff.ambassadors.list', ['from' => 'HB02', 'to' => 'HB03', 'print' => 1])));
 });
