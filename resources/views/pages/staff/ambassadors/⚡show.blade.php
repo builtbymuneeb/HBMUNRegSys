@@ -216,6 +216,19 @@ new #[Title('Campus ambassador')] class extends Component {
                     <x-whatsapp-button size="xs" :label="__('Welcome message')" :href="route('staff.whatsapp.ambassador.welcome', $ambassador)" :phone="$ambassador->phone" :sent="$ambassador->load('whatsAppLogs.sender')->welcomeWhatsApp()" />
                 </dd>
             </div>
+            <div>
+                <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Emails from them') }}</dt>
+                <dd class="mt-0.5">
+                    @if ($latestEmail = $ambassador->inboxMessages()->latest('id')->first())
+                        @php($unreadEmails = $ambassador->inboxMessages()->unread()->count())
+                        <a href="{{ route('staff.inbox.show', $latestEmail) }}" wire:navigate class="text-zinc-800 underline decoration-zinc-500 underline-offset-2 dark:text-white">
+                            {{ trans_choice(':count message|:count messages', $ambassador->inboxMessages()->incoming()->count()) }}@if ($unreadEmails), {{ __(':count unread', ['count' => $unreadEmails]) }}@endif
+                        </a>
+                    @else
+                        <span class="text-zinc-500">{{ __('None yet') }}</span>
+                    @endif
+                </dd>
+            </div>
             @if ($ambassador->notes)
                 <div class="sm:col-span-2 lg:col-span-3">
                     <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Notes') }}</dt>

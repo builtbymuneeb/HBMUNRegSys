@@ -72,6 +72,8 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
         Route::livewire('ambassadors', 'pages::staff.ambassadors.index')->name('ambassadors');
         Route::get('ambassadors/list', AmbassadorListController::class)->name('ambassadors.list');
         Route::livewire('ambassadors/{ambassador}', 'pages::staff.ambassadors.show')->name('ambassadors.show');
+        Route::livewire('inbox', 'pages::staff.inbox.index')->name('inbox');
+        Route::livewire('inbox/{message}', 'pages::staff.inbox.show')->name('inbox.show');
     });
 
     Route::livewire('team', 'pages::staff.team')

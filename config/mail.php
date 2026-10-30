@@ -125,6 +125,25 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Inbox (IMAP)
+    |--------------------------------------------------------------------------
+    |
+    | The mailbox replies arrive in, read every few minutes by `inbox:fetch`
+    | for the staff Inbox page. It defaults to the account mail is sent from.
+    |
+    */
+
+    'inbox' => [
+        'enabled' => (bool) env('MAIL_INBOX_ENABLED', env('MAIL_MAILER') === 'smtp'),
+        'host' => env('MAIL_INBOX_HOST', 'imap.hostinger.com'),
+        'port' => env('MAIL_INBOX_PORT', 993),
+        'encryption' => env('MAIL_INBOX_ENCRYPTION', 'ssl'),
+        'username' => env('MAIL_INBOX_USERNAME', env('MAIL_USERNAME')),
+        'password' => env('MAIL_INBOX_PASSWORD', env('MAIL_PASSWORD')),
+    ],
+
     'markdown' => [
         'theme' => env('MAIL_MARKDOWN_THEME', 'hbmun'),
 

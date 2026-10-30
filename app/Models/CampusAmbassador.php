@@ -79,6 +79,16 @@ class CampusAmbassador extends Model
     }
 
     /**
+     * Emails they sent the contact@ mailbox, and staff replies to them.
+     *
+     * @return HasMany<InboxMessage, $this>
+     */
+    public function inboxMessages(): HasMany
+    {
+        return $this->hasMany(InboxMessage::class);
+    }
+
+    /**
      * The last time staff opened the WhatsApp welcome for this ambassador, if they have.
      */
     public function welcomeWhatsApp(): ?WhatsAppLog

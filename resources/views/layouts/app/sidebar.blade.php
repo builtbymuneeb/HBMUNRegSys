@@ -42,6 +42,10 @@
                             <flux:sidebar.item icon="ticket" :href="route('staff.ambassadors')" :current="request()->routeIs('staff.ambassadors*')" wire:navigate>
                                 {{ __('Campus ambassadors') }}
                             </flux:sidebar.item>
+                            @php($unreadMail = \App\Models\InboxMessage::visibleTo(auth()->user())->unread()->count())
+                            <flux:sidebar.item icon="inbox" :href="route('staff.inbox')" :current="request()->routeIs('staff.inbox*')" :badge="$unreadMail ?: null" wire:navigate>
+                                {{ __('Inbox') }}
+                            </flux:sidebar.item>
                         @endcan
                         @can('manage-conference')
                             <flux:sidebar.item icon="envelope" :href="route('staff.emails')" :current="request()->routeIs('staff.emails')" wire:navigate>
