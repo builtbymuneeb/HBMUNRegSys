@@ -1,9 +1,12 @@
 <?php
 
+use App\Actions\Ambassadors\EmailAmbassadors;
 use App\Livewire\Forms\AmbassadorForm;
 use App\Models\AuditLog;
 use App\Models\CampusAmbassador;
 use App\Models\Registration;
+use App\Notifications\AmbassadorMessage;
+use App\Support\WhatsApp;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -16,6 +19,10 @@ new #[Title('Campus ambassador')] class extends Component {
     public CampusAmbassador $ambassador;
 
     public AmbassadorForm $form;
+
+    public string $messageSubject = '';
+
+    public string $messageBody = '';
 
     #[Computed]
     public function counts(): CampusAmbassador
@@ -30,6 +37,45 @@ new #[Title('Campus ambassador')] class extends Component {
     public function registrations(): Collection
     {
         return $this->ambassador->registrations()->withCount('delegates')->latest()->get();
+    }
+
+    public function sendWelcomeEmail(EmailAmbassadors $emailAmbassadors): void
+    {
+        Gate::authorize('manage-ambassadors');
+
+        if ($emailAmbassadors->welcome([$this->ambassador], Auth::user()) === 0) {
+            Flux::toast(variant: 'danger', text: __('Add an email address first.'));
+
+            return;
+        }
+
+        Flux::toast(variant: 'success', text: __('Welcome email on its way to :email.', ['email' => $this->ambassador->email]));
+    }
+
+    public function compose(): void
+    {
+        $this->resetValidation();
+        Flux::modal('ambassador-message')->show();
+    }
+
+    public function sendMessageEmail(EmailAmbassadors $emailAmbassadors): void
+    {
+        Gate::authorize('manage-ambassadors');
+
+        $validated = $this->validate([
+            'messageSubject' => ['required', 'string', 'max:150'],
+            'messageBody' => ['required', 'string', 'max:2000'],
+        ], attributes: ['messageSubject' => __('subject'), 'messageBody' => __('message')]);
+
+        if ($emailAmbassadors->message([$this->ambassador], $validated['messageSubject'], $validated['messageBody'], Auth::user()) === 0) {
+            $this->addError('messageBody', __('This ambassador has no email address.'));
+
+            return;
+        }
+
+        $this->reset('messageSubject', 'messageBody');
+        Flux::modal('ambassador-message')->close();
+        Flux::toast(variant: 'success', text: __('Email on its way to :email.', ['email' => $this->ambassador->email]));
     }
 
     public function edit(): void
@@ -86,7 +132,23 @@ new #[Title('Campus ambassador')] class extends Component {
                 @endif
             </div>
         </div>
-        <div class="flex gap-2">
+        <div class="flex flex-wrap gap-2">
+            <flux:dropdown>
+                <flux:button icon="envelope" icon:trailing="chevron-down">{{ __('Email') }}</flux:button>
+                <flux:menu>
+                    <flux:menu.item icon="sparkles" wire:click="sendWelcomeEmail" :disabled="blank($ambassador->email)"
+                        wire:confirm="{{ $ambassador->welcome_emailed_at ? __('They were already sent the welcome email. Send it again?') : __('Send the welcome email with their code and registration link?') }}">{{ __('Send welcome email') }}</flux:menu.item>
+                    <flux:menu.item icon="pencil" wire:click="compose" :disabled="blank($ambassador->email)">{{ __('Write an email…') }}</flux:menu.item>
+                </flux:menu>
+            </flux:dropdown>
+            <flux:dropdown>
+                <flux:button icon="chat-bubble-oval-left-ellipsis" icon:trailing="chevron-down">{{ __('WhatsApp') }}</flux:button>
+                <flux:menu>
+                    <flux:menu.item icon="sparkles" :href="route('staff.whatsapp.ambassador.welcome', $ambassador)" target="_blank" :disabled="! WhatsApp::number($ambassador->phone)"
+                        x-on:click="setTimeout(() => $wire.$refresh(), 1500)">{{ __('Welcome message') }}</flux:menu.item>
+                    <flux:menu.item icon="pencil" wire:click="compose" :disabled="! WhatsApp::number($ambassador->phone)">{{ __('Write a message…') }}</flux:menu.item>
+                </flux:menu>
+            </flux:dropdown>
             <flux:button icon="pencil-square" wire:click="edit">{{ __('Edit') }}</flux:button>
             <flux:button icon="trash" variant="ghost" wire:click="delete" wire:confirm="{{ __('Remove this ambassador? Their registrations keep the code they entered, but stop counting for anyone.') }}" :aria-label="__('Remove')" />
         </div>
@@ -129,12 +191,29 @@ new #[Title('Campus ambassador')] class extends Component {
                 __('Institution') => $ambassador->institution,
                 __('City') => $ambassador->city,
                 __('Added') => $ambassador->created_at->timezone('Asia/Karachi')->format('j M Y'),
+                __('Registration link') => $ambassador->registrationLink(),
             ] as $label => $value)
                 <div>
                     <dt class="text-zinc-500 dark:text-zinc-400">{{ $label }}</dt>
                     <dd class="mt-0.5 break-words text-zinc-800 dark:text-white">{{ $value ?: '—' }}</dd>
                 </div>
             @endforeach
+            <div>
+                <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Welcome email') }}</dt>
+                <dd class="mt-0.5">
+                    @if ($ambassador->welcome_emailed_at)
+                        <span class="text-green-600 dark:text-green-400">✓ {{ __('Sent :time', ['time' => $ambassador->welcome_emailed_at->timezone('Asia/Karachi')->format('j M, g:i a')]) }}</span>
+                    @else
+                        <span class="text-amber-600 dark:text-amber-300">{{ __('Not sent yet') }}</span>
+                    @endif
+                </dd>
+            </div>
+            <div>
+                <dt class="text-zinc-500 dark:text-zinc-400">{{ __('WhatsApp welcome') }}</dt>
+                <dd class="mt-0.5">
+                    <x-whatsapp-button size="xs" :label="__('Welcome message')" :href="route('staff.whatsapp.ambassador.welcome', $ambassador)" :phone="$ambassador->phone" :sent="$ambassador->load('whatsAppLogs.sender')->welcomeWhatsApp()" />
+                </dd>
+            </div>
             @if ($ambassador->notes)
                 <div class="sm:col-span-2 lg:col-span-3">
                     <dt class="text-zinc-500 dark:text-zinc-400">{{ __('Notes') }}</dt>
@@ -186,4 +265,30 @@ new #[Title('Campus ambassador')] class extends Component {
     </div>
 
     @include('partials.ambassador-form')
+
+    <flux:modal name="ambassador-message" class="w-full md:max-w-xl">
+        <div class="space-y-5">
+            <div>
+                <flux:heading size="lg">{{ __('Message :name', ['name' => $ambassador->name]) }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Send it by email, or open WhatsApp with it typed in. It starts with “Hello :name,”.', ['name' => $ambassador->firstName()]) }}</flux:text>
+            </div>
+            <flux:input wire:model="messageSubject" :label="__('Subject (email only)')" />
+            <flux:textarea wire:model.live.debounce.400ms="messageBody" :label="__('Message')" rows="7"
+                :description="__('You can use :placeholders.', ['placeholders' => collect(AmbassadorMessage::PLACEHOLDERS)->map(fn ($meaning, $tag) => $tag.' ('.$meaning.')')->implode(', ')])" />
+            <div class="flex flex-wrap gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                @if (WhatsApp::number($ambassador->phone) && filled(trim($messageBody)))
+                    <flux:button icon="chat-bubble-oval-left-ellipsis" target="_blank" rel="noopener"
+                        :href="route('staff.whatsapp.ambassador.message', ['ambassador' => $ambassador, 'text' => $messageBody])"
+                        x-on:click="setTimeout(() => $wire.$refresh(), 1500)">{{ __('Open in WhatsApp') }}</flux:button>
+                @endif
+                @if ($ambassador->email)
+                    <flux:button variant="primary" icon="paper-airplane" wire:click="sendMessageEmail">{{ __('Send email') }}</flux:button>
+                @endif
+            </div>
+        </div>
+    </flux:modal>
 </div>

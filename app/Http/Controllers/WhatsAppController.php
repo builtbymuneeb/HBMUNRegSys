@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RegistrationStatus;
+use App\Models\CampusAmbassador;
 use App\Models\Delegate;
 use App\Models\Registration;
 use App\Models\WhatsAppLog;
 use App\Notifications\AllocationPublished;
+use App\Notifications\AmbassadorMessage;
+use App\Notifications\AmbassadorWelcome;
 use App\Notifications\RegistrationReceived;
 use App\Notifications\RegistrationRejected;
 use App\Notifications\RegistrationVerified;
@@ -64,7 +67,29 @@ class WhatsAppController extends Controller
         return $this->open($request, WhatsAppLog::ALLOCATION, $delegate->phone, $message, $delegate->registration, $delegate);
     }
 
-    private function open(Request $request, string $kind, string $phone, string $message, Registration $registration, ?Delegate $delegate = null): RedirectResponse
+    /**
+     * Welcome a campus ambassador with their code and registration link.
+     */
+    public function ambassadorWelcome(Request $request, CampusAmbassador $ambassador): RedirectResponse
+    {
+        Gate::authorize('manage-ambassadors');
+
+        return $this->open($request, WhatsAppLog::AMBASSADOR_WELCOME, (string) $ambassador->phone, (new AmbassadorWelcome($ambassador))->toWhatsApp(), ambassador: $ambassador);
+    }
+
+    /**
+     * Send a campus ambassador a message staff wrote ({name}, {code} and {link} are filled in).
+     */
+    public function ambassadorMessage(Request $request, CampusAmbassador $ambassador): RedirectResponse
+    {
+        Gate::authorize('manage-ambassadors');
+
+        $text = $request->validate(['text' => ['required', 'string', 'max:2000']])['text'];
+
+        return $this->open($request, WhatsAppLog::AMBASSADOR_MESSAGE, (string) $ambassador->phone, (new AmbassadorMessage($ambassador, '', $text))->toWhatsApp(), ambassador: $ambassador);
+    }
+
+    private function open(Request $request, string $kind, string $phone, string $message, ?Registration $registration = null, ?Delegate $delegate = null, ?CampusAmbassador $ambassador = null): RedirectResponse
     {
         $link = WhatsApp::link($phone, $message);
 
@@ -73,8 +98,9 @@ class WhatsAppController extends Controller
         WhatsAppLog::create([
             'kind' => $kind,
             'phone' => $phone,
-            'registration_id' => $registration->id,
+            'registration_id' => $registration?->id,
             'delegate_id' => $delegate?->id,
+            'campus_ambassador_id' => $ambassador?->id,
             'sent_by' => $request->user()->id,
         ]);
 

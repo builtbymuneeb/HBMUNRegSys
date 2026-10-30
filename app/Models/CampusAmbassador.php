@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 
 /**
  * A campus ambassador whose referral code registrants can enter.
@@ -26,14 +27,54 @@ use Illuminate\Support\Carbon;
  * @property string|null $city
  * @property string|null $notes
  * @property string|null $flag_reason
+ * @property Carbon|null $welcome_emailed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['code', 'name', 'email', 'phone', 'institution', 'city', 'notes', 'flag_reason'])]
+#[Fillable(['code', 'name', 'email', 'phone', 'institution', 'city', 'notes', 'flag_reason', 'welcome_emailed_at'])]
 class CampusAmbassador extends Model
 {
     /** @use HasFactory<CampusAmbassadorFactory> */
     use HasFactory;
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'welcome_emailed_at' => 'datetime',
+        ];
+    }
+
+    public function firstName(): string
+    {
+        return Str::before(trim($this->name), ' ') ?: $this->name;
+    }
+
+    /**
+     * The registration form with this ambassador's code already filled in.
+     */
+    public function registrationLink(): string
+    {
+        return route('register', ['ref' => $this->code]);
+    }
+
+    /**
+     * @return HasMany<WhatsAppLog, $this>
+     */
+    public function whatsAppLogs(): HasMany
+    {
+        return $this->hasMany(WhatsAppLog::class);
+    }
+
+    /**
+     * The last time staff opened the WhatsApp welcome for this ambassador, if they have.
+     */
+    public function welcomeWhatsApp(): ?WhatsAppLog
+    {
+        return $this->whatsAppLogs->where('kind', WhatsAppLog::AMBASSADOR_WELCOME)->sortByDesc('id')->first();
+    }
 
     /**
      * Keep the matching key in step with the code, and re-link registrations

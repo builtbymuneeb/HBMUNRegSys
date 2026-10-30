@@ -16,10 +16,11 @@ use Illuminate\Support\Carbon;
  * @property string $phone
  * @property int|null $registration_id
  * @property int|null $delegate_id
+ * @property int|null $campus_ambassador_id
  * @property int|null $sent_by
  * @property Carbon|null $created_at
  */
-#[Fillable(['kind', 'phone', 'registration_id', 'delegate_id', 'sent_by'])]
+#[Fillable(['kind', 'phone', 'registration_id', 'delegate_id', 'campus_ambassador_id', 'sent_by'])]
 class WhatsAppLog extends Model
 {
     protected $table = 'whatsapp_logs';
@@ -34,6 +35,12 @@ class WhatsAppLog extends Model
 
     /** A delegate, about their sent allocation. */
     public const ALLOCATION = 'allocation';
+
+    /** A campus ambassador, with their code and registration link. */
+    public const AMBASSADOR_WELCOME = 'ambassador_welcome';
+
+    /** A campus ambassador, with a message staff wrote. */
+    public const AMBASSADOR_MESSAGE = 'ambassador_message';
 
     /**
      * @return BelongsTo<User, $this>

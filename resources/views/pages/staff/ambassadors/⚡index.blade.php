@@ -1,11 +1,13 @@
 <?php
 
+use App\Actions\Ambassadors\EmailAmbassadors;
 use App\Actions\Ambassadors\ImportAmbassadors;
 use App\Http\Controllers\AmbassadorListController;
 use App\Enums\RegistrationStatus;
 use App\Livewire\Forms\AmbassadorForm;
 use App\Models\CampusAmbassador;
 use App\Models\Registration;
+use App\Notifications\AmbassadorMessage;
 use App\Support\Spreadsheet;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
@@ -35,6 +37,22 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public string $exportFrom = '';
 
+    /** 'welcome' or 'custom'. */
+    public string $messageKind = 'welcome';
+
+    /** 'all', 'not_welcomed' or 'range'. */
+    public string $messageAudience = 'all';
+
+    public string $messageFrom = '';
+
+    public string $messageTo = '';
+
+    public string $messageSubject = '';
+
+    public string $messageBody = '';
+
+    public bool $showWhatsAppChecklist = false;
+
     public string $exportTo = '';
 
     /** @var list<list<string>> Rows read from the uploaded sheet, kept until the import is confirmed. */
@@ -50,6 +68,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
         return CampusAmbassador::query()
             ->withReferralCounts()
+            ->with('whatsAppLogs')
             ->when($this->onlyNeedsCheck, fn ($query) => $query->flagged())
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
@@ -129,6 +148,77 @@ new #[Title('Campus ambassadors')] class extends Component {
         return $from === false || $to === false ? 0 : abs($to - $from) + 1;
     }
 
+    /**
+     * Who the message dialog will reach, in code order.
+     *
+     * @return SupportCollection<int, CampusAmbassador>
+     */
+    #[Computed]
+    public function messageRecipients(): SupportCollection
+    {
+        $all = AmbassadorListController::inCodeOrder(CampusAmbassador::with('whatsAppLogs.sender')->get());
+
+        return match ($this->messageAudience) {
+            'not_welcomed' => $all->filter(fn (CampusAmbassador $ambassador) => ! $ambassador->welcome_emailed_at && ! $ambassador->welcomeWhatsApp())->values(),
+            'range' => AmbassadorListController::between($all, $this->messageFrom, $this->messageTo),
+            default => $all,
+        };
+    }
+
+    public function openMessage(): void
+    {
+        $this->reset('messageKind', 'messageAudience', 'messageSubject', 'messageBody', 'showWhatsAppChecklist');
+        $this->resetValidation();
+        $this->messageFrom = $this->exportCodes[0] ?? '';
+        $this->messageTo = Arr::last($this->exportCodes) ?? '';
+        Flux::modal('ambassador-message')->show();
+    }
+
+    public function updated(string $property): void
+    {
+        if (str_starts_with($property, 'message') && $property !== 'messageSubject') {
+            $this->showWhatsAppChecklist = false;
+        }
+    }
+
+    public function showChecklist(): void
+    {
+        if ($this->messageKind === 'custom') {
+            $this->validate(['messageBody' => ['required', 'string', 'max:2000']], attributes: ['messageBody' => __('message')]);
+        }
+
+        $this->showWhatsAppChecklist = true;
+    }
+
+    public function sendEmails(EmailAmbassadors $emailAmbassadors): void
+    {
+        Gate::authorize('manage-ambassadors');
+
+        if ($this->messageKind === 'custom') {
+            $validated = $this->validate([
+                'messageSubject' => ['required', 'string', 'max:150'],
+                'messageBody' => ['required', 'string', 'max:2000'],
+            ], attributes: ['messageSubject' => __('subject'), 'messageBody' => __('message')]);
+
+            $count = $emailAmbassadors->message($this->messageRecipients, $validated['messageSubject'], $validated['messageBody'], Auth::user());
+        } else {
+            $count = $emailAmbassadors->welcome($this->messageRecipients, Auth::user());
+        }
+
+        Flux::modal('ambassador-message')->close();
+        Flux::toast(variant: 'success', text: trans_choice(':count email is on its way.|:count emails are on their way.', $count));
+    }
+
+    /**
+     * The staff route that opens WhatsApp with this dialog's message for one ambassador.
+     */
+    public function whatsAppLink(CampusAmbassador $ambassador): string
+    {
+        return $this->messageKind === 'custom'
+            ? route('staff.whatsapp.ambassador.message', ['ambassador' => $ambassador, 'text' => $this->messageBody])
+            : route('staff.whatsapp.ambassador.welcome', $ambassador);
+    }
+
     public function openExport(): void
     {
         $this->exportFrom = $this->exportCodes[0] ?? '';
@@ -194,6 +284,7 @@ new #[Title('Campus ambassadors')] class extends Component {
             <flux:text class="mt-1">{{ __('Each ambassador has a referral code. Registrations that enter it are counted here.') }}</flux:text>
         </div>
         <div class="flex flex-wrap gap-2">
+            <flux:button icon="paper-airplane" wire:click="openMessage">{{ __('Message ambassadors') }}</flux:button>
             <flux:button icon="document-arrow-down" wire:click="openExport">{{ __('Export list') }}</flux:button>
             <flux:button icon="arrow-up-tray" wire:click="openImport">{{ __('Import from sheet') }}</flux:button>
             <flux:button icon="plus" variant="primary" wire:click="add">{{ __('Add ambassador') }}</flux:button>
@@ -237,6 +328,7 @@ new #[Title('Campus ambassadors')] class extends Component {
             <flux:table.column>{{ __('Code') }}</flux:table.column>
             <flux:table.column>{{ __('Ambassador') }}</flux:table.column>
             <flux:table.column>{{ __('Phone') }}</flux:table.column>
+            <flux:table.column>{{ __('Welcome') }}</flux:table.column>
             <flux:table.column>{{ __('Registrations') }}</flux:table.column>
             <flux:table.column>{{ __('Delegates') }}</flux:table.column>
             <flux:table.column>{{ __('Verified delegates') }}</flux:table.column>
@@ -260,6 +352,14 @@ new #[Title('Campus ambassadors')] class extends Component {
                         @endif
                     </flux:table.cell>
                     <flux:table.cell>{{ $ambassador->phone }}</flux:table.cell>
+                    <flux:table.cell>
+                        <div class="flex gap-1">
+                            <flux:badge size="sm" icon="envelope" inset="top bottom" :color="$ambassador->welcome_emailed_at ? 'green' : 'zinc'"
+                                :title="$ambassador->welcome_emailed_at ? __('Welcome email sent :time', ['time' => $ambassador->welcome_emailed_at->timezone('Asia/Karachi')->format('j M, g:i a')]) : __('Welcome email not sent')">{{ $ambassador->welcome_emailed_at ? '✓' : '–' }}</flux:badge>
+                            <flux:badge size="sm" icon="chat-bubble-oval-left-ellipsis" inset="top bottom" :color="$ambassador->welcomeWhatsApp() ? 'green' : 'zinc'"
+                                :title="$ambassador->welcomeWhatsApp() ? __('WhatsApp welcome opened :time', ['time' => $ambassador->welcomeWhatsApp()->created_at->timezone('Asia/Karachi')->format('j M, g:i a')]) : __('WhatsApp welcome not sent')">{{ $ambassador->welcomeWhatsApp() ? '✓' : '–' }}</flux:badge>
+                        </div>
+                    </flux:table.cell>
                     <flux:table.cell>{{ $ambassador->registrations_count }}</flux:table.cell>
                     <flux:table.cell>{{ $ambassador->delegates_count }}</flux:table.cell>
                     <flux:table.cell>
@@ -271,7 +371,7 @@ new #[Title('Campus ambassadors')] class extends Component {
                 </flux:table.row>
             @empty
                 <flux:table.row>
-                    <flux:table.cell colspan="7" class="py-10 text-center">
+                    <flux:table.cell colspan="8" class="py-10 text-center">
                         {{ trim($search) !== '' || $onlyNeedsCheck ? __('No ambassadors match this search.') : __('No campus ambassadors yet. Add one, or import your sign-up sheet.') }}
                     </flux:table.cell>
                 </flux:table.row>
@@ -298,6 +398,96 @@ new #[Title('Campus ambassadors')] class extends Component {
     @endif
 
     @include('partials.ambassador-form')
+
+    <flux:modal name="ambassador-message" class="w-full md:max-w-2xl">
+        <div class="space-y-5">
+            <div>
+                <flux:heading size="lg">{{ __('Message campus ambassadors') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Email goes out to everyone at once. WhatsApp can’t send in bulk, so you get a checklist: open each chat, press send, and tick through the list.') }}</flux:text>
+            </div>
+
+            <flux:radio.group wire:model.live="messageKind" :label="__('Message')" variant="segmented">
+                <flux:radio value="welcome" :label="__('Welcome (code + link)')" />
+                <flux:radio value="custom" :label="__('Write your own')" />
+            </flux:radio.group>
+
+            @if ($messageKind === 'custom')
+                <flux:input wire:model="messageSubject" :label="__('Subject (email only)')" />
+                <flux:textarea wire:model.live.debounce.400ms="messageBody" :label="__('Message')" rows="6"
+                    :description="__('Each one starts with “Hello <first name>,”. You can use :placeholders.', ['placeholders' => collect(AmbassadorMessage::PLACEHOLDERS)->map(fn ($meaning, $tag) => $tag.' ('.$meaning.')')->implode(', ')])" />
+            @else
+                <flux:text class="text-sm">{{ __('Welcomes them to the team with their referral code and their own registration link that fills the code in.') }}</flux:text>
+            @endif
+
+            <flux:radio.group wire:model.live="messageAudience" :label="__('Send to')">
+                <flux:radio value="all" :label="__('Everyone')" />
+                <flux:radio value="not_welcomed" :label="__('Only those who haven’t had the welcome yet (by email or WhatsApp)')" />
+                <flux:radio value="range" :label="__('A range of codes')" />
+            </flux:radio.group>
+
+            @if ($messageAudience === 'range')
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <flux:select wire:model.live="messageFrom" :label="__('From')">
+                        @foreach ($this->exportCodes as $code)
+                            <flux:select.option :value="$code">{{ $code }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:select wire:model.live="messageTo" :label="__('To')">
+                        @foreach ($this->exportCodes as $code)
+                            <flux:select.option :value="$code">{{ $code }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                </div>
+            @endif
+
+            @php($withEmail = $this->messageRecipients->filter(fn ($ambassador) => filled($ambassador->email))->count())
+            <flux:text>
+                {{ trans_choice(':count ambassador selected.|:count ambassadors selected.', $this->messageRecipients->count()) }}
+                @if ($withEmail < $this->messageRecipients->count())
+                    {{ trans_choice(':count has no email address.|:count have no email address.', $this->messageRecipients->count() - $withEmail) }}
+                @endif
+            </flux:text>
+
+            @if ($showWhatsAppChecklist)
+                <div class="max-h-80 overflow-auto rounded-lg border border-white/10" data-test="whatsapp-checklist">
+                    @forelse ($this->messageRecipients as $ambassador)
+                        @php($sent = $messageKind === 'welcome' ? $ambassador->welcomeWhatsApp() : null)
+                        <div wire:key="wa-{{ $ambassador->id }}" class="flex items-center justify-between gap-3 border-b border-white/5 px-3 py-2 last:border-0" x-data="{ opened: false }">
+                            <div class="min-w-0 text-sm">
+                                <span class="font-medium text-zinc-800 dark:text-white">{{ $ambassador->code }} · {{ $ambassador->name }}</span>
+                                <span class="text-xs text-zinc-400">{{ $ambassador->phone }}</span>
+                            </div>
+                            <div class="flex shrink-0 items-center gap-2">
+                                <span x-show="opened" x-cloak class="text-xs text-green-500">✓ {{ __('Opened') }}</span>
+                                @if ($sent)
+                                    <span x-show="! opened" class="text-xs text-green-600 dark:text-green-400" title="{{ __('Opened by :name', ['name' => $sent->sender?->name ?? __('a former staff member')]) }}">✓ {{ $sent->created_at->timezone('Asia/Karachi')->format('j M') }}</span>
+                                @endif
+                                @if (\App\Support\WhatsApp::number($ambassador->phone))
+                                    <flux:button size="xs" icon="chat-bubble-oval-left-ellipsis" :href="$this->whatsAppLink($ambassador)" target="_blank" rel="noopener" x-on:click="opened = true">{{ __('Open') }}</flux:button>
+                                @else
+                                    <span class="text-xs text-zinc-500">{{ __('No WhatsApp number') }}</span>
+                                @endif
+                            </div>
+                        </div>
+                    @empty
+                        <div class="px-3 py-6 text-center text-sm text-zinc-400">{{ __('Nobody to message.') }}</div>
+                    @endforelse
+                </div>
+            @endif
+
+            <div class="flex flex-wrap gap-2">
+                <flux:spacer />
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Close') }}</flux:button>
+                </flux:modal.close>
+                @unless ($showWhatsAppChecklist)
+                    <flux:button icon="chat-bubble-oval-left-ellipsis" wire:click="showChecklist" :disabled="$this->messageRecipients->isEmpty()">{{ __('WhatsApp checklist') }}</flux:button>
+                @endunless
+                <flux:button variant="primary" icon="envelope" wire:click="sendEmails" :disabled="$withEmail === 0"
+                    wire:confirm="{{ trans_choice('Send this email to :count ambassador?|Send this email to :count ambassadors?', $withEmail) }}">{{ trans_choice('Email :count ambassador|Email :count ambassadors', $withEmail) }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
 
     <flux:modal name="ambassador-export" class="w-full md:max-w-lg">
         <div class="space-y-5">

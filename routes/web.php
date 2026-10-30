@@ -52,6 +52,8 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
     Route::get('whatsapp/contact/{registration}', [WhatsAppController::class, 'contact'])->name('whatsapp.contact');
     Route::get('whatsapp/account/{delegate}', [WhatsAppController::class, 'account'])->name('whatsapp.account');
     Route::get('whatsapp/allocation/{delegate}', [WhatsAppController::class, 'allocation'])->name('whatsapp.allocation');
+    Route::get('whatsapp/ambassador/{ambassador}/welcome', [WhatsAppController::class, 'ambassadorWelcome'])->name('whatsapp.ambassador.welcome');
+    Route::get('whatsapp/ambassador/{ambassador}/message', [WhatsAppController::class, 'ambassadorMessage'])->name('whatsapp.ambassador.message');
 
     Route::get('delegates/export', DelegateExportController::class)
         ->can('manage-conference')

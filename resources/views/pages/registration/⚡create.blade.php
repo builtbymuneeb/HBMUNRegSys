@@ -14,6 +14,7 @@ use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -65,12 +66,21 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     public ?string $submittedReference = null;
 
     /**
+     * The referral code from a campus ambassador's link (/register?ref=HB05), kept through drafts and starting over.
+     */
+    #[Locked]
+    public string $linkReferralCode = '';
+
+    /**
      * Mount the component.
      */
     public function mount(): void
     {
         $this->ensureKnownType();
         $this->syncDelegateCount();
+
+        $this->linkReferralCode = Str::limit(Str::upper(preg_replace('/[^A-Za-z0-9-]/', '', (string) request()->query('ref'))), 50, '');
+        $this->contact['referral_code'] = $this->linkReferralCode;
     }
 
     /**
@@ -196,6 +206,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         foreach (array_keys($this->contact) as $key) {
             $this->contact[$key] = $this->cleanString($draft['contact'][$key] ?? '');
         }
+        $this->contact['referral_code'] = $this->contact['referral_code'] ?: $this->linkReferralCode;
 
         $draftDelegates = is_array($draft['delegates'] ?? null) ? $draft['delegates'] : [];
         $draftCount = $draft['delegateCount'] ?? ($draftDelegates === [] ? null : count($draftDelegates));
@@ -234,6 +245,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     {
         $this->reset('contact', 'delegates', 'delegateCount', 'paymentScreenshot', 'confirmed', 'restoredDraft');
         $this->type = RegistrationType::InstitutionDelegation->value;
+        $this->contact['referral_code'] = $this->linkReferralCode;
         $this->resetValidation();
         $this->syncDelegateCount();
         $this->goTo(1);
