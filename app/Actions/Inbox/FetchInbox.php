@@ -43,10 +43,11 @@ class FetchInbox
 
     /**
      * Store every message received since the last fetch that isn't stored yet, and return how many were new.
+     * With $refresh, look back as far as the first fetch did and re-read the text of messages already stored.
      */
-    public function fetch(MailboxInterface $mailbox): int
+    public function fetch(MailboxInterface $mailbox, bool $refresh = false): int
     {
-        $latest = InboxMessage::incoming()->max('received_at');
+        $latest = $refresh ? null : InboxMessage::incoming()->max('received_at');
         $since = $latest ? now()->parse($latest)->subDay() : now()->subDays(self::FIRST_FETCH_DAYS);
         $ownAddress = Str::lower((string) config('mail.from.address'));
         $new = 0;
@@ -56,7 +57,7 @@ class FetchInbox
             ->withHeaders()
             ->withBody()
             ->leaveUnread()
-            ->each(function (MessageInterface $message) use ($ownAddress, &$new) {
+            ->each(function (MessageInterface $message) use ($ownAddress, $refresh, &$new) {
                 $from = $message->from();
                 $email = Str::lower((string) $from?->email());
 
@@ -66,7 +67,11 @@ class FetchInbox
 
                 $messageId = $message->messageId() ?: sha1($email.'|'.$message->date()?->toIso8601String().'|'.$message->subject());
 
-                if (InboxMessage::where('message_id', $messageId)->exists()) {
+                if ($stored = InboxMessage::firstWhere('message_id', $messageId)) {
+                    if ($refresh) {
+                        $stored->update(['body' => $this->body($message), 'html' => $this->html($message)]);
+                    }
+
                     return;
                 }
 
@@ -78,6 +83,7 @@ class FetchInbox
                     'name' => $from->name() ?: null,
                     'subject' => Str::limit((string) $message->subject(), 255, '') ?: null,
                     'body' => $this->body($message),
+                    'html' => $this->html($message),
                     'received_at' => $message->date() ?? now(),
                     'campus_ambassador_id' => CampusAmbassador::whereRaw('lower(email) = ?', [$email])->value('id'),
                     'registration_id' => Registration::whereRaw('lower(contact_email) = ?', [$email])->latest('id')->value('id'),
@@ -92,17 +98,55 @@ class FetchInbox
     }
 
     /**
-     * The message as plain text, falling back to the HTML part with its tags removed.
+     * The message as plain text. Many senders put HTML in the text part too, or send no text part at all,
+     * so HTML is turned into text whenever that is what we were given.
      */
     protected function body(MessageInterface $message): string
     {
-        $text = $message->text();
+        $text = (string) $message->text();
 
-        if (blank($text) && filled($html = $message->html())) {
-            $html = preg_replace(['/<(style|script|head)\b.*?<\/\1>/is', '/<br\s*\/?>/i', '/<\/(p|div|tr|li|h\d)>/i'], ['', "\n", "\n"], $html);
-            $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5);
+        if (blank($text) || self::looksLikeHtml($text)) {
+            $text = self::htmlToText(filled($html = $message->html()) ? $html : $text);
         }
 
-        return trim(preg_replace("/\n{3,}/", "\n\n", str_replace("\r\n", "\n", (string) $text)));
+        return trim(preg_replace("/\n{3,}/", "\n\n", str_replace(["\r\n", "\r"], "\n", $text)));
+    }
+
+    /**
+     * The message's HTML part, or the text part when that is really HTML.
+     */
+    protected function html(MessageInterface $message): ?string
+    {
+        $html = $message->html();
+
+        if (blank($html) && self::looksLikeHtml((string) $message->text())) {
+            $html = $message->text();
+        }
+
+        return filled($html) ? $html : null;
+    }
+
+    public static function looksLikeHtml(string $text): bool
+    {
+        return (bool) preg_match('/<(!doctype|html|body|table|div|p|br)\b/i', $text);
+    }
+
+    /**
+     * Readable text from an HTML email: hidden preview text, styles and scripts dropped, block ends turned into new lines.
+     */
+    public static function htmlToText(string $html): string
+    {
+        $html = preg_replace([
+            '/<(style|script|head|title)\b.*?<\/\1>/is',
+            '/<(div|span)\b[^>]*display\s*:\s*none[^>]*>.*?<\/\1>/is',
+            '/<br\s*\/?>/i',
+            '/<\/(div|tr|li|table)>/i',
+            '/<\/(p|h\d)>/i',
+        ], ['', '', "\n", "\n", "\n\n"], $html);
+
+        $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5);
+        $text = preg_replace(['/[\x{00AD}\x{034F}\x{200B}-\x{200D}\x{2007}\x{FEFF}]/u', '/[ \t\x{00A0}]+/u', '/ *\n */'], ['', ' ', "\n"], $text);
+
+        return trim(preg_replace("/\n{3,}/", "\n\n", $text));
     }
 }

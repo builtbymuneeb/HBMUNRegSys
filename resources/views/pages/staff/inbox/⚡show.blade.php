@@ -129,12 +129,40 @@ new #[Title('Inbox')] class extends Component {
                     <flux:text class="text-xs whitespace-nowrap">{{ $item->received_at->timezone('Asia/Karachi')->format('j M Y, g:i a') }}</flux:text>
                 </div>
 
-                <div x-data="{ full: false }">
-                    <div class="text-sm leading-relaxed whitespace-pre-line text-zinc-700 [overflow-wrap:anywhere] dark:text-zinc-200" x-show="! full">{{ $item->bodyWithoutQuote() ?: __('(empty message)') }}</div>
-                    @if ($item->bodyWithoutQuote() !== trim((string) $item->body))
-                        <div class="text-sm leading-relaxed whitespace-pre-line text-zinc-700 [overflow-wrap:anywhere] dark:text-zinc-200" x-show="full" x-cloak>{{ $item->body }}</div>
-                        <button type="button" class="mt-2 text-xs text-zinc-500 underline underline-offset-2" x-on:click="full = ! full" x-text="full ? @js(__('Hide quoted text')) : @js(__('Show quoted text'))"></button>
+                <div x-data="{ full: false, formatted: @js($item->opensFormatted()) }">
+                    @if ($item->html)
+                        {{-- The sender's own HTML, in a sandbox that runs no scripts; links open in a new tab. --}}
+                        <div x-show="formatted" x-cloak class="overflow-hidden rounded-md bg-white">
+                            <iframe
+                                title="{{ $item->subject }}"
+                                sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
+                                referrerpolicy="no-referrer"
+                                srcdoc="{{ $item->htmlDocument() }}"
+                                class="block h-48 w-full"
+                                x-init="
+                                    const fit = () => { const doc = $el.contentDocument; if (doc?.body && doc.documentElement.scrollHeight) { $el.style.height = doc.documentElement.scrollHeight + 'px' } };
+                                    const watch = () => { fit(); if ($el.contentDocument?.body) { new ResizeObserver(fit).observe($el.contentDocument.body) } };
+                                    $el.addEventListener('load', watch);
+                                    if ($el.contentDocument?.readyState === 'complete') { watch() }
+                                    $watch('formatted', () => $nextTick(fit));
+                                "
+                            ></iframe>
+                        </div>
                     @endif
+                    <div x-show="! formatted">
+                        <div class="text-sm leading-relaxed whitespace-pre-line text-zinc-700 [overflow-wrap:anywhere] dark:text-zinc-200" x-show="! full">{{ $item->bodyWithoutQuote() ?: __('(empty message)') }}</div>
+                        @if ($item->bodyWithoutQuote() !== trim((string) $item->body))
+                            <div class="text-sm leading-relaxed whitespace-pre-line text-zinc-700 [overflow-wrap:anywhere] dark:text-zinc-200" x-show="full" x-cloak>{{ $item->body }}</div>
+                        @endif
+                    </div>
+                    <div class="mt-2 flex gap-4 text-xs text-zinc-500">
+                        @if ($item->bodyWithoutQuote() !== trim((string) $item->body))
+                            <button type="button" class="underline underline-offset-2" x-show="! formatted" x-on:click="full = ! full" x-text="full ? @js(__('Hide quoted text')) : @js(__('Show quoted text'))"></button>
+                        @endif
+                        @if ($item->html)
+                            <button type="button" class="underline underline-offset-2" x-on:click="formatted = ! formatted" x-text="formatted ? @js(__('Show as plain text')) : @js(__('Show as formatted email'))"></button>
+                        @endif
+                    </div>
                 </div>
             </flux:card>
         @endforeach

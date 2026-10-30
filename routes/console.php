@@ -9,8 +9,8 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Artisan::command('inbox:fetch', function (FetchInbox $fetchInbox) {
-    $new = $fetchInbox->fetch(FetchInbox::mailbox());
+Artisan::command('inbox:fetch {--refresh : Re-read the text of messages already in the inbox}', function (FetchInbox $fetchInbox) {
+    $new = $fetchInbox->fetch(FetchInbox::mailbox(), (bool) $this->option('refresh'));
 
     $this->info(trans_choice(':count new message|:count new messages', $new));
 })->purpose('Copy new mail from the contact@ mailbox into the staff inbox');

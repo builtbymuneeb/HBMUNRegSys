@@ -64,6 +64,37 @@ test('new mail is copied into the inbox once, linked to the ambassador who sent 
         ->assertSeeText('Last checked');
 });
 
+test('HTML emails are kept for a formatted view, with readable text alongside', function () {
+    $html = '<!DOCTYPE html><html><head><title>Log in</title><style>p{color:red}</style></head><body>'
+        .'<div style="display:none">Hidden preview text</div>'
+        .'<p>Your code: <b>241937</b></p><p>Thanks,<br>Linktree</p><script>alert(1)</script></body></html>';
+
+    $mailbox = fakeInbox(rawEmail('Linktree <info@accounts.linktr.ee>', 'Your code: 241937', $html, '<code-1@linktr.ee>'));
+    app(FetchInbox::class)->fetch($mailbox);
+
+    $message = InboxMessage::sole();
+    expect($message->body)->toBe('Your code: 241937
+
+Thanks,
+Linktree')
+        ->and($message->html)->toContain('<b>241937</b>')
+        ->and($message->opensFormatted())->toBeTrue()
+        ->and($message->htmlDocument())->toContain("script-src 'none'")
+        ->and($message->htmlDocument())->toContain('<base target="_blank">');
+
+    Livewire::actingAs(staffMember())
+        ->test('pages::staff.inbox.show', ['message' => $message])
+        ->assertSeeHtml('sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"')
+        ->assertDontSeeHtml('<script>alert(1)</script>')
+        ->assertSeeHtml('srcdoc=');
+
+    $message->update(['html' => null, 'body' => 'stale']);
+    app(FetchInbox::class)->fetch($mailbox, refresh: true);
+
+    expect($message->refresh()->html)->toContain('<b>241937</b>')
+        ->and($message->body)->toContain('Your code: 241937');
+});
+
 test('staff see conversations with unread counts, and opening one marks it read', function () {
     $ambassador = CampusAmbassador::factory()->create(['code' => 'HB07', 'name' => 'Ayesha Khan', 'email' => 'ayesha@example.com']);
     InboxMessage::factory()->create(['email' => 'ayesha@example.com', 'campus_ambassador_id' => $ambassador->id, 'subject' => 'First question', 'received_at' => now()->subHour()]);
