@@ -43,6 +43,22 @@ class AmbassadorForm extends Form
         $this->code = CampusAmbassador::nextCode();
     }
 
+    /**
+     * Switching a new ambassador's type swaps the suggested code to that type's series (HB## ↔ PC##).
+     */
+    public function typeChanged(): void
+    {
+        if ($this->ambassador !== null) {
+            return;
+        }
+
+        $suggestions = array_map(fn (AmbassadorType $type) => CampusAmbassador::nextCode($type), AmbassadorType::cases());
+
+        if ($this->code === '' || in_array(ReferralCode::clean($this->code), $suggestions, true)) {
+            $this->code = CampusAmbassador::nextCode(AmbassadorType::tryFrom($this->type) ?? AmbassadorType::Homebridge);
+        }
+    }
+
     public function edit(CampusAmbassador $ambassador): void
     {
         $this->resetValidation();
@@ -87,7 +103,7 @@ class AmbassadorForm extends Form
     protected function messages(): array
     {
         return [
-            'code.regex' => __('Use letters, numbers and dashes only, e.g. HB01.'),
+            'code.regex' => __('Use letters, numbers and dashes only, e.g. HB01 or PC01.'),
         ];
     }
 

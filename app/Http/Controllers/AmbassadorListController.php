@@ -47,7 +47,7 @@ class AmbassadorListController extends Controller
     }
 
     /**
-     * Sort by the number in the code (HB2 before HB10), with codes of any other shape after, alphabetically.
+     * Sort HB codes by number (HB2 before HB10), then PC codes by number, with codes of any other shape after, alphabetically.
      *
      * @param  Collection<int, CampusAmbassador>  $ambassadors
      * @return Collection<int, CampusAmbassador>
@@ -55,7 +55,7 @@ class AmbassadorListController extends Controller
     public static function inCodeOrder(Collection $ambassadors): Collection
     {
         return $ambassadors->sortBy([
-            fn (CampusAmbassador $a, CampusAmbassador $b) => (ReferralCode::number($a->code) ?? PHP_INT_MAX) <=> (ReferralCode::number($b->code) ?? PHP_INT_MAX),
+            fn (CampusAmbassador $a, CampusAmbassador $b) => ReferralCode::sortKey($a->code) <=> ReferralCode::sortKey($b->code),
             fn (CampusAmbassador $a, CampusAmbassador $b) => strnatcasecmp($a->code, $b->code),
         ])->values();
     }

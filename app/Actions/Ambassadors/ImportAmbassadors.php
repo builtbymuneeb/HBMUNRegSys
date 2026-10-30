@@ -41,8 +41,9 @@ class ImportAmbassadors
      * @param  list<list<string>>  $rows
      * @return list<array{name: string, email: string|null, phone: string|null, institution: string|null, city: string|null, code: string, flag_reason: string|null, generated: bool, skip: string|null}>
      */
-    public function preview(array $rows): array
+    public function preview(array $rows, AmbassadorType $type = AmbassadorType::Homebridge): array
     {
+        $prefix = $type->codePrefix();
         $rows = array_values(array_filter($rows, fn (array $row) => implode('', $row) !== ''));
         $columns = $this->columns(array_shift($rows) ?? []);
 
@@ -52,7 +53,7 @@ class ImportAmbassadors
         $takenPhones = $existing->filter(fn (CampusAmbassador $ambassador) => CampusAmbassador::phoneKey($ambassador->phone))
             ->mapWithKeys(fn (CampusAmbassador $ambassador) => [CampusAmbassador::phoneKey($ambassador->phone) => $ambassador->code])
             ->all();
-        $nextNumber = ($existing->map(fn (CampusAmbassador $ambassador) => ReferralCode::number($ambassador->code) ?? 0)->max() ?? 0) + 1;
+        $nextNumber = ($existing->map(fn (CampusAmbassador $ambassador) => ReferralCode::number($ambassador->code, $prefix) ?? 0)->max() ?? 0) + 1;
 
         $preview = [];
         foreach ($rows as $row) {
@@ -70,8 +71,8 @@ class ImportAmbassadors
                 'skip' => null,
             ];
 
-            if ($entry['code'] !== '' && ReferralCode::number($entry['code']) !== null) {
-                $nextNumber = max($nextNumber, ReferralCode::number($entry['code']) + 1);
+            if ($entry['code'] !== '' && ReferralCode::number($entry['code'], $prefix) !== null) {
+                $nextNumber = max($nextNumber, ReferralCode::number($entry['code'], $prefix) + 1);
             }
 
             $preview[] = $entry;
@@ -92,7 +93,7 @@ class ImportAmbassadors
 
             if ($entry['code'] === '') {
                 do {
-                    $entry['code'] = ReferralCode::format($nextNumber++);
+                    $entry['code'] = ReferralCode::format($nextNumber++, $prefix);
                 } while (isset($takenKeys[ReferralCode::key($entry['code'])]));
                 $entry['generated'] = true;
             }
@@ -124,7 +125,7 @@ class ImportAmbassadors
      */
     public function import(array $rows, User $by, AmbassadorType $type = AmbassadorType::Homebridge): int
     {
-        $entries = array_filter($this->preview($rows), fn (array $entry) => $entry['skip'] === null);
+        $entries = array_filter($this->preview($rows, $type), fn (array $entry) => $entry['skip'] === null);
 
         DB::transaction(function () use ($entries, $by, $type) {
             foreach ($entries as $entry) {

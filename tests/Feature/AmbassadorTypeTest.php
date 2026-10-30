@@ -34,6 +34,25 @@ test('staff choose the type when adding or editing an ambassador', function () {
         ->assertHasErrors('form.type');
 });
 
+test('private ambassadors get their own PC code series', function () {
+    CampusAmbassador::factory()->create(['code' => 'HB34']);
+    CampusAmbassador::factory()->private()->create(['code' => 'PC01']);
+
+    Livewire::actingAs(staffMember())
+        ->test('pages::staff.ambassadors.index')
+        ->call('add')
+        ->assertSet('form.code', 'HB35')
+        ->set('form.type', 'private')
+        ->assertSet('form.code', 'PC02')
+        ->set('form.type', 'hb')
+        ->assertSet('form.code', 'HB35');
+
+    app(ImportAmbassadors::class)->import([['Full Name'], ['Outside Student']], staffMember(), AmbassadorType::Private);
+
+    expect(CampusAmbassador::where('name', 'Outside Student')->sole()->code)->toBe('PC02')
+        ->and(CampusAmbassador::nextCode())->toBe('HB35');
+});
+
 test('the list filters by type and shows how many of each there are', function () {
     CampusAmbassador::factory()->count(2)->create(['name' => 'Homebridge Person']);
     CampusAmbassador::factory()->private()->create(['name' => 'Private Person']);

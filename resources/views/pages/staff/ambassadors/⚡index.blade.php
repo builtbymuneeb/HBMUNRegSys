@@ -136,7 +136,7 @@ new #[Title('Campus ambassadors')] class extends Component {
     #[Computed]
     public function importPreview(): array
     {
-        return $this->sheetRows === [] ? [] : app(ImportAmbassadors::class)->preview($this->sheetRows);
+        return $this->sheetRows === [] ? [] : app(ImportAmbassadors::class)->preview($this->sheetRows, AmbassadorType::tryFrom($this->importType) ?? AmbassadorType::Homebridge);
     }
 
     /**
@@ -220,6 +220,11 @@ new #[Title('Campus ambassadors')] class extends Component {
         if (str_starts_with($property, 'message') && $property !== 'messageSubject') {
             $this->showWhatsAppChecklist = false;
         }
+    }
+
+    public function updatedFormType(): void
+    {
+        $this->form->typeChanged();
     }
 
     /**

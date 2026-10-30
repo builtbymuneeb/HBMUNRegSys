@@ -169,13 +169,14 @@ class CampusAmbassador extends Model
     }
 
     /**
-     * The next unused HB## code.
+     * The next unused code for this type: HB## for HB ambassadors, PC## for Private ones.
      */
-    public static function nextCode(): string
+    public static function nextCode(AmbassadorType $type = AmbassadorType::Homebridge): string
     {
-        $highest = self::pluck('code')->map(fn (string $code) => ReferralCode::number($code) ?? 0)->max() ?? 0;
+        $prefix = $type->codePrefix();
+        $highest = self::pluck('code')->map(fn (string $code) => ReferralCode::number($code, $prefix) ?? 0)->max() ?? 0;
 
-        return ReferralCode::format($highest + 1);
+        return ReferralCode::format($highest + 1, $prefix);
     }
 
     /**
