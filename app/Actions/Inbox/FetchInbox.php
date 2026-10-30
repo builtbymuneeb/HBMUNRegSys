@@ -86,7 +86,7 @@ class FetchInbox
                 $new++;
             });
 
-        Cache::forever(self::LAST_FETCHED_KEY, now());
+        Cache::forever(self::LAST_FETCHED_KEY, now()->getTimestamp());
 
         return $new;
     }

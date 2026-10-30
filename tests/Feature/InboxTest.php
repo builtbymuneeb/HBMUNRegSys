@@ -56,6 +56,12 @@ test('new mail is copied into the inbox once, linked to the ambassador who sent 
         ->and($reply->bodyWithoutQuote())->toBe('Thanks! Count me in.')
         ->and($reply->read_at)->toBeNull()
         ->and(InboxMessage::where('email', 'someone@example.org')->sole()->campus_ambassador_id)->toBeNull();
+
+    expect(cache()->get(FetchInbox::LAST_FETCHED_KEY))->toBeInt();
+
+    Livewire::actingAs(staffMember())
+        ->test('pages::staff.inbox.index')
+        ->assertSeeText('Last checked');
 });
 
 test('staff see conversations with unread counts, and opening one marks it read', function () {

@@ -69,7 +69,9 @@ new #[Title('Inbox')] class extends Component {
     #[Computed]
     public function lastCheckedAt(): ?Carbon
     {
-        return Cache::get(FetchInbox::LAST_FETCHED_KEY);
+        $timestamp = Cache::get(FetchInbox::LAST_FETCHED_KEY);
+
+        return is_int($timestamp) ? Carbon::createFromTimestamp($timestamp) : null;
     }
 
     /**
