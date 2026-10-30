@@ -27,7 +27,9 @@ test('staff email one ambassador the welcome with their code and personal regist
         return $notifiable->routes['mail'] === 'ayesha@example.com'
             && $mail->greeting === 'Hello Ayesha,'
             && str_contains(implode(' ', $mail->introLines), '**HB05**')
-            && $mail->actionUrl === route('register', ['ref' => 'HB05']);
+            && $mail->actionUrl === route('register', ['ref' => 'HB05'])
+            && str_contains(implode(' ', $mail->outroLines), config('conference.ambassador_group_link'))
+            && str_contains($notification->toWhatsApp(), config('conference.ambassador_group_link'));
     });
 
     expect($ambassador->refresh()->welcome_emailed_at)->not->toBeNull();

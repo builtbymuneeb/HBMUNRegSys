@@ -28,6 +28,7 @@ class AmbassadorWelcome extends Notification implements ShouldQueue
     public function toMail(object $notifiable): MailMessage
     {
         $code = $this->ambassador->code;
+        $group = config('conference.ambassador_group_link');
 
         return (new MailMessage)
             ->subject('Welcome to the '.config('conference.name').' Campus Ambassador team')
@@ -36,6 +37,7 @@ class AmbassadorWelcome extends Notification implements ShouldQueue
             ->line("Your referral code is **{$code}**.")
             ->line("Share it with students at your campus. When they register and enter {$code} as the referral code, their delegation counts for you. The link below fills your code in for them:")
             ->action('Your registration link', $this->ambassador->registrationLink())
+            ->lineIf((bool) $group, "Please also join the Campus Ambassadors WhatsApp group, where we share updates and answer questions: [Join the WhatsApp group]({$group})")
             ->line('If you have any questions, just reply to this email.')
             ->salutation('Thank you for representing '.config('conference.name').'!');
     }
@@ -46,13 +48,15 @@ class AmbassadorWelcome extends Notification implements ShouldQueue
     public function toWhatsApp(): string
     {
         $code = $this->ambassador->code;
+        $group = config('conference.ambassador_group_link');
 
-        return implode("\n\n", [
+        return implode("\n\n", array_filter([
             "Hello {$this->ambassador->firstName()},",
             'Welcome aboard! You are now a Campus Ambassador for '.config('conference.name').' ('.config('conference.dates_label').').',
             "Your referral code is *{$code}*.",
             "Share it with students at your campus. When they register and enter {$code} as the referral code, their delegation counts for you. This link fills your code in for them:\n".$this->ambassador->registrationLink(),
+            $group ? "Please also join the Campus Ambassadors WhatsApp group, where we share updates and answer questions:\n".$group : null,
             'Thank you for representing '.config('conference.name').'!',
-        ]);
+        ]));
     }
 }

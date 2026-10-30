@@ -21,6 +21,12 @@ return [
     'reference_prefix' => env('CONFERENCE_REFERENCE_PREFIX', 'HB26'),
 
     /*
+    | WhatsApp group every campus ambassador is invited to in their welcome message.
+    */
+
+    'ambassador_group_link' => env('CONFERENCE_AMBASSADOR_GROUP_LINK', 'https://chat.whatsapp.com/CSvyatKwuKPEhCMaRgAg6S'),
+
+    /*
     |--------------------------------------------------------------------------
     | Fees (PKR)
     |--------------------------------------------------------------------------
