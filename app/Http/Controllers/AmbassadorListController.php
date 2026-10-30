@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AmbassadorType;
 use App\Models\CampusAmbassador;
 use App\Support\ReferralCode;
 use Illuminate\Http\Request;
@@ -27,17 +28,19 @@ class AmbassadorListController extends Controller
 
     /**
      * The branded, print-ready A4 list of ambassadors (Save as PDF from the browser),
-     * optionally limited to a range of codes, e.g. ?from=HB05&to=HB20.
+     * optionally limited to one type (?type=hb or private) and a range of codes (?from=HB05&to=HB20).
      */
     public function __invoke(Request $request): View
     {
-        $all = self::inCodeOrder(CampusAmbassador::all(['id', 'code', 'code_key', 'name', 'institution', 'city']));
+        $type = AmbassadorType::tryFrom((string) $request->query('type'));
+        $all = self::inCodeOrder(CampusAmbassador::ofType($type)->get(['id', 'code', 'code_key', 'type', 'name', 'institution', 'city']));
         $ambassadors = self::between($all, $request->query('from'), $request->query('to'));
         $isRange = $ambassadors->count() !== $all->count();
 
         return view('ambassador-list', [
             'pages' => self::paginate($ambassadors),
             'count' => $ambassadors->count(),
+            'type' => $type,
             'range' => $isRange && $ambassadors->isNotEmpty() ? $ambassadors->first()->code.' – '.$ambassadors->last()->code : null,
             'autoPrint' => $request->boolean('print'),
         ]);

@@ -2,6 +2,7 @@
 
 namespace App\Actions\Ambassadors;
 
+use App\Enums\AmbassadorType;
 use App\Models\AuditLog;
 use App\Models\CampusAmbassador;
 use App\Models\User;
@@ -121,13 +122,16 @@ class ImportAmbassadors
      *
      * @param  list<list<string>>  $rows
      */
-    public function import(array $rows, User $by): int
+    public function import(array $rows, User $by, AmbassadorType $type = AmbassadorType::Homebridge): int
     {
         $entries = array_filter($this->preview($rows), fn (array $entry) => $entry['skip'] === null);
 
-        DB::transaction(function () use ($entries, $by) {
+        DB::transaction(function () use ($entries, $by, $type) {
             foreach ($entries as $entry) {
-                $ambassador = CampusAmbassador::create(collect($entry)->only(['code', 'name', 'email', 'phone', 'institution', 'city', 'flag_reason'])->all());
+                $ambassador = CampusAmbassador::create([
+                    ...collect($entry)->only(['code', 'name', 'email', 'phone', 'institution', 'city', 'flag_reason'])->all(),
+                    'type' => $type,
+                ]);
 
                 AuditLog::record('ambassador_imported', $ambassador, $by, ['code' => $ambassador->code, 'flag_reason' => $ambassador->flag_reason]);
             }

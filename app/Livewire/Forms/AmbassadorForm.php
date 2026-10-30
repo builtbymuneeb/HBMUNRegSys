@@ -2,11 +2,13 @@
 
 namespace App\Livewire\Forms;
 
+use App\Enums\AmbassadorType;
 use App\Models\AuditLog;
 use App\Models\CampusAmbassador;
 use App\Support\ReferralCode;
 use Closure;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Form;
 
 class AmbassadorForm extends Form
@@ -14,6 +16,8 @@ class AmbassadorForm extends Form
     public ?CampusAmbassador $ambassador = null;
 
     public string $code = '';
+
+    public string $type = 'hb';
 
     public string $name = '';
 
@@ -45,6 +49,7 @@ class AmbassadorForm extends Form
         $this->ambassador = $ambassador;
         $this->fill([
             ...$ambassador->only(['code', 'name']),
+            'type' => $ambassador->type->value,
             ...array_map(fn ($value) => (string) $value, $ambassador->only(['email', 'phone', 'institution', 'city', 'notes', 'flag_reason'])),
         ]);
     }
@@ -65,6 +70,7 @@ class AmbassadorForm extends Form
                     $fail(__('This code already belongs to :name.', ['name' => $taken]));
                 }
             }],
+            'type' => ['required', Rule::enum(AmbassadorType::class)],
             'name' => ['required', 'string', 'max:255'],
             'email' => ['nullable', 'email', 'max:255'],
             'phone' => ['nullable', 'string', 'max:30'],

@@ -5,6 +5,11 @@
             <flux:text class="mt-1">{{ __('Registrations that enter this code are counted for them, including any that came in before they were added.') }}</flux:text>
         </div>
         <div class="grid gap-4 sm:grid-cols-2">
+            <flux:radio.group wire:model="form.type" :label="__('Type')" class="sm:col-span-2">
+                @foreach (\App\Enums\AmbassadorType::cases() as $ambassadorType)
+                    <flux:radio :value="$ambassadorType->value" :label="$ambassadorType->label().' · '.$ambassadorType->description()" />
+                @endforeach
+            </flux:radio.group>
             <flux:input wire:model="form.code" :label="__('Referral code')" placeholder="HB01" class="uppercase" />
             <flux:input wire:model="form.name" :label="__('Full name')" />
             <flux:input wire:model="form.email" type="email" :label="__('Email')" />

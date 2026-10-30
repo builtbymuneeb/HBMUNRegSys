@@ -1,5 +1,6 @@
 @php
-    $fileName = 'Homebridge_MUN26_Campus_Ambassadors'.($range ? '_'.str_replace(' – ', '-', $range) : '');
+    $fileName = 'Homebridge_MUN26_'.($type ? $type->label().'_' : '').'Campus_Ambassadors'.($range ? '_'.str_replace(' – ', '-', $range) : '');
+    $countLabel = trans_choice(':count '.($type ? $type->label().' ' : '').'Campus Ambassador|:count '.($type ? $type->label().' ' : '').'Campus Ambassadors', $count);
     $star = '<svg class="star" viewBox="0 0 12 12" aria-hidden="true"><path d="M6 0 5.1 5.1 0 6l5.1.9L6 12l1-5.1L12 6 7 5.1Z"/></svg>';
 @endphp
 <!DOCTYPE html>
@@ -122,7 +123,7 @@
 <body>
     <div class="toolbar">
         <a href="{{ route('staff.ambassadors') }}">← {{ __('Campus ambassadors') }}</a>
-        <strong>{{ trans_choice(':count ambassador|:count ambassadors', $count) }}{{ $range ? ' · '.$range : '' }} · {{ trans_choice(':count page|:count pages', count($pages)) }}</strong>
+        <strong>{{ $countLabel }}{{ $range ? ' · '.$range : '' }} · {{ trans_choice(':count page|:count pages', count($pages)) }}</strong>
         <span class="hint">{{ __('In the print window, choose “Save as PDF”. If you see the options, set Margins to None and turn Background graphics on.') }}</span>
         <button type="button" onclick="window.print()">{{ __('Save as PDF') }}</button>
     </div>
@@ -139,7 +140,7 @@
                 @if ($loop->first)
                     <img class="crest" src="{{ asset('images/ambassador-crest.webp') }}" alt="Homebridge MUN ’26" />
                     <div class="centered title first">Campus Ambassadors</div>
-                    <div class="centered subtitle first">HBMUN 2.0 &nbsp;·&nbsp; {!! $range ? e($range).' &nbsp;·&nbsp; ' : '' !!}{{ trans_choice(':count Campus Ambassador|:count Campus Ambassadors', $count) }}</div>
+                    <div class="centered subtitle first">HBMUN 2.0 &nbsp;·&nbsp; {!! $range ? e($range).' &nbsp;·&nbsp; ' : '' !!}{{ $countLabel }}</div>
                 @else
                     <div class="centered title continued">Campus Ambassadors</div>
                     <div class="centered subtitle continued">continued</div>

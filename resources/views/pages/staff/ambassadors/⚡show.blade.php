@@ -127,6 +127,7 @@ new #[Title('Campus ambassador')] class extends Component {
             <div class="mt-2 flex flex-wrap items-center gap-3">
                 <flux:heading size="xl" level="1">{{ $ambassador->name }}</flux:heading>
                 <flux:badge color="purple">{{ $ambassador->code }}</flux:badge>
+                <flux:badge :color="$ambassador->type->color()" :title="$ambassador->type->description()">{{ $ambassador->type->label() }}</flux:badge>
                 @if ($ambassador->needsCheck())
                     <flux:badge color="amber" icon="exclamation-triangle">{{ __('Needs check') }}</flux:badge>
                 @endif
@@ -186,6 +187,7 @@ new #[Title('Campus ambassador')] class extends Component {
         <dl class="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
             @foreach ([
                 __('Referral code') => $ambassador->code,
+                __('Type') => $ambassador->type->label().' · '.$ambassador->type->description(),
                 __('Email') => $ambassador->email,
                 __('Phone') => $ambassador->phone,
                 __('Institution') => $ambassador->institution,

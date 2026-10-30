@@ -3,6 +3,7 @@
 use App\Actions\Ambassadors\EmailAmbassadors;
 use App\Actions\Ambassadors\ImportAmbassadors;
 use App\Http\Controllers\AmbassadorListController;
+use App\Enums\AmbassadorType;
 use App\Enums\RegistrationStatus;
 use App\Livewire\Forms\AmbassadorForm;
 use App\Models\CampusAmbassador;
@@ -32,6 +33,16 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     #[Url(as: 'check')]
     public bool $onlyNeedsCheck = false;
+
+    /** '' for everyone, or an AmbassadorType value. */
+    #[Url]
+    public string $type = '';
+
+    public string $importType = 'hb';
+
+    public string $exportType = '';
+
+    public string $messageType = '';
 
     public $sheet;
 
@@ -69,6 +80,7 @@ new #[Title('Campus ambassadors')] class extends Component {
         return CampusAmbassador::query()
             ->withReferralCounts()
             ->with('whatsAppLogs')
+            ->when(AmbassadorType::tryFrom($this->type), fn ($query, AmbassadorType $type) => $query->where('type', $type))
             ->when($this->onlyNeedsCheck, fn ($query) => $query->flagged())
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('code', 'like', "%{$search}%")
@@ -128,14 +140,44 @@ new #[Title('Campus ambassadors')] class extends Component {
     }
 
     /**
-     * Every code in list order, for the export range pickers.
+     * Every code of the export's type in list order, for the export range pickers.
      *
      * @return list<string>
      */
     #[Computed]
     public function exportCodes(): array
     {
-        return AmbassadorListController::inCodeOrder(CampusAmbassador::all(['id', 'code']))->pluck('code')->all();
+        return $this->codesOfType($this->exportType);
+    }
+
+    /**
+     * Every code of the message's type in list order, for the message range pickers.
+     *
+     * @return list<string>
+     */
+    #[Computed]
+    public function messageCodes(): array
+    {
+        return $this->codesOfType($this->messageType);
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function codesOfType(string $type): array
+    {
+        return AmbassadorListController::inCodeOrder(CampusAmbassador::ofType(AmbassadorType::tryFrom($type))->get(['id', 'code']))->pluck('code')->all();
+    }
+
+    /**
+     * How many ambassadors there are of each type.
+     *
+     * @return array<string, int>
+     */
+    #[Computed]
+    public function typeCounts(): array
+    {
+        return CampusAmbassador::toBase()->selectRaw('type, count(*) as total')->groupBy('type')->pluck('total', 'type')->map(fn ($total) => (int) $total)->all();
     }
 
     #[Computed]
@@ -156,7 +198,7 @@ new #[Title('Campus ambassadors')] class extends Component {
     #[Computed]
     public function messageRecipients(): SupportCollection
     {
-        $all = AmbassadorListController::inCodeOrder(CampusAmbassador::with('whatsAppLogs.sender')->get());
+        $all = AmbassadorListController::inCodeOrder(CampusAmbassador::ofType(AmbassadorType::tryFrom($this->messageType))->with('whatsAppLogs.sender')->get());
 
         return match ($this->messageAudience) {
             'not_welcomed' => $all->filter(fn (CampusAmbassador $ambassador) => ! $ambassador->welcome_emailed_at && ! $ambassador->welcomeWhatsApp())->values(),
@@ -167,10 +209,9 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function openMessage(): void
     {
-        $this->reset('messageKind', 'messageAudience', 'messageSubject', 'messageBody', 'showWhatsAppChecklist');
+        $this->reset('messageKind', 'messageAudience', 'messageType', 'messageSubject', 'messageBody', 'showWhatsAppChecklist');
         $this->resetValidation();
-        $this->messageFrom = $this->exportCodes[0] ?? '';
-        $this->messageTo = Arr::last($this->exportCodes) ?? '';
+        $this->updatedMessageType();
         Flux::modal('ambassador-message')->show();
     }
 
@@ -179,6 +220,26 @@ new #[Title('Campus ambassadors')] class extends Component {
         if (str_starts_with($property, 'message') && $property !== 'messageSubject') {
             $this->showWhatsAppChecklist = false;
         }
+    }
+
+    /**
+     * Start the message's code range at the first and last code of the chosen type.
+     */
+    public function updatedMessageType(): void
+    {
+        unset($this->messageCodes);
+        $this->messageFrom = $this->messageCodes[0] ?? '';
+        $this->messageTo = Arr::last($this->messageCodes) ?? '';
+    }
+
+    /**
+     * Start the export's code range at the first and last code of the chosen type.
+     */
+    public function updatedExportType(): void
+    {
+        unset($this->exportCodes);
+        $this->exportFrom = $this->exportCodes[0] ?? '';
+        $this->exportTo = Arr::last($this->exportCodes) ?? '';
     }
 
     public function showChecklist(): void
@@ -221,8 +282,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function openExport(): void
     {
-        $this->exportFrom = $this->exportCodes[0] ?? '';
-        $this->exportTo = Arr::last($this->exportCodes) ?? '';
+        $this->updatedExportType();
         Flux::modal('ambassador-export')->show();
     }
 
@@ -244,7 +304,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function openImport(): void
     {
-        $this->reset('sheet', 'sheetRows');
+        $this->reset('sheet', 'sheetRows', 'importType');
         $this->resetValidation();
         Flux::modal('ambassador-import')->show();
     }
@@ -269,7 +329,7 @@ new #[Title('Campus ambassadors')] class extends Component {
     {
         Gate::authorize('manage-ambassadors');
 
-        $count = $importAmbassadors->import($this->sheetRows, Auth::user());
+        $count = $importAmbassadors->import($this->sheetRows, Auth::user(), AmbassadorType::tryFrom($this->importType) ?? AmbassadorType::Homebridge);
 
         $this->reset('sheet', 'sheetRows');
         Flux::modal('ambassador-import')->close();
@@ -294,7 +354,8 @@ new #[Title('Campus ambassadors')] class extends Component {
     <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Ambassadors') }}</flux:text>
-            <flux:heading size="xl">{{ CampusAmbassador::count() }}</flux:heading>
+            <flux:heading size="xl">{{ array_sum($this->typeCounts) }}</flux:heading>
+            <flux:text size="sm" class="text-zinc-400">{{ collect(AmbassadorType::cases())->map(fn ($ambassadorType) => ($this->typeCounts[$ambassadorType->value] ?? 0).' '.$ambassadorType->label())->implode(' · ') }}</flux:text>
         </flux:card>
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Referred registrations') }}</flux:text>
@@ -321,7 +382,15 @@ new #[Title('Campus ambassadors')] class extends Component {
         </button>
     </div>
 
-    <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search code, name, institution, phone, email…')" class="max-w-xl" />
+    <div class="flex flex-wrap items-center gap-3">
+        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search code, name, institution, phone, email…')" class="max-w-xl flex-1" />
+        <flux:radio.group wire:model.live="type" variant="segmented" :aria-label="__('Type')">
+                <flux:radio value="" :label="__('All')" />
+                @foreach (AmbassadorType::cases() as $ambassadorType)
+                    <flux:radio :value="$ambassadorType->value" :label="$ambassadorType->label()" />
+                @endforeach
+        </flux:radio.group>
+    </div>
 
     <flux:table>
         <flux:table.columns>
@@ -338,7 +407,10 @@ new #[Title('Campus ambassadors')] class extends Component {
         <flux:table.rows>
             @forelse ($this->ambassadors as $ambassador)
                 <flux:table.row :key="$ambassador->id">
-                    <flux:table.cell variant="strong">{{ $ambassador->code }}</flux:table.cell>
+                    <flux:table.cell variant="strong">
+                        <div>{{ $ambassador->code }}</div>
+                        <flux:badge size="sm" :color="$ambassador->type->color()" inset="top bottom" :title="$ambassador->type->description()">{{ $ambassador->type->label() }}</flux:badge>
+                    </flux:table.cell>
                     <flux:table.cell>
                         <div class="flex items-center gap-2 font-medium text-zinc-800 dark:text-white">
                             {{ $ambassador->name }}
@@ -372,7 +444,7 @@ new #[Title('Campus ambassadors')] class extends Component {
             @empty
                 <flux:table.row>
                     <flux:table.cell colspan="8" class="py-10 text-center">
-                        {{ trim($search) !== '' || $onlyNeedsCheck ? __('No ambassadors match this search.') : __('No campus ambassadors yet. Add one, or import your sign-up sheet.') }}
+                        {{ trim($search) !== '' || $onlyNeedsCheck || $type !== '' ? __('No ambassadors match this search.') : __('No campus ambassadors yet. Add one, or import your sign-up sheet.') }}
                     </flux:table.cell>
                 </flux:table.row>
             @endforelse
@@ -419,6 +491,13 @@ new #[Title('Campus ambassadors')] class extends Component {
                 <flux:text class="text-sm">{{ __('Welcomes them to the team with their referral code and their own registration link that fills the code in.') }}</flux:text>
             @endif
 
+            <flux:radio.group wire:model.live="messageType" :label="__('Type')" variant="segmented">
+                <flux:radio value="" :label="__('All')" />
+                @foreach (AmbassadorType::cases() as $ambassadorType)
+                    <flux:radio :value="$ambassadorType->value" :label="$ambassadorType->label()" />
+                @endforeach
+            </flux:radio.group>
+
             <flux:radio.group wire:model.live="messageAudience" :label="__('Send to')">
                 <flux:radio value="all" :label="__('Everyone')" />
                 <flux:radio value="not_welcomed" :label="__('Only those who haven’t had the welcome yet (by email or WhatsApp)')" />
@@ -428,12 +507,12 @@ new #[Title('Campus ambassadors')] class extends Component {
             @if ($messageAudience === 'range')
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:select wire:model.live="messageFrom" :label="__('From')">
-                        @foreach ($this->exportCodes as $code)
+                        @foreach ($this->messageCodes as $code)
                             <flux:select.option :value="$code">{{ $code }}</flux:select.option>
                         @endforeach
                     </flux:select>
                     <flux:select wire:model.live="messageTo" :label="__('To')">
-                        @foreach ($this->exportCodes as $code)
+                        @foreach ($this->messageCodes as $code)
                             <flux:select.option :value="$code">{{ $code }}</flux:select.option>
                         @endforeach
                     </flux:select>
@@ -496,8 +575,15 @@ new #[Title('Campus ambassadors')] class extends Component {
                 <flux:text class="mt-1">{{ __('Opens the branded A4 list (code, name, campus) ready to save as a PDF. Pick a range to export only part of it.') }}</flux:text>
             </div>
 
+            <flux:radio.group wire:model.live="exportType" :label="__('Type')" variant="segmented">
+                <flux:radio value="" :label="__('All')" />
+                @foreach (AmbassadorType::cases() as $ambassadorType)
+                    <flux:radio :value="$ambassadorType->value" :label="$ambassadorType->label()" />
+                @endforeach
+            </flux:radio.group>
+
             @if ($this->exportCodes === [])
-                <flux:text>{{ __('Add some ambassadors first.') }}</flux:text>
+                <flux:text>{{ __('No ambassadors of this type yet.') }}</flux:text>
             @else
                 <div class="grid gap-4 sm:grid-cols-2">
                     <flux:select wire:model.live="exportFrom" :label="__('From')">
@@ -524,7 +610,7 @@ new #[Title('Campus ambassadors')] class extends Component {
                 </flux:modal.close>
                 @if ($this->exportCodes !== [])
                     <flux:button variant="primary" icon="document-arrow-down" target="_blank"
-                        :href="route('staff.ambassadors.list', ['from' => $exportFrom, 'to' => $exportTo, 'print' => 1])">{{ __('Open & save as PDF') }}</flux:button>
+                        :href="route('staff.ambassadors.list', array_filter(['type' => $exportType, 'from' => $exportFrom, 'to' => $exportTo, 'print' => 1]))">{{ __('Open & save as PDF') }}</flux:button>
                 @endif
             </div>
         </div>
@@ -538,6 +624,12 @@ new #[Title('Campus ambassadors')] class extends Component {
                     {{ __('Upload the sign-up sheet as .xlsx or .csv. In Google Sheets: File → Download → Microsoft Excel or CSV. The first row must hold the headings; name, email, phone, institution, city and code columns are picked up by their headings. Anyone without a code gets the next HB## code. Rows with a phone or email that looks wrong, or with something in a “note” or “status” column, are flagged for checking.') }}
                 </flux:text>
             </div>
+
+            <flux:radio.group wire:model="importType" :label="__('These ambassadors are')">
+                @foreach (AmbassadorType::cases() as $ambassadorType)
+                    <flux:radio :value="$ambassadorType->value" :label="$ambassadorType->label().' · '.$ambassadorType->description()" />
+                @endforeach
+            </flux:radio.group>
 
             <flux:input type="file" wire:model="sheet" :label="__('Sheet')" accept=".csv,.xlsx" />
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AmbassadorType;
 use App\Enums\RegistrationStatus;
 use App\Support\ReferralCode;
 use Database\Factories\CampusAmbassadorFactory;
@@ -20,6 +21,7 @@ use Illuminate\Support\Str;
  * @property int $id
  * @property string $code
  * @property string $code_key
+ * @property AmbassadorType $type
  * @property string $name
  * @property string|null $email
  * @property string|null $phone
@@ -31,11 +33,18 @@ use Illuminate\Support\Str;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['code', 'name', 'email', 'phone', 'institution', 'city', 'notes', 'flag_reason', 'welcome_emailed_at'])]
+#[Fillable(['code', 'type', 'name', 'email', 'phone', 'institution', 'city', 'notes', 'flag_reason', 'welcome_emailed_at'])]
 class CampusAmbassador extends Model
 {
     /** @use HasFactory<CampusAmbassadorFactory> */
     use HasFactory;
+
+    /**
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'type' => 'hb',
+    ];
 
     /**
      * @return array<string, string>
@@ -43,6 +52,7 @@ class CampusAmbassador extends Model
     protected function casts(): array
     {
         return [
+            'type' => AmbassadorType::class,
             'welcome_emailed_at' => 'datetime',
         ];
     }
@@ -146,6 +156,16 @@ class CampusAmbassador extends Model
     public function scopeFlagged(Builder $query): void
     {
         $query->whereNotNull('flag_reason')->where('flag_reason', '!=', '');
+    }
+
+    /**
+     * Limit to one type of ambassador, or leave everyone in when no type is given.
+     *
+     * @param  Builder<CampusAmbassador>  $query
+     */
+    public function scopeOfType(Builder $query, ?AmbassadorType $type): void
+    {
+        $query->when($type, fn ($query) => $query->where('type', $type));
     }
 
     /**
