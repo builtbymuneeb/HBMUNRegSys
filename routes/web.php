@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AmbassadorListController;
+use App\Http\Controllers\AmbassadorProofController;
 use App\Http\Controllers\DelegateExportController;
 use App\Http\Controllers\PaymentScreenshotController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -35,6 +36,14 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     Route::post('view-as', [RolePreviewController::class, 'store'])->name('role-preview.store');
     Route::delete('view-as', [RolePreviewController::class, 'destroy'])->name('role-preview.destroy');
+
+    Route::get('ambassador-proof/{file}', AmbassadorProofController::class)->name('ambassador-proof');
+});
+
+Route::middleware(['auth', 'verified', 'can:use-ambassador-portal'])->prefix('ambassador')->name('ambassador.')->group(function () {
+    Route::livewire('tasks', 'pages::ambassador.tasks')->name('tasks');
+    Route::livewire('tasks/{task}', 'pages::ambassador.task')->name('tasks.show');
+    Route::livewire('leaderboard', 'pages::ambassador.leaderboard')->name('leaderboard');
 });
 
 Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(function () {
@@ -46,7 +55,8 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
         ->can('view', 'registration')
         ->name('registrations.show');
 
-    Route::get('registrations/{registration}/payment-screenshot', PaymentScreenshotController::class)
+    Route::get('registrations/{registration}/payment-screenshots/{paymentScreenshot}', PaymentScreenshotController::class)
+        ->scopeBindings()
         ->name('registrations.payment-screenshot');
 
     Route::get('whatsapp/contact/{registration}', [WhatsAppController::class, 'contact'])->name('whatsapp.contact');
@@ -54,6 +64,7 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
     Route::get('whatsapp/allocation/{delegate}', [WhatsAppController::class, 'allocation'])->name('whatsapp.allocation');
     Route::get('whatsapp/ambassador/{ambassador}/welcome', [WhatsAppController::class, 'ambassadorWelcome'])->name('whatsapp.ambassador.welcome');
     Route::get('whatsapp/ambassador/{ambassador}/message', [WhatsAppController::class, 'ambassadorMessage'])->name('whatsapp.ambassador.message');
+    Route::get('whatsapp/ambassador/{ambassador}/portal', [WhatsAppController::class, 'ambassadorPortal'])->name('whatsapp.ambassador.portal');
 
     Route::get('delegates/export', DelegateExportController::class)
         ->can('manage-conference')
@@ -71,7 +82,13 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
     Route::middleware('can:manage-ambassadors')->group(function () {
         Route::livewire('ambassadors', 'pages::staff.ambassadors.index')->name('ambassadors');
         Route::get('ambassadors/list', AmbassadorListController::class)->name('ambassadors.list');
+        Route::livewire('ambassadors/tasks', 'pages::staff.ambassadors.tasks')->name('ambassadors.tasks');
+        Route::livewire('ambassadors/tasks/{task}', 'pages::staff.ambassadors.task')->name('ambassadors.tasks.show');
+        Route::livewire('ambassadors/leaderboard', 'pages::staff.ambassadors.leaderboard')->name('ambassadors.leaderboard');
         Route::livewire('ambassadors/{ambassador}', 'pages::staff.ambassadors.show')->name('ambassadors.show');
+    });
+
+    Route::middleware('can:use-inbox')->group(function () {
         Route::livewire('inbox', 'pages::staff.inbox.index')->name('inbox');
         Route::livewire('inbox/{message}', 'pages::staff.inbox.show')->name('inbox.show');
     });

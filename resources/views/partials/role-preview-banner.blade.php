@@ -7,6 +7,8 @@
                 {{ __('Viewing as :role', ['role' => $previewUser->role->label()]) }}
                 @if ($previewUser->role === \App\Enums\UserRole::Delegate)
                     · {{ $previewUser->delegate?->name ?? __('no delegates yet') }}
+                @elseif ($previewUser->role === \App\Enums\UserRole::Ambassador)
+                    · {{ $previewUser->ambassador ? $previewUser->ambassador->name.' ('.$previewUser->ambassador->code.')' : __('no ambassadors yet') }}
                 @endif
             </span>
             <form method="POST" action="{{ route('role-preview.destroy') }}">

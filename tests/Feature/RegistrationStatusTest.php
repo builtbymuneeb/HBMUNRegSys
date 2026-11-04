@@ -55,7 +55,7 @@ test('a rejected registration can upload a new screenshot after confirming a sec
         ->set('identifier', $registration->reference)
         ->call('lookup')
         ->assertSeeText('Screenshot is blurry.')
-        ->set('paymentScreenshot', UploadedFile::fake()->image('new-payment.png'));
+        ->set('newScreenshot', UploadedFile::fake()->image('new-payment.png'));
 
     $component->set('confirmation', 'wrong@example.com')->call('resubmit')->assertHasErrors('confirmation');
     $component->set('confirmation', $registration->reference)->call('resubmit')->assertHasErrors('confirmation');
@@ -72,6 +72,28 @@ test('a rejected registration can upload a new screenshot after confirming a sec
         ->and($registration->auditLogs()->value('action'))->toBe('payment_resubmitted');
 
     Storage::disk('local')->assertExists($registration->payment_screenshot_path);
+    expect($registration->paymentScreenshots->pluck('path')->all())->toBe([$registration->payment_screenshot_path]);
+});
+
+test('a resubmission can carry several screenshots, replacing the old ones', function () {
+    Storage::fake('local');
+    $registration = Registration::factory()->rejected()->create(['contact_phone' => '03001234567']);
+    $oldPath = $registration->payment_screenshot_path;
+
+    Livewire::test('pages::registration.status')
+        ->set('identifier', $registration->reference)
+        ->call('lookup')
+        ->set('newScreenshot', UploadedFile::fake()->image('first.png'))
+        ->set('newScreenshot', UploadedFile::fake()->image('second.png'))
+        ->set('confirmation', '03001234567')
+        ->call('resubmit')
+        ->assertHasNoErrors();
+
+    $registration->refresh();
+
+    expect($registration->paymentScreenshots)->toHaveCount(2)
+        ->and($registration->paymentScreenshots->pluck('path'))->not->toContain($oldPath)
+        ->and($registration->auditLogs()->first()->properties['previous_screenshots'])->toBe([$oldPath]);
 });
 
 test('a pending registration cannot replace its payment screenshot', function () {
@@ -82,7 +104,7 @@ test('a pending registration cannot replace its payment screenshot', function ()
         ->set('identifier', $registration->contact_email)
         ->call('lookup')
         ->set('confirmation', $registration->reference)
-        ->set('paymentScreenshot', UploadedFile::fake()->image('new-payment.png'))
+        ->set('newScreenshot', UploadedFile::fake()->image('new-payment.png'))
         ->call('resubmit')
         ->assertForbidden();
 });

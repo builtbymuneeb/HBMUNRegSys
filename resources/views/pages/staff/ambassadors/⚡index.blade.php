@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Ambassadors\EmailAmbassadors;
+use App\Actions\Ambassadors\GivePortalAccess;
 use App\Actions\Ambassadors\ImportAmbassadors;
 use App\Http\Controllers\AmbassadorListController;
 use App\Enums\AmbassadorType;
@@ -65,6 +66,9 @@ new #[Title('Campus ambassadors')] class extends Component {
     public bool $showWhatsAppChecklist = false;
 
     public string $exportTo = '';
+
+    /** '' for everyone, or an AmbassadorType value: who "Give portal access" covers. */
+    public string $portalType = '';
 
     /** @var list<list<string>> Rows read from the uploaded sheet, kept until the import is confirmed. */
     public array $sheetRows = [];
@@ -330,6 +334,53 @@ new #[Title('Campus ambassadors')] class extends Component {
         }
     }
 
+    /**
+     * Ambassadors without a portal login yet, who have an email to send one to.
+     *
+     * @return Collection<int, CampusAmbassador>
+     */
+    #[Computed]
+    public function portalCandidates(): Collection
+    {
+        return CampusAmbassador::query()
+            ->whereNull('user_id')
+            ->whereNotNull('email')->where('email', '!=', '')
+            ->ofType(AmbassadorType::tryFrom($this->portalType))
+            ->orderBy('code')
+            ->get();
+    }
+
+    public function openPortalAccess(): void
+    {
+        $this->portalType = $this->type;
+        Flux::modal('portal-access')->show();
+    }
+
+    public function givePortalAccessToAll(GivePortalAccess $givePortalAccess): void
+    {
+        Gate::authorize('manage-ambassadors');
+
+        $given = 0;
+        $problems = [];
+
+        foreach ($this->portalCandidates as $ambassador) {
+            try {
+                $givePortalAccess->handle($ambassador, Auth::user());
+                $given++;
+            } catch (ValidationException $e) {
+                $problems[] = $ambassador->code.': '.$e->validator->errors()->first();
+            }
+        }
+
+        unset($this->portalCandidates, $this->ambassadors);
+        Flux::modal('portal-access')->close();
+        Flux::toast(
+            variant: $problems ? 'warning' : 'success',
+            heading: trans_choice(':count ambassador invited to the portal.|:count ambassadors invited to the portal.', $given),
+            text: $problems ? implode(' · ', $problems) : null,
+        );
+    }
+
     public function import(ImportAmbassadors $importAmbassadors): void
     {
         Gate::authorize('manage-ambassadors');
@@ -349,6 +400,9 @@ new #[Title('Campus ambassadors')] class extends Component {
             <flux:text class="mt-1">{{ __('Each ambassador has a referral code. Registrations that enter it are counted here.') }}</flux:text>
         </div>
         <div class="flex flex-wrap gap-2">
+            <flux:button icon="clipboard-document-list" :href="route('staff.ambassadors.tasks')" wire:navigate>{{ __('Tasks') }}</flux:button>
+            <flux:button icon="trophy" :href="route('staff.ambassadors.leaderboard')" wire:navigate>{{ __('Leaderboard') }}</flux:button>
+            <flux:button icon="key" wire:click="openPortalAccess" data-test="open-portal-access">{{ __('Give portal access') }}</flux:button>
             <flux:button icon="paper-airplane" wire:click="openMessage">{{ __('Message ambassadors') }}</flux:button>
             <flux:button icon="document-arrow-down" wire:click="openExport">{{ __('Export list') }}</flux:button>
             <flux:button icon="arrow-up-tray" wire:click="openImport">{{ __('Import from sheet') }}</flux:button>
@@ -356,7 +410,7 @@ new #[Title('Campus ambassadors')] class extends Component {
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div class="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-5">
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Ambassadors') }}</flux:text>
             <flux:heading size="xl">{{ array_sum($this->typeCounts) }}</flux:heading>
@@ -435,6 +489,8 @@ new #[Title('Campus ambassadors')] class extends Component {
                                 :title="$ambassador->welcome_emailed_at ? __('Welcome email sent :time', ['time' => $ambassador->welcome_emailed_at->timezone('Asia/Karachi')->format('j M, g:i a')]) : __('Welcome email not sent')">{{ $ambassador->welcome_emailed_at ? '✓' : '–' }}</flux:badge>
                             <flux:badge size="sm" icon="chat-bubble-oval-left-ellipsis" inset="top bottom" :color="$ambassador->welcomeWhatsApp() ? 'green' : 'zinc'"
                                 :title="$ambassador->welcomeWhatsApp() ? __('WhatsApp welcome opened :time', ['time' => $ambassador->welcomeWhatsApp()->created_at->timezone('Asia/Karachi')->format('j M, g:i a')]) : __('WhatsApp welcome not sent')">{{ $ambassador->welcomeWhatsApp() ? '✓' : '–' }}</flux:badge>
+                            <flux:badge size="sm" icon="key" inset="top bottom" :color="$ambassador->user_id ? 'green' : 'zinc'"
+                                :title="$ambassador->user_id ? __('Has a portal login') : __('No portal login yet')">{{ $ambassador->user_id ? '✓' : '–' }}</flux:badge>
                         </div>
                     </flux:table.cell>
                     <flux:table.cell>{{ $ambassador->registrations_count }}</flux:table.cell>
@@ -695,6 +751,32 @@ new #[Title('Campus ambassadors')] class extends Component {
                     <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
                 </flux:modal.close>
                 <flux:button variant="primary" wire:click="import" :disabled="collect($this->importPreview)->whereNull('skip')->isEmpty()">{{ __('Import') }}</flux:button>
+            </div>
+        </div>
+    </flux:modal>
+    <flux:modal name="portal-access" class="w-full md:max-w-lg">
+        <div class="space-y-5">
+            <div>
+                <flux:heading size="lg">{{ __('Give portal access') }}</flux:heading>
+                <flux:text class="mt-1">{{ __('Creates a login for each ambassador below and emails them a link to set their password. Anyone who already has an account with that email (for example as a delegate) keeps it, and the portal is added to it.') }}</flux:text>
+            </div>
+            <flux:radio.group wire:model.live="portalType" variant="segmented" :label="__('Who')">
+                <flux:radio value="" :label="__('Everyone')" />
+                @foreach (AmbassadorType::cases() as $option)
+                    <flux:radio :value="$option->value" :label="$option->label()" />
+                @endforeach
+            </flux:radio.group>
+            <flux:text class="text-sm">
+                {{ trans_choice(':count ambassador without a login yet.|:count ambassadors without a login yet.', $this->portalCandidates->count()) }}
+                @if ($this->portalCandidates->isNotEmpty())
+                    <span class="text-zinc-500">{{ $this->portalCandidates->pluck('code')->take(30)->implode(', ') }}{{ $this->portalCandidates->count() > 30 ? '…' : '' }}</span>
+                @endif
+            </flux:text>
+            <div class="flex gap-2">
+                <flux:spacer />
+                <flux:modal.close><flux:button variant="ghost">{{ __('Cancel') }}</flux:button></flux:modal.close>
+                <flux:button variant="primary" icon="paper-airplane" wire:click="givePortalAccessToAll" :disabled="$this->portalCandidates->isEmpty()" data-test="give-portal-access-all"
+                    wire:confirm="{{ __('Email portal invitations to these ambassadors now?') }}">{{ __('Send invitations') }}</flux:button>
             </div>
         </div>
     </flux:modal>

@@ -9,6 +9,10 @@ enum UserRole: string
     case Registrations = 'registrations';
     case Ambassadors = 'ambassadors';
     case Admin = 'admin';
+    case OtherManagement = 'other_management';
+
+    /** A campus ambassador with a portal login. Not a staff role. */
+    case Ambassador = 'ambassador';
 
     public function label(): string
     {
@@ -18,6 +22,8 @@ enum UserRole: string
             self::Registrations => 'Registrations team',
             self::Ambassadors => 'Campus ambassador management',
             self::Admin => 'Admin',
+            self::OtherManagement => 'Other management',
+            self::Ambassador => 'Campus ambassador',
         };
     }
 
@@ -32,6 +38,8 @@ enum UserRole: string
             self::Registrations => 'Verifies or rejects payments, allocates committees and portfolios, and runs committee pages, study guides, announcements and campus ambassadors.',
             self::Ambassadors => 'Adds and imports campus ambassadors and tracks the registrations their codes bring in. No access to payments, registration details or allocations.',
             self::Admin => 'Everything the other teams do, plus managing the team.',
+            self::OtherManagement => 'Only the inbox: reads and answers mail sent to the conference address. No access to registrations, payments, allocations or campus ambassadors.',
+            self::Ambassador => 'Their own ambassador portal: tasks, points and the leaderboard.',
         };
     }
 
@@ -47,6 +55,6 @@ enum UserRole: string
      */
     public static function staffRoles(): array
     {
-        return [self::Registrations, self::Ambassadors, self::Admin];
+        return [self::Registrations, self::Ambassadors, self::OtherManagement, self::Admin];
     }
 }

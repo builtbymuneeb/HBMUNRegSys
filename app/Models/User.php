@@ -95,6 +95,25 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * The campus ambassador this login belongs to, if any.
+     *
+     * @return HasOne<CampusAmbassador, $this>
+     */
+    public function ambassador(): HasOne
+    {
+        return $this->hasOne(CampusAmbassador::class);
+    }
+
+    /**
+     * Whether this user can open the ambassador portal. Admins previewing the
+     * ambassador role see the ambassador picked for the preview.
+     */
+    public function isAmbassador(): bool
+    {
+        return $this->ambassador !== null;
+    }
+
+    /**
      * @return HasMany<PushSubscription, $this>
      */
     public function pushSubscriptions(): HasMany
@@ -131,6 +150,22 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     public function canManageAmbassadors(): bool
     {
         return in_array($this->role, [UserRole::Registrations, UserRole::Ambassadors, UserRole::Admin], true);
+    }
+
+    /**
+     * The staff inbox for contact@. Other management sees the whole mailbox but nothing else.
+     */
+    public function canUseInbox(): bool
+    {
+        return $this->canManageAmbassadors() || $this->role === UserRole::OtherManagement;
+    }
+
+    /**
+     * Whether the whole mailbox is visible, not only campus ambassador threads.
+     */
+    public function canSeeWholeInbox(): bool
+    {
+        return $this->canManageConference() || $this->role === UserRole::OtherManagement;
     }
 
     /**

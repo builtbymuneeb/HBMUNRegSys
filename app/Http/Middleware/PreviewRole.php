@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Enums\UserRole;
+use App\Models\CampusAmbassador;
 use App\Models\Delegate;
 use Closure;
 use Illuminate\Http\Request;
@@ -19,6 +20,8 @@ class PreviewRole
 
     public const SESSION_DELEGATE = 'preview_delegate';
 
+    public const SESSION_AMBASSADOR = 'preview_ambassador';
+
     public function handle(Request $request, Closure $next): Response
     {
         $role = UserRole::tryFrom((string) $request->session()->get(self::SESSION_ROLE));
@@ -34,6 +37,7 @@ class PreviewRole
             $user->actualRole = null;
             $user->syncOriginalAttribute('role');
             $user->unsetRelation('delegate');
+            $user->unsetRelation('ambassador');
         }
 
         if ($role === null) {
@@ -41,7 +45,7 @@ class PreviewRole
         }
 
         if ($user->role !== UserRole::Admin) {
-            $request->session()->forget([self::SESSION_ROLE, self::SESSION_DELEGATE]);
+            $request->session()->forget([self::SESSION_ROLE, self::SESSION_DELEGATE, self::SESSION_AMBASSADOR]);
 
             return $next($request);
         }
@@ -53,6 +57,10 @@ class PreviewRole
 
         if ($role === UserRole::Delegate) {
             $user->setRelation('delegate', Delegate::find($request->session()->get(self::SESSION_DELEGATE)));
+        }
+
+        if ($role === UserRole::Ambassador) {
+            $user->setRelation('ambassador', CampusAmbassador::find($request->session()->get(self::SESSION_AMBASSADOR)));
         }
 
         return $next($request);

@@ -27,7 +27,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $referral_code
  * @property int|null $campus_ambassador_id
  * @property int $amount_due
- * @property string $payment_screenshot_path
+ * @property string $payment_screenshot_path The first screenshot; see paymentScreenshots() for all of them.
  * @property string|null $rejection_reason
  * @property int|null $reviewed_by
  * @property Carbon|null $reviewed_at
@@ -92,6 +92,16 @@ class Registration extends Model
     public function delegates(): HasMany
     {
         return $this->hasMany(Delegate::class);
+    }
+
+    /**
+     * Every payment receipt, oldest first.
+     *
+     * @return HasMany<PaymentScreenshot, $this>
+     */
+    public function paymentScreenshots(): HasMany
+    {
+        return $this->hasMany(PaymentScreenshot::class)->oldest('id');
     }
 
     /**

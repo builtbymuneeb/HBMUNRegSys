@@ -28,13 +28,13 @@ function delegateInput(int $number, array $overrides = []): array
 {
     return [
         'name' => "Delegate {$number}",
-        'cnic' => sprintf('35202-%07d-1', $number),
+        'cnic' => sprintf('35202%07d1', $number),
         'email' => "delegate{$number}@gmail.com",
         'phone' => '0300123456'.$number,
         'first_committee_id' => (string) Committee::where('code', 'UNSC')->value('id'),
         'second_committee_id' => (string) Committee::where('code', 'PNA')->value('id'),
-        'country_preference' => 'France',
-        'personality_preference' => 'Maryam Nawaz',
+        'first_preference' => 'France',
+        'second_preference' => 'Maryam Nawaz',
         ...$overrides,
     ];
 }
@@ -45,7 +45,7 @@ function institutionContact(): array
         'organisation_name' => 'Homebridge College',
         'city' => 'Lahore',
         'name' => 'Ms. Representative',
-        'cnic' => '35202-7654321-2',
+        'cnic' => '3520276543212',
         'phone' => '03001112223',
         'email' => 'rep@homebridge.edu.pk',
     ];
@@ -84,7 +84,7 @@ test('an institution delegation registers with all its delegates and payment scr
         ->set('delegateCount', 4)
         ->set('contact', institutionContact())
         ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 4)))
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('newScreenshot', UploadedFile::fake()->image('payment.png'))
         ->set('confirmed', true)
         ->call('submit')
         ->assertHasNoErrors();
@@ -119,7 +119,7 @@ function filledDelegationForm(array $delegateOverrides = []): Testable
     return Livewire::test('pages::registration.create')
         ->set('contact', institutionContact())
         ->set('delegates', array_map(fn (int $number) => delegateInput($number, $delegateOverrides[$number - 1] ?? []), range(1, 3)))
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('newScreenshot', UploadedFile::fake()->image('payment.png'))
         ->set('confirmed', true);
 }
 
@@ -137,7 +137,7 @@ test('a private delegation registers with the head as contact', function () {
         ->test('pages::registration.create')
         ->set('contact', [...institutionContact(), 'organisation_name' => 'Lahore Debaters'])
         ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 3)))
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.jpg'))
+        ->set('newScreenshot', UploadedFile::fake()->image('payment.jpg'))
         ->set('confirmed', true)
         ->call('submit')
         ->assertHasNoErrors();
@@ -158,9 +158,11 @@ test('no delegate rows show until a delegate count is chosen', function () {
         ->assertDontSeeText('Delegate 1')
         ->assertSeeText('Pick how many delegates are coming')
         ->call('next')
-        ->assertHasErrors(['delegates' => 'required'])
+        ->assertSet('step', 3)
+        ->assertHasErrors('delegates')
+        ->assertSeeText('Number of delegates')
+        ->call('editStep', 2)
         ->assertSeeText('Choose how many delegates are in your delegation.')
-        ->assertSet('step', 2)
         ->set('delegateCount', 4)
         ->assertCount('delegates', 4)
         ->assertSeeText('Delegate 4');
@@ -192,32 +194,32 @@ test('a delegate must choose two different committees', function () {
 });
 
 test('a country preference must be a country from the list', function () {
-    filledDelegationForm([['country_preference' => 'Frances']])
+    filledDelegationForm([['first_preference' => 'Frances']])
         ->call('submit')
-        ->assertHasErrors('delegates.0.country_preference');
+        ->assertHasErrors('delegates.0.first_preference');
 
     expect(Registration::count())->toBe(0);
 });
 
 test('a country preference must be on the chosen committee list', function () {
-    filledDelegationForm([['country_preference' => 'Brazil']])
+    filledDelegationForm([['first_preference' => 'Brazil']])
         ->call('submit')
-        ->assertHasErrors('delegates.0.country_preference');
+        ->assertHasErrors('delegates.0.first_preference');
 });
 
 test('a personality preference must be on the list when the committee shows one', function () {
-    filledDelegationForm([['personality_preference' => 'Someone Unlisted']])
+    filledDelegationForm([['second_preference' => 'Someone Unlisted']])
         ->call('submit')
-        ->assertHasErrors('delegates.0.personality_preference');
+        ->assertHasErrors('delegates.0.second_preference');
 });
 
 test('the special committee list stays secret, so its preference is typed freely', function () {
     $pna = (string) Committee::where('code', 'PNA')->value('id');
     $special = (string) Committee::where('code', 'SPECIAL')->value('id');
 
-    filledDelegationForm([['first_committee_id' => $pna, 'second_committee_id' => $special, 'personality_preference' => 'Anyone at all']])
+    filledDelegationForm([['first_committee_id' => $pna, 'second_committee_id' => $special, 'first_preference' => 'Maryam Nawaz', 'second_preference' => 'Anyone at all']])
         ->call('submit')
-        ->assertHasNoErrors('delegates.0.personality_preference')
+        ->assertHasNoErrors(['delegates.0.first_preference', 'delegates.0.second_preference'])
         ->assertDontSeeText('Tony Stark');
 });
 
@@ -225,6 +227,18 @@ test('delegates in one delegation need different emails', function () {
     filledDelegationForm([1 => ['email' => 'DELEGATE1@gmail.com']])
         ->call('submit')
         ->assertHasErrors(['delegates.1.email' => 'distinct']);
+});
+
+test('an ID number of any length is accepted, so foreign passports and IDs work', function () {
+    filledDelegationForm([0 => ['cnic' => '123456'], 1 => ['cnic' => '987654321012345678']])
+        ->call('submit')
+        ->assertHasNoErrors(['delegates.0.cnic', 'delegates.1.cnic']);
+});
+
+test('an ID number can only contain digits', function () {
+    filledDelegationForm([0 => ['cnic' => 'AB-1234']])
+        ->call('submit')
+        ->assertHasErrors(['delegates.0.cnic' => 'regex']);
 });
 
 test('an email already used in an active registration cannot register again', function () {
@@ -247,11 +261,50 @@ test('an email from a rejected registration can register again', function () {
 
 test('the payment screenshot must be a JPG or PNG image', function () {
     filledDelegationForm()
-        ->set('paymentScreenshot', UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'))
+        ->set('paymentScreenshots', [])
+        ->set('newScreenshot', UploadedFile::fake()->create('payment.pdf', 100, 'application/pdf'))
+        ->assertHasErrors(['newScreenshot'])
+        ->assertCount('paymentScreenshots', 0)
         ->call('submit')
-        ->assertHasErrors(['paymentScreenshot']);
+        ->assertHasErrors(['paymentScreenshots' => 'required']);
 
     expect(Registration::count())->toBe(0);
+});
+
+test('a delegation can upload one screenshot per receipt, up to six', function () {
+    $component = filledDelegationForm();
+
+    foreach (range(2, 6) as $number) {
+        $component->set('newScreenshot', UploadedFile::fake()->image("receipt-{$number}.png"));
+    }
+
+    $component->set('step', 4)
+        ->assertCount('paymentScreenshots', 6)
+        ->assertSeeText('That’s the most screenshots you can upload (6).')
+        ->set('newScreenshot', UploadedFile::fake()->image('receipt-7.png'))
+        ->assertHasErrors(['newScreenshot'])
+        ->assertCount('paymentScreenshots', 6)
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $registration = Registration::sole();
+
+    expect($registration->paymentScreenshots)->toHaveCount(6)
+        ->and($registration->payment_screenshot_path)->toBe($registration->paymentScreenshots->first()->path);
+
+    $registration->paymentScreenshots->each(fn ($screenshot) => Storage::disk('local')->assertExists($screenshot->path));
+});
+
+test('a picked screenshot can be removed before submitting', function () {
+    filledDelegationForm()
+        ->set('newScreenshot', UploadedFile::fake()->image('second.png'))
+        ->assertCount('paymentScreenshots', 2)
+        ->call('removeScreenshot', 0)
+        ->assertCount('paymentScreenshots', 1)
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    expect(Registration::sole()->paymentScreenshots)->toHaveCount(1);
 });
 
 test('the registrant must confirm their details', function () {
@@ -261,31 +314,45 @@ test('the registrant must confirm their details', function () {
         ->assertHasErrors(['confirmed' => 'accepted']);
 });
 
-test('each step must be valid before moving on', function () {
+test('continue never blocks, and flags what is missing on the steps left behind', function () {
     $component = Livewire::test('pages::registration.create')
         ->assertSet('step', 1)
+        ->assertSeeText('You can move between them freely')
         ->call('next')
+        ->assertSet('step', 2)
         ->assertHasErrors(['contact.organisation_name', 'contact.email'])
-        ->assertHasNoErrors(['delegates.0.name', 'paymentScreenshot'])
-        ->assertSet('step', 1);
+        ->assertHasNoErrors(['delegates', 'paymentScreenshots'])
+        ->assertSeeText('Some details on Step 1 (Details) still need to be filled in.')
+        ->call('next')
+        ->assertSet('step', 3)
+        ->assertHasErrors(['contact.email', 'delegates'])
+        ->assertSeeText('Still needed on Step 1 (Details)')
+        ->assertSeeText('Still needed on Step 2 (Delegates)')
+        ->assertSeeText('Continue to payment')
+        ->assertDontSeeText('Looks good, continue to payment')
+        ->call('next')
+        ->assertSet('step', 4)
+        ->assertHasNoErrors('paymentScreenshots');
 
+    // Fixing a flagged field clears it straight away.
     $component->set('contact', institutionContact())
-        ->call('next')
-        ->assertHasNoErrors()
-        ->assertSet('step', 2)
+        ->assertHasNoErrors(['contact.organisation_name', 'contact.email'])
+        ->assertHasErrors('delegates');
+
+    $component->call('editStep', 2)
         ->set('delegateCount', 3)
-        ->call('next')
         ->assertHasErrors(['delegates.0.name'])
-        ->assertSet('step', 2)
         ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 3)))
+        ->assertHasNoErrors()
         ->call('next')
         ->assertSet('step', 3)
         ->assertSeeText('Check your details')
         ->assertSeeText('Delegate 2')
         ->assertSeeText('Homebridge College')
+        ->assertSeeText('Looks good, continue to payment')
         ->call('next')
         ->assertSet('step', 4)
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('newScreenshot', UploadedFile::fake()->image('payment.png'))
         ->set('confirmed', true)
         ->call('submit')
         ->assertHasNoErrors()
@@ -293,13 +360,26 @@ test('each step must be valid before moving on', function () {
         ->assertDispatched('registration-draft-cleared');
 });
 
-test('going back keeps the answers, and edit only jumps to earlier steps', function () {
+test('a step that has not been visited yet shows no errors', function () {
+    Livewire::test('pages::registration.create')
+        ->call('editStep', 2)
+        ->assertSet('step', 2)
+        ->assertHasErrors('contact.name')
+        ->assertHasNoErrors(['delegates', 'delegates.0.name'])
+        ->assertDontSeeText('Choose how many delegates are in your delegation.');
+});
+
+test('going back keeps the answers, and any step can be opened from the step list', function () {
     Livewire::test('pages::registration.create')
         ->set('contact', institutionContact())
         ->call('next')
         ->call('editStep', 4)
-        ->assertSet('step', 2)
+        ->assertSet('step', 4)
+        ->call('editStep', 9)
+        ->assertSet('step', 4)
         ->call('back')
+        ->assertSet('step', 3)
+        ->call('editStep', 1)
         ->assertSet('step', 1)
         ->assertSet('contact.city', 'Lahore');
 });
@@ -309,14 +389,26 @@ test('a failed submit returns to the step with the problem', function () {
         ->set('step', 4)
         ->set('contact', [...institutionContact(), 'email' => 'not-an-email'])
         ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 3)))
-        ->set('paymentScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('newScreenshot', UploadedFile::fake()->image('payment.png'))
         ->set('confirmed', true)
         ->call('submit')
         ->assertHasErrors('contact.email')
-        ->assertSet('step', 1);
+        ->assertSet('step', 1)
+        ->assertSeeText('Please fix the highlighted fields above before submitting.');
 });
 
-test('a saved draft is restored to the furthest valid step', function () {
+test('submitting with gaps everywhere lands on the first one and flags every step', function () {
+    Livewire::test('pages::registration.create')
+        ->call('editStep', 4)
+        ->call('submit')
+        ->assertSet('step', 1)
+        ->assertHasErrors(['contact.name', 'delegates', 'paymentScreenshots', 'confirmed'])
+        ->assertSet('submittedReference', null);
+
+    expect(Registration::count())->toBe(0);
+});
+
+test('a saved draft is restored to the step it was on, flagging what is missing', function () {
     $delegates = array_map(fn (int $number) => delegateInput($number), range(1, 4));
 
     Livewire::test('pages::registration.create')
@@ -340,9 +432,10 @@ test('a saved draft is restored to the furthest valid step', function () {
             'contact' => institutionContact(),
             'delegates' => [delegateInput(1), ['name' => ['not', 'a', 'string']]],
         ])
-        ->assertSet('step', 2)
+        ->assertSet('step', 4)
         ->assertSet('delegates.1.name', '')
-        ->assertHasNoErrors();
+        ->assertHasErrors('delegates.1.name')
+        ->assertHasNoErrors(['contact.email', 'delegates.0.name', 'paymentScreenshots']);
 });
 
 test('starting over clears the form', function () {
@@ -418,4 +511,61 @@ test('a registration with an ambassador’s code is linked to them', function ()
         ->assertHasNoErrors();
 
     expect(Registration::sole()->campus_ambassador_id)->toBe($ambassador->id);
+});
+
+test('a delegate can ask for a different country in each committee', function () {
+    $unw = Committee::where('code', 'UNW')->first();
+    $unsc = Committee::where('code', 'UNSC')->first();
+    $unw->update(['portfolios' => ['Japan', 'Kenya'], 'portfolios_public' => true]);
+    $unsc->update(['portfolios' => ['France', 'China'], 'portfolios_public' => true]);
+
+    filledDelegationForm([['first_committee_id' => (string) $unw->id, 'second_committee_id' => (string) $unsc->id, 'first_preference' => 'Japan', 'second_preference' => 'France']])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $delegate = Delegate::where('email', 'delegate1@gmail.com')->first();
+
+    expect($delegate->first_preference)->toBe('Japan')
+        ->and($delegate->second_preference)->toBe('France')
+        ->and($delegate->preferenceFor($unw))->toBe('Japan')
+        ->and($delegate->preferenceFor($unsc))->toBe('France');
+});
+
+test('each committee preference is checked against that committee’s own list', function () {
+    $unw = Committee::where('code', 'UNW')->first();
+    $unsc = Committee::where('code', 'UNSC')->first();
+    $unw->update(['portfolios' => ['Japan'], 'portfolios_public' => true]);
+    $unsc->update(['portfolios' => ['France'], 'portfolios_public' => true]);
+
+    filledDelegationForm([['first_committee_id' => (string) $unw->id, 'second_committee_id' => (string) $unsc->id, 'first_preference' => 'France', 'second_preference' => 'France']])
+        ->call('submit')
+        ->assertHasErrors('delegates.0.first_preference')
+        ->assertHasNoErrors('delegates.0.second_preference');
+});
+
+test('changing a committee clears the preference picked for it', function () {
+    $unw = (string) Committee::where('code', 'UNW')->value('id');
+
+    filledDelegationForm()
+        ->set('delegates.0.first_committee_id', $unw)
+        ->assertSet('delegates.0.first_preference', '')
+        ->assertSet('delegates.0.second_preference', 'Maryam Nawaz');
+});
+
+test('the Marvel committee asks for a character from its list once the list is public', function () {
+    $special = Committee::where('code', 'SPECIAL')->first();
+    $special->update(['name' => 'Marvel Civil War Crisis', 'portfolios' => ['Tony Stark / Iron Man', 'Steve Rogers / Captain America'], 'portfolios_public' => true]);
+    $unw = (string) Committee::where('code', 'UNW')->value('id');
+
+    $form = filledDelegationForm([['first_committee_id' => (string) $special->id, 'second_committee_id' => $unw, 'first_preference' => 'Thanos', 'second_preference' => '']])
+        ->set('step', 2)
+        ->assertSeeText('Marvel Civil War Crisis (SPECIAL)')
+        ->assertSeeText('Marvel character')
+        ->assertSee('Search, e.g. Tony Stark / Iron Man');
+
+    $form->call('submit')->assertHasErrors('delegates.0.first_preference');
+
+    $form->set('delegates.0.first_preference', 'Steve Rogers / Captain America')
+        ->call('submit')
+        ->assertHasNoErrors();
 });

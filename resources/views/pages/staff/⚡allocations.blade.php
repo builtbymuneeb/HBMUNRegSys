@@ -138,6 +138,8 @@ new #[Title('Allocations')] class extends Component {
                 ->orWhere('allocated_portfolio', 'like', "%{$search}%")
                 ->orWhere('country_preference', 'like', "%{$search}%")
                 ->orWhere('personality_preference', 'like', "%{$search}%")
+                ->orWhere('first_preference', 'like', "%{$search}%")
+                ->orWhere('second_preference', 'like', "%{$search}%")
                 ->orWhereHas('registration', fn (Builder $registration) => $registration
                     ->where('reference', 'like', "%{$search}%")
                     ->orWhere('organisation_name', 'like', "%{$search}%"))))
@@ -339,7 +341,7 @@ new #[Title('Allocations')] class extends Component {
         </div>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div class="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-5">
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Not allocated yet') }}</flux:text>
             <flux:heading size="xl">{{ $this->unallocatedCount }}</flux:heading>

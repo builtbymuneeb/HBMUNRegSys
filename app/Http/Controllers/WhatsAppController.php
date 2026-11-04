@@ -9,6 +9,7 @@ use App\Models\Registration;
 use App\Models\WhatsAppLog;
 use App\Notifications\AllocationPublished;
 use App\Notifications\AmbassadorMessage;
+use App\Notifications\AmbassadorPortalInvite;
 use App\Notifications\AmbassadorWelcome;
 use App\Notifications\RegistrationReceived;
 use App\Notifications\RegistrationRejected;
@@ -87,6 +88,17 @@ class WhatsAppController extends Controller
         $text = $request->validate(['text' => ['required', 'string', 'max:2000']])['text'];
 
         return $this->open($request, WhatsAppLog::AMBASSADOR_MESSAGE, (string) $ambassador->phone, (new AmbassadorMessage($ambassador, '', $text))->toWhatsApp(), ambassador: $ambassador);
+    }
+
+    /**
+     * Point a campus ambassador to the email with their portal set-password link.
+     */
+    public function ambassadorPortal(Request $request, CampusAmbassador $ambassador): RedirectResponse
+    {
+        Gate::authorize('manage-ambassadors');
+        abort_unless($ambassador->user !== null, 404);
+
+        return $this->open($request, WhatsAppLog::AMBASSADOR_PORTAL, (string) $ambassador->phone, AmbassadorPortalInvite::whatsAppMessage($ambassador->firstName(), $ambassador->user->email), ambassador: $ambassador);
     }
 
     private function open(Request $request, string $kind, string $phone, string $message, ?Registration $registration = null, ?Delegate $delegate = null, ?CampusAmbassador $ambassador = null): RedirectResponse

@@ -24,6 +24,8 @@ use Illuminate\Support\Carbon;
  * @property int $second_committee_id
  * @property string|null $country_preference
  * @property string|null $personality_preference
+ * @property string|null $first_preference
+ * @property string|null $second_preference
  * @property MunExperience|null $mun_experience
  * @property int|null $allocated_committee_id
  * @property string|null $allocated_portfolio
@@ -43,6 +45,8 @@ use Illuminate\Support\Carbon;
     'second_committee_id',
     'country_preference',
     'personality_preference',
+    'first_preference',
+    'second_preference',
     'mun_experience',
     'allocated_committee_id',
     'allocated_portfolio',
@@ -123,10 +127,28 @@ class Delegate extends Model
     }
 
     /**
-     * The delegate's preference that applies to the given committee, if any.
+     * The delegate's preference for the given committee, if any. Each committee choice has its
+     * own; for any other committee, the preference of a chosen committee of the same kind is used.
+     * Delegates registered before per-committee preferences fall back to their shared one.
      */
     public function preferenceFor(Committee $committee): ?string
     {
+        if ($committee->id === $this->first_committee_id && filled($this->first_preference)) {
+            return $this->first_preference;
+        }
+
+        if ($committee->id === $this->second_committee_id && filled($this->second_preference)) {
+            return $this->second_preference;
+        }
+
+        if (! in_array($committee->id, [$this->first_committee_id, $this->second_committee_id], true)) {
+            foreach (['first' => $this->firstCommittee, 'second' => $this->secondCommittee] as $slot => $chosen) {
+                if ($chosen?->portfolio_type === $committee->portfolio_type && filled($this->{"{$slot}_preference"})) {
+                    return $this->{"{$slot}_preference"};
+                }
+            }
+        }
+
         return $committee->portfolio_type === PortfolioType::Character
             ? $this->personality_preference
             : $this->country_preference;

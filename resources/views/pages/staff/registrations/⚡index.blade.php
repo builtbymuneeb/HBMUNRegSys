@@ -132,31 +132,25 @@ new #[Title('Registrations')] class extends Component {
 
 <div wire:poll.15s="poll" class="flex w-full flex-col gap-6 p-6 lg:p-8">
     <div class="flex flex-wrap items-end justify-between gap-4">
-        <div>
-            <flux:heading size="xl" level="1">{{ __('Registrations') }}</flux:heading>
-            <flux:text class="mt-1">
-                {{ auth()->user()->canReviewRegistrations() ? __('Check each payment screenshot, then verify or reject it.') : __('Read-only overview of all registrations.') }}
-            </flux:text>
-        </div>
+        <flux:heading size="xl" level="1" class="max-sm:px-1">{{ __('Registrations') }}</flux:heading>
         @can('manage-conference')
-            <flux:button icon="arrow-down-tray" :href="route('staff.delegates.export', ['status' => $status])">
+            <flux:button icon="arrow-down-tray" class="max-sm:hidden" :href="route('staff.delegates.export', ['status' => $status])">
                 {{ $status ? __('Export :status delegates (CSV)', ['status' => strtolower(RegistrationStatus::tryFrom($status)?->label() ?? '')]) : __('Export all delegates (CSV)') }}
             </flux:button>
+            <flux:button icon="arrow-down-tray" size="sm" class="sm:hidden" :href="route('staff.delegates.export', ['status' => $status])" :aria-label="__('Export delegates (CSV)')" />
         @endcan
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+    <div class="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-5">
         @foreach (RegistrationStatus::cases() as $case)
             <flux:card class="flex flex-col gap-1">
                 <flux:text>{{ $case->label() }}</flux:text>
                 <flux:heading size="xl">{{ $this->statusCounts[$case->value] ?? 0 }}</flux:heading>
-                <flux:text size="sm" class="text-zinc-400">{{ __('delegations') }}</flux:text>
             </flux:card>
         @endforeach
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Verified delegates') }}</flux:text>
             <flux:heading size="xl">{{ $this->verifiedDelegateCount }}</flux:heading>
-            <flux:text size="sm" class="text-zinc-400">{{ __('people across verified delegations') }}</flux:text>
         </flux:card>
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Verified amount') }}</flux:text>
@@ -164,23 +158,57 @@ new #[Title('Registrations')] class extends Component {
         </flux:card>
     </div>
 
+    {{-- Phone: status chips with counts --}}
+    <div class="-mx-2 flex gap-1.5 overflow-x-auto px-2 sm:hidden" data-test="status-chips">
+        @foreach ([['', __('All')], ...collect(RegistrationStatus::cases())->map(fn ($case) => [$case->value, \Illuminate\Support\Str::ucfirst($case->value).' · '.($this->statusCounts[$case->value] ?? 0)])] as [$value, $label])
+            <button type="button" wire:click="$set('status', @js($value))" @class([
+                'shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold',
+                'border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900' => $status === $value,
+                'border-zinc-200 bg-white text-zinc-600 dark:border-white/10 dark:bg-white/5 dark:text-zinc-300' => $status !== $value,
+            ])>{{ $label }}</button>
+        @endforeach
+    </div>
+
     <div class="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)]">
-        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search reference, name, email, phone, institution, referral code…')" :label="__('Search')" />
+        <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search name, reference, email…')" :aria-label="__('Search')" class="sm:mt-[1.625rem]" />
+        <div class="max-sm:hidden">
         <flux:select wire:model.live="status" :label="__('Status')">
             <flux:select.option value="">{{ __('All statuses') }}</flux:select.option>
             @foreach (RegistrationStatus::cases() as $case)
                 <flux:select.option value="{{ $case->value }}">{{ $case->label() }}</flux:select.option>
             @endforeach
         </flux:select>
+        </div>
+        <div class="max-sm:hidden">
         <flux:select wire:model.live="type" :label="__('Type')">
             <flux:select.option value="">{{ __('All types') }}</flux:select.option>
             @foreach (RegistrationType::cases() as $case)
                 <flux:select.option value="{{ $case->value }}">{{ $case->label() }}</flux:select.option>
             @endforeach
         </flux:select>
+        </div>
     </div>
 
-    <flux:table :paginate="$this->registrations">
+    {{-- Phone: one line per registration --}}
+    <div class="sm:hidden">
+        <div class="hb-list">
+            @forelse ($this->registrations as $registration)
+                <a href="{{ route('staff.registrations.show', $registration) }}" wire:navigate wire:key="m-{{ $registration->id }}" class="hb-row hover:bg-zinc-50 dark:hover:bg-white/4">
+                    <span class="hb-icon-tile text-xs font-bold">{{ \Illuminate\Support\Str::of($registration->displayName())->explode(' ')->take(2)->map(fn ($word) => mb_substr($word, 0, 1))->implode('') }}</span>
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm font-semibold text-zinc-900 dark:text-white">{{ $registration->displayName() }}</span>
+                        <span class="block truncate text-xs text-zinc-500 dark:text-zinc-400">{{ $registration->delegates_count === 1 ? __('Individual') : __(':count delegates', ['count' => $registration->delegates_count]) }}</span>
+                    </span>
+                    <flux:badge size="sm" :color="$registration->status->color()">{{ \Illuminate\Support\Str::ucfirst($registration->status->value) }}</flux:badge>
+                </a>
+            @empty
+                <div class="hb-row justify-center py-8 text-sm text-zinc-500">{{ __('No registrations match.') }}</div>
+            @endforelse
+        </div>
+        <div class="mt-3">{{ $this->registrations->links() }}</div>
+    </div>
+
+    <flux:table :paginate="$this->registrations" class="max-sm:hidden">
         <flux:table.columns>
             <flux:table.column>{{ __('Reference') }}</flux:table.column>
             <flux:table.column>{{ __('Name') }}</flux:table.column>

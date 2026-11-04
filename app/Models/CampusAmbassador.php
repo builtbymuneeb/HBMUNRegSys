@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Carbon;
@@ -19,6 +21,7 @@ use Illuminate\Support\Str;
  * A campus ambassador whose referral code registrants can enter.
  *
  * @property int $id
+ * @property int|null $user_id
  * @property string $code
  * @property string $code_key
  * @property AmbassadorType $type
@@ -30,8 +33,16 @@ use Illuminate\Support\Str;
  * @property string|null $notes
  * @property string|null $flag_reason
  * @property Carbon|null $welcome_emailed_at
+ * @property Carbon|null $portal_invited_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
+ * @property-read int|null $registrations_count From withReferralCounts().
+ * @property-read int|null $verified_registrations_count
+ * @property-read int|null $delegates_count
+ * @property-read int|null $verified_delegates_count
+ * @property-read int|string|null $task_points From the leaderboard query.
+ * @property-read int|string|null $bonus_points
+ * @property-read int|null $tasks_done
  */
 #[Fillable(['code', 'type', 'name', 'email', 'phone', 'institution', 'city', 'notes', 'flag_reason', 'welcome_emailed_at'])]
 class CampusAmbassador extends Model
@@ -54,6 +65,7 @@ class CampusAmbassador extends Model
         return [
             'type' => AmbassadorType::class,
             'welcome_emailed_at' => 'datetime',
+            'portal_invited_at' => 'datetime',
         ];
     }
 
@@ -68,6 +80,49 @@ class CampusAmbassador extends Model
     public function registrationLink(): string
     {
         return route('register', ['ref' => $this->code]);
+    }
+
+    /**
+     * Their portal login, once staff have given them access.
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class);
+    }
+
+    public function hasPortalAccess(): bool
+    {
+        return $this->user_id !== null;
+    }
+
+    /**
+     * Tasks they have marked as done, in any state.
+     *
+     * @return HasMany<AmbassadorSubmission, $this>
+     */
+    public function submissions(): HasMany
+    {
+        return $this->hasMany(AmbassadorSubmission::class);
+    }
+
+    /**
+     * Tasks set for them by name ("Chosen ambassadors").
+     *
+     * @return BelongsToMany<AmbassadorTask, $this>
+     */
+    public function tasksAssigned(): BelongsToMany
+    {
+        return $this->belongsToMany(AmbassadorTask::class, 'ambassador_task_assignees');
+    }
+
+    /**
+     * @return HasMany<AmbassadorPointAdjustment, $this>
+     */
+    public function pointAdjustments(): HasMany
+    {
+        return $this->hasMany(AmbassadorPointAdjustment::class);
     }
 
     /**

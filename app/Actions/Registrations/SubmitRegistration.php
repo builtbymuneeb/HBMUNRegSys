@@ -16,16 +16,17 @@ use Illuminate\Support\Facades\Notification;
 class SubmitRegistration
 {
     /**
-     * Store a new registration with its delegates and payment screenshot.
+     * Store a new registration with its delegates and payment screenshots.
      *
      * @param  array{organisation_name?: string|null, city: string, name: string, cnic: string, phone: string, email: string, referral_code?: string|null}  $contact
      * @param  list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: int, second_committee_id: int, country_preference?: string|null, personality_preference?: string|null, mun_experience?: MunExperience|null}>  $delegates
+     * @param  non-empty-list<UploadedFile>  $paymentScreenshots
      */
-    public function handle(RegistrationType $type, array $contact, array $delegates, UploadedFile $paymentScreenshot): Registration
+    public function handle(RegistrationType $type, array $contact, array $delegates, array $paymentScreenshots): Registration
     {
-        $screenshotPath = $paymentScreenshot->store('payment-screenshots', 'local');
+        $screenshotPaths = array_map(fn (UploadedFile $file) => $file->store('payment-screenshots', 'local'), $paymentScreenshots);
 
-        $registration = DB::transaction(function () use ($type, $contact, $delegates, $screenshotPath) {
+        $registration = DB::transaction(function () use ($type, $contact, $delegates, $screenshotPaths) {
             $registration = Registration::create([
                 'type' => $type,
                 'status' => RegistrationStatus::Pending,
@@ -38,10 +39,11 @@ class SubmitRegistration
                 'referral_code' => $contact['referral_code'] ?? null,
                 'campus_ambassador_id' => CampusAmbassador::forCode($contact['referral_code'] ?? null)?->id,
                 'amount_due' => $type->amountDueFor(count($delegates)),
-                'payment_screenshot_path' => $screenshotPath,
+                'payment_screenshot_path' => $screenshotPaths[0],
             ]);
 
             $registration->delegates()->createMany($delegates);
+            $registration->paymentScreenshots()->createMany(array_map(fn (string $path) => ['path' => $path], $screenshotPaths));
 
             AuditLog::record('submitted', $registration);
 

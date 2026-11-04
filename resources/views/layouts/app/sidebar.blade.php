@@ -2,8 +2,13 @@
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="dark">
     <head>
         @include('partials.head')
+        @include('partials.theme-head')
     </head>
-    <body class="hb-app min-h-screen text-zinc-100">
+    <body class="hb-app min-h-screen text-zinc-800 dark:text-zinc-100">
+        @php($navUser = auth()->user())
+        @php($staffNav = \App\Support\AppNavigation::staffItems($navUser))
+        @php($ambassadorNav = \App\Support\AppNavigation::ambassadorItems($navUser))
+        @php($phoneNav = \App\Support\AppNavigation::phoneTabs($navUser))
         <flux:sidebar sticky collapsible="mobile" class="border-e">
             <flux:sidebar.header>
                 <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
@@ -17,49 +22,23 @@
                     </flux:sidebar.item>
                 </flux:sidebar.group>
 
-                @if (auth()->user()->isStaff())
+                @if ($ambassadorNav)
+                    <flux:sidebar.group :heading="__('Campus ambassador')" class="grid">
+                        @foreach ($ambassadorNav as $item)
+                            <flux:sidebar.item :icon="$item['icon']" :href="$item['url']" :current="$item['current']" wire:navigate>
+                                {{ $item['label'] }}
+                            </flux:sidebar.item>
+                        @endforeach
+                    </flux:sidebar.group>
+                @endif
+
+                @if ($staffNav)
                     <flux:sidebar.group :heading="__('Staff')" class="grid">
-                        @can('viewAny', \App\Models\Registration::class)
-                            <flux:sidebar.item icon="clipboard-document-check" :href="route('staff.registrations.index')" :current="request()->routeIs('staff.registrations.*')" wire:navigate>
-                                {{ __('Registrations') }}
+                        @foreach ($staffNav as $item)
+                            <flux:sidebar.item :icon="$item['icon']" :href="$item['url']" :current="$item['current']" :badge="in_array($item['key'], ['inbox', 'ambassador-tasks'], true) ? $item['badge'] : null" wire:navigate>
+                                {{ $item['label'] }}
                             </flux:sidebar.item>
-                        @endcan
-                        @can('manage-conference')
-                            <flux:sidebar.item icon="user-group" :href="route('staff.allocations')" :current="request()->routeIs('staff.allocations')" wire:navigate>
-                                {{ __('Allocations') }}
-                            </flux:sidebar.item>
-                            <flux:sidebar.item icon="building-library" :href="route('staff.committees')" :current="request()->routeIs('staff.committees*')" wire:navigate>
-                                {{ __('Committees') }}
-                            </flux:sidebar.item>
-                            <flux:sidebar.item icon="book-open" :href="route('staff.guides')" :current="request()->routeIs('staff.guides')" wire:navigate>
-                                {{ __('Study guides') }}
-                            </flux:sidebar.item>
-                            <flux:sidebar.item icon="megaphone" :href="route('staff.announcements')" :current="request()->routeIs('staff.announcements')" wire:navigate>
-                                {{ __('Announcements') }}
-                            </flux:sidebar.item>
-                        @endcan
-                        @can('manage-ambassadors')
-                            <flux:sidebar.item icon="ticket" :href="route('staff.ambassadors')" :current="request()->routeIs('staff.ambassadors*')" wire:navigate>
-                                {{ __('Campus ambassadors') }}
-                            </flux:sidebar.item>
-                            @php($unreadMail = \App\Models\InboxMessage::visibleTo(auth()->user())->unread()->count())
-                            <flux:sidebar.item icon="inbox" :href="route('staff.inbox')" :current="request()->routeIs('staff.inbox*')" :badge="$unreadMail ?: null" wire:navigate>
-                                {{ __('Inbox') }}
-                            </flux:sidebar.item>
-                        @endcan
-                        @can('manage-conference')
-                            <flux:sidebar.item icon="envelope" :href="route('staff.emails')" :current="request()->routeIs('staff.emails')" wire:navigate>
-                                {{ __('Email log') }}
-                            </flux:sidebar.item>
-                        @endcan
-                        @can('manage-staff')
-                            <flux:sidebar.item icon="users" :href="route('staff.team')" :current="request()->routeIs('staff.team')" wire:navigate>
-                                {{ __('Team') }}
-                            </flux:sidebar.item>
-                            <flux:sidebar.item icon="chart-bar" :href="route('staff.analytics')" :current="request()->routeIs('staff.analytics')" wire:navigate>
-                                {{ __('Visitors') }}
-                            </flux:sidebar.item>
-                        @endcan
+                        @endforeach
                     </flux:sidebar.group>
                 @endif
             </flux:sidebar.nav>
@@ -76,8 +55,11 @@
         </flux:sidebar>
 
         <!-- Mobile User Menu -->
-        <flux:header class="border-b border-white/10 bg-zinc-950/80 backdrop-blur lg:hidden">
-            <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
+        <flux:header class="hb-tabbar sticky top-0 z-30 !min-h-0 border-b !px-3 py-2 backdrop-blur-xl lg:hidden" style="padding-top: max(0.5rem, env(safe-area-inset-top)); padding-bottom: 0.5rem">
+            <a href="{{ route('dashboard') }}" wire:navigate class="flex min-w-0 items-center gap-2">
+                <x-app-logo-icon class="size-8 shrink-0" />
+                <span class="truncate font-display text-[15px] font-semibold text-zinc-900 dark:text-white">{{ $title ?? config('app.name') }}</span>
+            </a>
 
             <flux:spacer />
 
@@ -110,6 +92,9 @@
                         <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
                             {{ __('Settings') }}
                         </flux:menu.item>
+                        <flux:menu.item :href="route('appearance.edit')" icon="swatch" wire:navigate>
+                            {{ __('Theme') }}
+                        </flux:menu.item>
                     </flux:menu.radio.group>
 
                     @include('partials.view-as-menu')
@@ -133,6 +118,9 @@
         </flux:header>
 
         {{ $slot }}
+
+        @include('partials.phone-tabs', ['tabs' => $phoneNav['tabs'], 'more' => $phoneNav['more']])
+        @include('partials.theme-welcome')
 
         @persist('toast')
             <flux:toast.group>

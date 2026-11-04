@@ -6,13 +6,14 @@
     $feePerDelegation = number_format(config('conference.fees.per_delegation'));
     $minDelegates = config('conference.delegation.min_delegates');
     $maxDelegates = config('conference.delegation.max_delegates');
+    $fileNumbers = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
     $committeeArt = ['UNW' => 'hb-art-seal', 'UNSC' => 'hb-art-globe', 'PNA' => 'hb-art-column', 'SPECIAL' => 'hb-art-banner'];
     $tickerItems = [__('Registrations now open'), config('conference.dates_label'), __('Virtual conference'), __('Delegate fee PKR :fee', ['fee' => $feePerDelegate])];
 @endphp
 
 <x-layouts::public>
     <x-slot:nav>
-        @php($sections = ['#about' => __('About'), '#committees' => __('Committees'), '#fees' => __('Fees'), '#how' => __('How to register'), '#ambassadors' => __('Ambassadors'), '#faq' => __('FAQ')])
+        @php($sections = ['#committees' => __('Committees'), '#fees' => __('Fees'), '#about' => __('About'), '#how' => __('How to register'), '#ambassadors' => __('Ambassadors'), '#faq' => __('FAQ')])
 
         {{-- Desktop --}}
         <nav class="hidden items-center gap-7 text-sm lg:flex" aria-label="{{ __('Main') }}">
@@ -25,15 +26,18 @@
                 <a href="{{ route('dashboard') }}" class="hb-button-secondary min-h-11 px-5 text-sm">{{ __('Dashboard') }}</a>
             @else
                 <a href="{{ route('login') }}" class="hb-button-secondary min-h-11 px-5 text-sm">{{ __('Login') }}</a>
-                <a href="{{ route('register') }}" class="hb-button-primary min-h-11 px-5 text-sm">{{ __('Join Now') }}</a>
+                <a href="{{ route('register') }}" class="hb-button-primary min-h-11 px-5 text-sm">{{ __('Register Now') }}</a>
             @endauth
         </div>
 
         {{-- Phone and tablet --}}
-        <div class="flex shrink-0 items-center gap-2 lg:hidden">
-            @guest
-                <a href="{{ route('register') }}" class="hb-button-primary min-h-10 px-4 text-sm">{{ __('Join') }}</a>
-            @endguest
+        <div class="flex shrink-0 items-center gap-1.5 sm:gap-2 lg:hidden">
+            @auth
+                <a href="{{ route('dashboard') }}" class="hb-button-secondary min-h-10 px-3 text-[13px] sm:px-4 sm:text-sm">{{ __('Dashboard') }}</a>
+            @else
+                <a href="{{ route('login') }}" class="hb-button-secondary min-h-10 px-3 text-[13px] sm:px-4 sm:text-sm" data-test="header-login">{{ __('Login') }}</a>
+                <a href="{{ route('register') }}" class="hb-button-primary min-h-10 px-3 text-[13px] sm:px-4 sm:text-sm">{{ __('Register') }}</a>
+            @endauth
             <details class="group">
                 <summary class="flex size-10 cursor-pointer list-none items-center justify-center rounded-xs border border-[#6e6a75] [&::-webkit-details-marker]:hidden" aria-label="{{ __('Menu') }}">
                     <svg class="size-5 group-open:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
@@ -78,7 +82,7 @@
                 </p>
                 <div class="grid gap-3 sm:flex sm:flex-wrap">
                     <a href="{{ route('register') }}" class="hb-button-primary min-h-13 px-8 text-base">
-                        {{ __('Join Now') }}
+                        {{ __('Register Now') }}
                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
                     </a>
                     <a href="#committees" class="hb-button-secondary min-h-13 text-base">{{ __('Explore committees') }}</a>
@@ -102,8 +106,124 @@
         </div>
     </section>
 
+    {{-- Committees --}}
+    <section id="committees" class="border-b border-[#2a2630]">
+        <div class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-14 lg:gap-12 lg:py-24">
+            <div class="flex flex-wrap items-end justify-between gap-4 lg:gap-6">
+                <div class="flex flex-col gap-3">
+                    <div class="hb-eyebrow">{{ __('The committees') }}</div>
+                    <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Four rooms. Pick your arena.') }}</h2>
+                </div>
+                <p class="max-w-md text-[15px] leading-relaxed text-hb-muted">{{ __('Choose two committee preferences when you register. Allocations are emailed and shown on your dashboard after verification.') }}</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
+                @foreach ($committees as $committee)
+                    @if ($committee->code === 'SPECIAL')
+                        {{-- The Special Committee, declassified: the Marvel Crisis Committee. --}}
+                        <article class="hb-folder hb-folder-special hb-classified group flex flex-col" data-test="special-committee" onclick="hbOpenFile(this, 'committee-dialog-{{ $committee->code }}')">
+                            <div class="hb-folder-back" aria-hidden="true"><span class="hb-folder-tab">{{ __('File') }} {{ $fileNumbers[$loop->index] ?? $loop->iteration }} · {{ $committee->code === 'SPECIAL' ? __('Special') : $committee->code }}</span></div>
+                            <div class="hb-folder-papers" aria-hidden="true"><span></span><span></span></div>
+                            <div class="hb-folder-front flex grow flex-col border border-[#5a2d8c] bg-[#160a24]">
+                            <div class="relative overflow-hidden" aria-hidden="true">
+                                <div class="hb-art hb-art-banner w-full opacity-70 transition duration-700 group-hover:scale-[1.03] group-hover:opacity-85"></div>
+                                <div class="absolute inset-0 bg-[linear-gradient(115deg,rgb(160_24_40/0.72)_0%,rgb(160_24_40/0.35)_47%,transparent_49.5%,transparent_50.5%,rgb(28_64_150/0.4)_53%,rgb(28_64_150/0.75)_100%)]"></div>
+                                <div class="absolute inset-y-[-10%] left-1/2 w-0.5 -translate-x-1/2 rotate-[12deg] bg-white/70 shadow-[0_0_14px_rgb(255_255_255/0.8)]"></div>
+                                <div class="hb-scanlines absolute inset-0 opacity-40"></div>
+                                <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5 text-[9px] tracking-[0.18em] text-white/90 uppercase lg:top-4 lg:right-4 lg:text-[10px]">
+                                    <span class="relative flex size-1.5"><span class="absolute inline-flex size-full animate-ping rounded-full bg-[#7fb0ff] opacity-75 motion-reduce:animate-none"></span><span class="relative inline-flex size-1.5 rounded-full bg-[#7fb0ff]"></span></span>
+                                    {{ __('Revealed') }}
+                                </div>
+                                <div class="absolute inset-0 flex flex-col items-center justify-center gap-1.5 text-center">
+                                    <span class="font-display text-xl leading-none font-bold tracking-[0.12em] text-white uppercase drop-shadow-[0_2px_10px_rgb(0_0_0/0.7)] lg:text-3xl">{{ __('Marvel') }}</span>
+                                    <span class="hb-stamp !rotate-[-6deg] !border-white/80 !text-white font-display text-[9px] font-bold tracking-[0.3em] uppercase lg:text-xs">{{ __('Declassified') }}</span>
+                                </div>
+                            </div>
+                            <div class="flex grow flex-col gap-1.5 p-3.5 lg:gap-2.5 lg:p-6">
+                                <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ __('Special') }}</h3>
+                                <div class="text-[13px] leading-snug text-hb-soft lg:text-sm">{{ __('Marvel Crisis Committee') }}</div>
+                                <p class="font-display text-[13px] text-[#e8a0aa] italic lg:text-base">{{ __('Whose side are you on?') }}</p>
+                                <div class="mt-auto pt-1 text-[10px] tracking-[0.1em] text-hb-lavender uppercase lg:pt-2 lg:text-xs lg:tracking-[0.12em]">
+                                    {{ __('Crisis') }} · {{ __('Characters') }}
+                                </div>
+                                @include('partials.committee-read-more')
+                            </div>
+                            </div>
+                        </article>
+                        @continue
+                    @endif
+                    <article class="hb-folder flex flex-col" onclick="hbOpenFile(this, 'committee-dialog-{{ $committee->code }}')">
+                        <div class="hb-folder-back" aria-hidden="true"><span class="hb-folder-tab">{{ __('File') }} {{ $fileNumbers[$loop->index] ?? $loop->iteration }} · {{ $committee->code === 'SPECIAL' ? __('Special') : $committee->code }}</span></div>
+                        <div class="hb-folder-papers" aria-hidden="true"><span></span><span></span></div>
+                        <div class="hb-folder-front flex grow flex-col border border-hb-line bg-hb-surface">
+                        <div class="hb-art {{ $committeeArt[$committee->code] ?? 'hb-art-globe' }} w-full" aria-hidden="true"></div>
+                        <div class="flex grow flex-col gap-1.5 p-3.5 lg:gap-2.5 lg:p-6">
+                            <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ $committee->code === 'SPECIAL' ? __('Special') : $committee->code }}</h3>
+                            <div class="text-[13px] leading-snug text-hb-soft lg:text-sm">{{ $committee->name }}</div>
+                            <div class="mt-auto pt-1 text-[10px] tracking-[0.1em] text-hb-lavender uppercase lg:pt-2 lg:text-xs lg:tracking-[0.12em]">
+                                {{ __('Portfolio') }} · {{ $committee->portfolio_type === \App\Enums\PortfolioType::Country ? __('Countries') : __('Characters') }}
+                            </div>
+                            @include('partials.committee-read-more')
+                        </div>
+                        </div>
+                    </article>
+                @endforeach
+            </div>
+        </div>
+
+        @foreach ($committees as $committee)
+            @include('partials.committee-dialog')
+        @endforeach
+
+        <script>
+            {{-- Open a committee folder: the flap tips open, the papers slide out, then the file appears. --}}
+            window.hbOpenFile = (card, id) => {
+                const dialog = document.getElementById(id);
+                if (! dialog || dialog.open || card.classList.contains('is-opening')) return;
+                const show = () => {
+                    dialog.showModal();
+                    dialog.querySelector('.hb-file-sheet')?.focus({ preventScroll: true });
+                    dialog.scrollTop = 0;
+                };
+                dialog.addEventListener('close', () => card.classList.remove('is-opening'), { once: true });
+                if (matchMedia('(prefers-reduced-motion: reduce)').matches) return show();
+                card.classList.add('is-opening');
+                setTimeout(show, 480);
+            };
+        </script>
+    </section>
+
+    {{-- Fees --}}
+    <section id="fees" class="border-b border-[#2a2630] bg-hb-surface">
+        <div class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-14 lg:gap-12 lg:py-24">
+            <div class="flex flex-col items-center gap-3 text-center">
+                <div class="hb-eyebrow">{{ __('Registration fees') }}</div>
+                <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Bring your team.') }}</h2>
+            </div>
+            <div class="mx-auto w-full max-w-xl">
+                <div class="flex flex-col gap-3.5 border border-hb-purple-line bg-hb-purple px-6 py-7 md:gap-4.5 md:px-9 md:py-10">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Delegation') }}</div>
+                        <div class="bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase">{{ __(':min–:max members', ['min' => $minDelegates, 'max' => $maxDelegates]) }}</div>
+                    </div>
+                    <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span class="text-[#dccff0]">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePerDelegate }}</span><span class="text-[#dccff0]">{{ __('/ delegate + :fee', ['fee' => $feePerDelegation]) }}</span></div>
+                    <p class="leading-relaxed text-[#e6ddf3]">{{ __('Register as an institution or private delegation. The head registers the whole team in one form.') }}</p>
+                    <dl class="grid grid-cols-2 gap-px border border-[#7a4fb0] bg-[#7a4fb0] text-center sm:grid-cols-4">
+                        @foreach (range($minDelegates, $maxDelegates) as $size)
+                            <div class="flex flex-col-reverse gap-0.5 bg-hb-purple px-1 py-2.5">
+                                <dt class="text-[11px] tracking-[0.08em] text-[#dccff0] uppercase">{{ __(':count delegates', ['count' => $size]) }}</dt>
+                                <dd class="font-semibold tabular-nums">{{ number_format(\App\Enums\RegistrationType::InstitutionDelegation->amountDueFor($size)) }}</dd>
+                            </div>
+                        @endforeach
+                    </dl>
+                    <p class="text-sm leading-relaxed text-[#dccff0]">{{ __('Want to discuss a fee adjustment for your institute? Contact the registration team.') }}</p>
+                    <a href="{{ route('register') }}" class="hb-button-primary mt-auto">{{ __('Register a delegation') }}</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
     {{-- Pillars & about --}}
-    <section id="about" class="border-b border-[#2a2630] bg-hb-surface">
+    <section id="about" class="border-b border-[#2a2630]">
         <div class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-14 lg:gap-12 lg:py-22">
             <div class="flex flex-col items-center gap-3.5 text-center">
                 <div class="hb-eyebrow">{{ __('The conference') }}</div>
@@ -141,98 +261,8 @@
         </div>
     </section>
 
-    {{-- Committees --}}
-    <section id="committees" class="border-b border-[#2a2630]">
-        <div class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-14 lg:gap-12 lg:py-24">
-            <div class="flex flex-wrap items-end justify-between gap-4 lg:gap-6">
-                <div class="flex flex-col gap-3">
-                    <div class="hb-eyebrow">{{ __('The committees') }}</div>
-                    <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Four rooms. Pick your arena.') }}</h2>
-                </div>
-                <p class="max-w-md text-[15px] leading-relaxed text-hb-muted">{{ __('Choose two committee preferences when you register. Allocations are emailed and shown on your dashboard after verification.') }}</p>
-            </div>
-            <div class="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-5">
-                @foreach ($committees as $committee)
-                    @if ($committee->code === 'SPECIAL')
-                        <article class="hb-classified group flex flex-col border border-[#5a2d8c] bg-[#160a24]">
-                            <div class="relative overflow-hidden" aria-hidden="true">
-                                <div class="hb-art hb-art-banner w-full opacity-40 blur-[2px] grayscale transition duration-700 group-hover:opacity-55 group-hover:blur-[1px]"></div>
-                                <div class="absolute inset-0 bg-[linear-gradient(115deg,rgb(122_20_36/0.55)_0%,transparent_48%,transparent_52%,rgb(59_10_107/0.7)_100%)]"></div>
-                                <div class="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 rotate-[12deg] bg-white/25"></div>
-                                <div class="hb-scanlines absolute inset-0"></div>
-                                <div class="hb-sweep absolute inset-x-0 h-1/3"></div>
-                                <div class="absolute top-2.5 left-2.5 hidden font-mono sm:block text-[9px] tracking-[0.2em] text-hb-lavender/80 uppercase lg:top-4 lg:left-4 lg:text-[10px]">File IV</div>
-                                <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5 text-[9px] tracking-[0.18em] text-white/85 uppercase lg:top-4 lg:right-4 lg:text-[10px]">
-                                    <span class="relative flex size-1.5"><span class="absolute inline-flex size-full animate-ping rounded-full bg-[#e0475b] opacity-75 motion-reduce:animate-none"></span><span class="relative inline-flex size-1.5 rounded-full bg-[#e0475b]"></span></span>
-                                    {{ __('Reveal soon') }}
-                                </div>
-                                <div class="absolute inset-0 flex items-center justify-center">
-                                    <span class="hb-stamp font-display text-sm font-bold tracking-[0.3em] uppercase lg:text-xl">{{ __('Classified') }}</span>
-                                </div>
-                            </div>
-                            <div class="flex grow flex-col gap-1.5 p-3.5 lg:gap-2.5 lg:p-6">
-                                <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ __('Special') }}</h3>
-                                <div class="text-[13px] leading-snug text-hb-soft lg:text-sm">{{ $committee->name }}</div>
-                                <div class="flex flex-wrap items-center gap-1 text-[11px] text-hb-muted lg:text-xs" aria-label="{{ __('Theme redacted') }}">
-                                    <span>{{ __('Theme') }}:</span>
-                                    <span class="hb-redact w-12 lg:w-16"></span>
-                                    <span class="hb-redact w-8 lg:w-10"></span>
-                                </div>
-                                <p class="font-display text-[13px] text-[#e8a0aa] italic lg:text-base">{{ __('Whose side are you on?') }}</p>
-                                <div class="mt-auto pt-1 text-[10px] tracking-[0.1em] text-hb-lavender uppercase lg:pt-2 lg:text-xs lg:tracking-[0.12em]">
-                                    {{ __('Crisis') }} · {{ __('Characters') }}
-                                </div>
-                            </div>
-                        </article>
-                        @continue
-                    @endif
-                    <article class="flex flex-col border border-hb-line bg-hb-surface">
-                        <div class="hb-art {{ $committeeArt[$committee->code] ?? 'hb-art-globe' }} w-full" aria-hidden="true"></div>
-                        <div class="flex grow flex-col gap-1.5 p-3.5 lg:gap-2.5 lg:p-6">
-                            <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ $committee->code === 'SPECIAL' ? __('Special') : $committee->code }}</h3>
-                            <div class="text-[13px] leading-snug text-hb-soft lg:text-sm">{{ $committee->name }}</div>
-                            <div class="mt-auto pt-1 text-[10px] tracking-[0.1em] text-hb-lavender uppercase lg:pt-2 lg:text-xs lg:tracking-[0.12em]">
-                                {{ __('Portfolio') }} · {{ $committee->portfolio_type === \App\Enums\PortfolioType::Country ? __('Countries') : __('Characters') }}
-                            </div>
-                        </div>
-                    </article>
-                @endforeach
-            </div>
-        </div>
-    </section>
-
-    {{-- Fees --}}
-    <section id="fees" class="border-b border-[#2a2630] bg-hb-surface">
-        <div class="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-14 lg:gap-12 lg:py-24">
-            <div class="flex flex-col items-center gap-3 text-center">
-                <div class="hb-eyebrow">{{ __('Registration fees') }}</div>
-                <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Bring your team.') }}</h2>
-            </div>
-            <div class="mx-auto w-full max-w-xl">
-                <div class="flex flex-col gap-3.5 border border-hb-purple-line bg-hb-purple px-6 py-7 md:gap-4.5 md:px-9 md:py-10">
-                    <div class="flex items-center justify-between gap-3">
-                        <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Delegation') }}</div>
-                        <div class="bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase">{{ __(':min–:max members', ['min' => $minDelegates, 'max' => $maxDelegates]) }}</div>
-                    </div>
-                    <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span class="text-[#dccff0]">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePerDelegate }}</span><span class="text-[#dccff0]">{{ __('/ delegate + :fee', ['fee' => $feePerDelegation]) }}</span></div>
-                    <p class="leading-relaxed text-[#e6ddf3]">{{ __('Register as an institution or private delegation. The head registers the whole team in one form.') }}</p>
-                    <dl class="grid grid-cols-2 gap-px border border-[#7a4fb0] bg-[#7a4fb0] text-center sm:grid-cols-4">
-                        @foreach (range($minDelegates, $maxDelegates) as $size)
-                            <div class="flex flex-col-reverse gap-0.5 bg-hb-purple px-1 py-2.5">
-                                <dt class="text-[11px] tracking-[0.08em] text-[#dccff0] uppercase">{{ __(':count delegates', ['count' => $size]) }}</dt>
-                                <dd class="font-semibold tabular-nums">{{ number_format(\App\Enums\RegistrationType::InstitutionDelegation->amountDueFor($size)) }}</dd>
-                            </div>
-                        @endforeach
-                    </dl>
-                    <p class="text-sm leading-relaxed text-[#dccff0]">{{ __('Want to discuss a fee adjustment for your institute? Contact the registration team.') }}</p>
-                    <a href="{{ route('register') }}" class="hb-button-primary mt-auto">{{ __('Register a delegation') }}</a>
-                </div>
-            </div>
-        </div>
-    </section>
-
     {{-- How to register --}}
-    <section id="how" class="border-b border-[#2a2630]">
+    <section id="how" class="border-b border-[#2a2630] bg-hb-surface">
         <div class="mx-auto flex max-w-6xl flex-wrap items-start gap-6 px-6 py-14 lg:gap-14 lg:py-24">
             <div class="flex min-w-0 flex-[1_1_320px] flex-col gap-5">
                 <div class="hb-eyebrow">{{ __('How to register') }}</div>
@@ -300,7 +330,7 @@
             <svg class="size-5.5" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 0 L14 10 L24 12 L14 14 L12 24 L10 14 L0 12 L10 10 Z" fill="#fff" /></svg>
             <p class="font-script text-[clamp(36px,5vw,60px)] leading-[1.1] italic">{{ __('Better dialogue.') }}<br>{{ __('Bigger perspectives.') }}</p>
             <p class="text-[17px] text-[#e6ddf3]">{{ __('Seats are allocated after verification. Register early for your preferred portfolio.') }}</p>
-            <a href="{{ route('register') }}" class="hb-button-primary min-h-13 px-9 text-base">{{ __('Join Now') }}</a>
+            <a href="{{ route('register') }}" class="hb-button-primary min-h-13 px-9 text-base">{{ __('Register Now') }}</a>
         </div>
     </section>
 </x-layouts::public>

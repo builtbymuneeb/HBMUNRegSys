@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Gate;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\On;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -60,6 +61,15 @@ new #[Title('Inbox')] class extends Component {
         });
     }
 
+    /**
+     * Show an email sent from the compose window at the top of the list.
+     */
+    #[On('inbox-sent')]
+    public function refreshAfterSending(): void
+    {
+        unset($this->conversations);
+    }
+
     #[Computed]
     public function unreadCount(): int
     {
@@ -79,7 +89,7 @@ new #[Title('Inbox')] class extends Component {
      */
     public function checkNow(FetchInbox $fetchInbox): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('use-inbox');
 
         try {
             $new = $fetchInbox->fetch(FetchInbox::mailbox());
@@ -100,24 +110,35 @@ new #[Title('Inbox')] class extends Component {
         <div>
             <flux:heading size="xl" level="1">{{ __('Inbox') }}</flux:heading>
             <flux:text class="mt-1">
-                {{ __('Replies and other mail sent to :address. Checked every 5 minutes.', ['address' => config('mail.from.address')]) }}
+                {{ __('Mail sent to and from :address. Checked every 5 minutes.', ['address' => config('mail.from.address')]) }}
                 @if ($this->lastCheckedAt)
                     {{ __('Last checked :time.', ['time' => $this->lastCheckedAt->diffForHumans()]) }}
                 @endif
             </flux:text>
         </div>
-        <flux:button icon="arrow-path" wire:click="checkNow" wire:loading.attr="disabled" wire:target="checkNow">
-            <span wire:loading.remove wire:target="checkNow">{{ __('Check now') }}</span>
-            <span wire:loading wire:target="checkNow">{{ __('Checking…') }}</span>
-        </flux:button>
+        <div class="flex flex-wrap gap-2">
+            <flux:button icon="arrow-path" wire:click="checkNow" wire:loading.attr="disabled" wire:target="checkNow">
+                <span wire:loading.remove wire:target="checkNow">{{ __('Check now') }}</span>
+                <span wire:loading wire:target="checkNow">{{ __('Checking…') }}</span>
+            </flux:button>
+            @can('use-inbox')
+                <flux:button variant="primary" icon="pencil-square" x-on:click="$dispatch('compose-email')">{{ __('New email') }}</flux:button>
+            @endcan
+        </div>
     </div>
+
+    @can('use-inbox')
+        <livewire:inbox-compose />
+    @endcan
 
     <div class="grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :label="__('Search')" :placeholder="__('Name, email, subject or text…')" />
         <flux:select wire:model.live="show" :label="__('Show')">
             <flux:select.option value="">{{ __('Everything') }}</flux:select.option>
             <flux:select.option value="unread">{{ __('Unread (:count)', ['count' => $this->unreadCount]) }}</flux:select.option>
-            <flux:select.option value="ambassadors">{{ __('From campus ambassadors') }}</flux:select.option>
+            @can('manage-ambassadors')
+                <flux:select.option value="ambassadors">{{ __('From campus ambassadors') }}</flux:select.option>
+            @endcan
         </flux:select>
     </div>
 
@@ -144,7 +165,7 @@ new #[Title('Inbox')] class extends Component {
                             </div>
                             <div class="flex items-center gap-2 text-xs">
                                 {{ $message->email }}
-                                @if ($message->ambassador)
+                                @if ($message->ambassador && auth()->user()->can('manage-ambassadors'))
                                     <flux:badge size="sm" color="purple" inset="top bottom">{{ $message->ambassador->code }}</flux:badge>
                                 @endif
                             </div>

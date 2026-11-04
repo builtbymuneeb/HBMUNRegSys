@@ -2,6 +2,8 @@
 
 use App\Actions\Registrations\ResubmitPayment;
 use App\Enums\RegistrationStatus;
+use App\Livewire\Concerns\CollectsPaymentScreenshots;
+use App\Models\PaymentScreenshot;
 use App\Models\Registration;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\RateLimiter;
@@ -16,6 +18,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 
 new #[Layout('layouts::public')] #[Title('Registration status')] class extends Component {
+    use CollectsPaymentScreenshots;
     use WithFileUploads;
 
     /**
@@ -34,11 +37,9 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
     public ?string $matchedBy = null;
 
     /**
-     * A second, different detail, asked for before a new screenshot can replace the old one.
+     * A second, different detail, asked for before new screenshots can replace the old ones.
      */
     public string $confirmation = '';
-
-    public $paymentScreenshot;
 
     public bool $resubmitted = false;
 
@@ -76,7 +77,7 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
     }
 
     /**
-     * Upload a new payment screenshot for a rejected registration, once a second detail confirms who's asking.
+     * Upload new payment screenshots for a rejected registration, once a second detail confirms who's asking.
      */
     public function resubmit(ResubmitPayment $resubmitPayment): void
     {
@@ -86,8 +87,12 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
 
         $this->validate([
             'confirmation' => ['required', 'string', 'max:255'],
-            'paymentScreenshot' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
-        ], attributes: ['paymentScreenshot' => 'payment screenshot', 'confirmation' => 'second detail']);
+            ...$this->paymentScreenshotsRules(),
+        ], ['paymentScreenshots.max' => 'You can upload up to :max screenshots.'], [
+            'paymentScreenshots' => 'payment screenshot',
+            'paymentScreenshots.*' => 'payment screenshot',
+            'confirmation' => 'second detail',
+        ]);
 
         $this->throttle('confirmation');
 
@@ -101,9 +106,9 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
             ]);
         }
 
-        $resubmitPayment->handle($registration, $this->paymentScreenshot);
+        $resubmitPayment->handle($registration, $this->paymentScreenshots);
 
-        $this->reset('paymentScreenshot', 'confirmation');
+        $this->reset('paymentScreenshots', 'newScreenshot', 'confirmation');
         $this->resubmitted = true;
         unset($this->registration);
     }
@@ -207,7 +212,7 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
             @switch($registration->status)
                 @case(RegistrationStatus::Pending)
                     <p class="leading-relaxed text-hb-muted">
-                        {{ $resubmitted ? __('Thanks! Your new screenshot is with our registration team.') : __('Our registration team is verifying your payment.') }}
+                        {{ $resubmitted ? __('Thanks! Your new screenshots are with our registration team.') : __('Our registration team is verifying your payment.') }}
                         {{ __('You’ll receive an email once it’s done.') }}
                     </p>
                     @break
@@ -224,15 +229,7 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
                     </div>
 
                     <form wire:submit="resubmit" class="flex flex-col gap-4">
-                        <label for="new-payment-screenshot" class="flex min-h-32 cursor-pointer flex-col items-center justify-center gap-2 border border-dashed border-[#6e6a75] p-5 text-center has-focus-visible:outline-2 has-focus-visible:outline-[#8e6bc8]">
-                            <span class="font-semibold">
-                                {{ $paymentScreenshot && ! $errors->has('paymentScreenshot') ? $paymentScreenshot->getClientOriginalName() : __('Upload a new payment screenshot') }}
-                            </span>
-                            <span class="text-sm text-hb-subtle">{{ __('JPG, JPEG or PNG, up to 5 MB. Make sure it shows PKR :amount.', ['amount' => number_format($registration->amount_due)]) }}</span>
-                            <span wire:loading wire:target="paymentScreenshot" class="text-sm text-hb-lavender">{{ __('Uploading…') }}</span>
-                            <input id="new-payment-screenshot" type="file" wire:model="paymentScreenshot" accept=".jpg,.jpeg,.png" class="sr-only">
-                        </label>
-                        <x-public.error name="paymentScreenshot" />
+                        <x-public.screenshot-picker id="new-payment-screenshot" :screenshots="$paymentScreenshots" :hint="__('Upload new screenshots of your payment; they replace the ones you sent before. One per receipt, up to :max. JPG, JPEG or PNG, up to 5 MB each. Make sure they show PKR :amount in total.', ['max' => PaymentScreenshot::MAX_UPLOADS, 'amount' => number_format($registration->amount_due)])" />
 
                         <x-public.field :label="__('Confirm it’s you')" name="confirmation" :hint="match ($matchedBy) {
                             'reference' => __('Enter an email or the head’s phone number used in this registration.'),
@@ -242,7 +239,7 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
                             <input type="text" wire:model="confirmation" class="hb-input" autocomplete="off" autocapitalize="off" spellcheck="false">
                         </x-public.field>
 
-                        <button type="submit" class="hb-button-primary self-start" wire:loading.attr="disabled" wire:target="resubmit,paymentScreenshot">
+                        <button type="submit" class="hb-button-primary self-start" wire:loading.attr="disabled" wire:target="resubmit,newScreenshot">
                             {{ __('Resubmit for verification') }}
                         </button>
                     </form>

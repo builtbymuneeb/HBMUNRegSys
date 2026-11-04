@@ -35,6 +35,16 @@ class RegistrationFactory extends Factory
     }
 
     /**
+     * Give every registration a screenshot row for its first screenshot, as a real submission has.
+     */
+    public function configure(): static
+    {
+        return $this->afterCreating(function (Registration $registration) {
+            $registration->paymentScreenshots()->create(['path' => $registration->payment_screenshot_path]);
+        });
+    }
+
+    /**
      * An institution delegation with the given number of delegates.
      */
     public function institutionDelegation(int $delegates = 3): static

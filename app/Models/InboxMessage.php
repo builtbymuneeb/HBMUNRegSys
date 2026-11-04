@@ -90,7 +90,7 @@ class InboxMessage extends Model
      */
     public function scopeVisibleTo(Builder $query, User $user): void
     {
-        $query->when(! $user->canManageConference(), fn (Builder $query) => $query->whereNotNull('campus_ambassador_id'));
+        $query->when(! $user->canSeeWholeInbox(), fn (Builder $query) => $query->whereNotNull('campus_ambassador_id'));
     }
 
     /**

@@ -19,7 +19,7 @@
             <div class="relative mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
                 <a href="{{ route('home') }}" class="flex min-w-0 items-center gap-2.5 sm:gap-3">
                     <span class="hb-art hb-art-crest block w-8 shrink-0 sm:w-10" aria-hidden="true"></span>
-                    <span class="font-display text-[13px] leading-tight font-bold tracking-[0.04em] min-[400px]:text-[15px] sm:text-lg sm:tracking-[0.12em]">HOMEBRIDGE MUN ’26</span>
+                    <span class="font-display leading-none font-bold sm:text-lg sm:tracking-[0.12em]"><span class="block text-[11.5px] tracking-[0.03em] min-[380px]:text-[12.5px] min-[380px]:tracking-[0.06em] min-[400px]:text-[13.5px] sm:inline sm:text-lg sm:tracking-[0.12em]">HOMEBRIDGE</span> <span class="mt-0.5 block text-[11px] tracking-[0.2em] text-hb-lavender sm:mt-0 sm:inline sm:text-lg sm:tracking-[0.12em] sm:text-white">MUN ’26</span></span>
                 </a>
 
                 @if (isset($nav))

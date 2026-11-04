@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\UserRole;
 use App\Http\Middleware\PreviewRole;
+use App\Models\CampusAmbassador;
 use App\Models\Delegate;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,7 @@ class RolePreviewController extends Controller
         $validated = $request->validate([
             'role' => ['required', Rule::enum(UserRole::class)->except([UserRole::Admin])],
             'delegate' => ['nullable', 'integer', 'exists:delegates,id'],
+            'ambassador' => ['nullable', 'integer', 'exists:campus_ambassadors,id'],
         ]);
 
         $role = UserRole::from($validated['role']);
@@ -33,9 +35,18 @@ class RolePreviewController extends Controller
                 ?? Delegate::latest('id')->value('id');
         }
 
+        // For "Campus ambassador", show the portal of the one picked, or else the top referrer.
+        $ambassadorId = null;
+
+        if ($role === UserRole::Ambassador) {
+            $ambassadorId = $validated['ambassador']
+                ?? CampusAmbassador::withReferralCounts()->orderByDesc('verified_delegates_count')->orderBy('id')->value('id');
+        }
+
         $request->session()->put([
             PreviewRole::SESSION_ROLE => $role->value,
             PreviewRole::SESSION_DELEGATE => $delegateId,
+            PreviewRole::SESSION_AMBASSADOR => $ambassadorId,
         ]);
 
         return redirect()->route('dashboard');
@@ -43,7 +54,7 @@ class RolePreviewController extends Controller
 
     public function destroy(Request $request): RedirectResponse
     {
-        $request->session()->forget([PreviewRole::SESSION_ROLE, PreviewRole::SESSION_DELEGATE]);
+        $request->session()->forget([PreviewRole::SESSION_ROLE, PreviewRole::SESSION_DELEGATE, PreviewRole::SESSION_AMBASSADOR]);
 
         return redirect()->route('dashboard');
     }

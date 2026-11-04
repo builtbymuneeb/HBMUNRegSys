@@ -1,6 +1,13 @@
 <?php
 
 use App\Actions\Ambassadors\EmailAmbassadors;
+use App\Actions\Ambassadors\GivePortalAccess;
+use App\Enums\UserRole;
+use App\Livewire\Concerns\ReviewsAmbassadorSubmissions;
+use App\Models\AmbassadorPointAdjustment;
+use App\Models\AmbassadorSubmission;
+use App\Support\Leaderboard;
+use Illuminate\Validation\ValidationException;
 use App\Livewire\Forms\AmbassadorForm;
 use App\Models\AuditLog;
 use App\Models\CampusAmbassador;
@@ -16,6 +23,8 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new #[Title('Campus ambassador')] class extends Component {
+    use ReviewsAmbassadorSubmissions;
+
     public CampusAmbassador $ambassador;
 
     public AmbassadorForm $form;
@@ -37,6 +46,66 @@ new #[Title('Campus ambassador')] class extends Component {
     public function registrations(): Collection
     {
         return $this->ambassador->registrations()->withCount('delegates')->latest()->get();
+    }
+
+    /**
+     * @return array{rank: int, ambassador: CampusAmbassador, task_points: int, referral_points: int, bonus_points: int, verified_delegates: int, tasks_done: int, total: int}|null
+     */
+    #[Computed]
+    public function standing(): ?array
+    {
+        return Leaderboard::standingOf($this->ambassador);
+    }
+
+    /**
+     * @return Collection<int, AmbassadorSubmission>
+     */
+    #[Computed]
+    public function submissions(): Collection
+    {
+        return $this->ambassador->submissions()->with(['task', 'files', 'reviewer', 'ambassador'])->latest('id')->get();
+    }
+
+    /**
+     * @return Collection<int, AmbassadorPointAdjustment>
+     */
+    #[Computed]
+    public function adjustments(): Collection
+    {
+        return $this->ambassador->pointAdjustments()->with('creator')->latest('id')->get();
+    }
+
+    public function givePortalAccess(GivePortalAccess $givePortalAccess): void
+    {
+        Gate::authorize('manage-ambassadors');
+
+        try {
+            $user = $givePortalAccess->handle($this->ambassador, Auth::user());
+        } catch (ValidationException $e) {
+            Flux::toast(variant: 'danger', text: $e->validator->errors()->first());
+
+            return;
+        }
+
+        $this->ambassador->refresh();
+        Flux::toast(variant: 'success', text: __('Portal email on its way to :email.', ['email' => $user->email]));
+    }
+
+    public function removeAdjustment(int $adjustmentId): void
+    {
+        Gate::authorize('manage-ambassadors');
+
+        $adjustment = $this->ambassador->pointAdjustments()->findOrFail($adjustmentId);
+        AuditLog::record('ambassador_points_adjustment_removed', $this->ambassador, Auth::user(), ['points' => $adjustment->points, 'reason' => $adjustment->reason]);
+        $adjustment->delete();
+
+        unset($this->adjustments, $this->standing);
+        Flux::toast(text: __('Points adjustment removed.'));
+    }
+
+    protected function forgetSubmissions(): void
+    {
+        unset($this->submissions, $this->standing);
     }
 
     public function sendWelcomeEmail(EmailAmbassadors $emailAmbassadors): void
@@ -113,7 +182,13 @@ new #[Title('Campus ambassador')] class extends Component {
         Gate::authorize('manage-ambassadors');
 
         AuditLog::record('ambassador_deleted', $this->ambassador, Auth::user(), ['code' => $this->ambassador->code, 'name' => $this->ambassador->name]);
+        $login = $this->ambassador->user;
         $this->ambassador->delete();
+
+        // A login made only for the portal has nothing left to open; a delegate's or staff member's account stays.
+        if ($login?->role === UserRole::Ambassador) {
+            $login->delete();
+        }
 
         Flux::toast(text: __('Ambassador removed. Their registrations keep the code they entered.'));
         $this->redirectRoute('staff.ambassadors', navigate: true);
@@ -151,7 +226,7 @@ new #[Title('Campus ambassador')] class extends Component {
                 </flux:menu>
             </flux:dropdown>
             <flux:button icon="pencil-square" wire:click="edit">{{ __('Edit') }}</flux:button>
-            <flux:button icon="trash" variant="ghost" wire:click="delete" wire:confirm="{{ __('Remove this ambassador? Their registrations keep the code they entered, but stop counting for anyone.') }}" :aria-label="__('Remove')" />
+            <flux:button icon="trash" variant="ghost" wire:click="delete" wire:confirm="{{ __('Remove this ambassador? Their registrations keep the code they entered, but stop counting for anyone. Their portal login, tasks and points are removed too.') }}" :aria-label="__('Remove')" />
         </div>
     </div>
 
@@ -165,7 +240,7 @@ new #[Title('Campus ambassador')] class extends Component {
         </flux:callout>
     @endif
 
-    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="grid grid-cols-2 gap-2 sm:gap-4 xl:grid-cols-4">
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Registrations') }}</flux:text>
             <flux:heading size="xl">{{ $this->counts->registrations_count }}</flux:heading>
@@ -238,6 +313,66 @@ new #[Title('Campus ambassador')] class extends Component {
         </dl>
     </flux:card>
 
+    <div class="grid gap-4 lg:grid-cols-2">
+        <flux:card class="flex flex-col gap-3" data-test="portal-access">
+            <div class="flex items-center justify-between gap-2">
+                <flux:heading size="lg">{{ __('Ambassador portal') }}</flux:heading>
+                @if ($ambassador->user)
+                    <flux:badge size="sm" :color="$ambassador->user->password_set_at ? 'green' : 'amber'">{{ $ambassador->user->password_set_at ? __('Logged in') : __('Invited') }}</flux:badge>
+                @else
+                    <flux:badge size="sm">{{ __('No login yet') }}</flux:badge>
+                @endif
+            </div>
+            @if ($ambassador->user)
+                <flux:text class="text-sm">
+                    {{ __('Logs in as :email.', ['email' => $ambassador->user->email]) }}
+                    @if ($ambassador->user->password_set_at)
+                        {{ __('Password set :date.', ['date' => $ambassador->user->password_set_at->timezone('Asia/Karachi')->format('j M')]) }}
+                    @elseif ($ambassador->portal_invited_at)
+                        {{ __('Invite emailed :date; they haven’t set a password yet.', ['date' => $ambassador->portal_invited_at->timezone('Asia/Karachi')->format('j M, g:i a')]) }}
+                    @endif
+                </flux:text>
+            @else
+                <flux:text class="text-sm">{{ __('Create their login and email them a link to set a password. They then see their tasks, points and the leaderboard.') }}</flux:text>
+            @endif
+            <div class="flex flex-wrap gap-2">
+                <flux:button size="sm" icon="key" wire:click="givePortalAccess" :disabled="blank($ambassador->email)" data-test="give-portal-access"
+                    wire:confirm="{{ $ambassador->user ? __('Email them the portal link again?') : __('Create a portal login for :email and email them?', ['email' => $ambassador->email]) }}">
+                    {{ $ambassador->user ? __('Resend portal email') : __('Give portal access') }}
+                </flux:button>
+                @if ($ambassador->user && WhatsApp::number($ambassador->phone))
+                    <flux:button size="sm" icon="chat-bubble-oval-left-ellipsis" :href="route('staff.whatsapp.ambassador.portal', $ambassador)" target="_blank">{{ __('WhatsApp nudge') }}</flux:button>
+                @endif
+            </div>
+        </flux:card>
+
+        <flux:card class="flex flex-col gap-3">
+            <div class="flex items-center justify-between gap-2">
+                <flux:heading size="lg">{{ __('Points') }}</flux:heading>
+                <flux:link :href="route('staff.ambassadors.leaderboard')" wire:navigate class="text-sm">{{ __('Rank #:rank', ['rank' => $this->standing['rank'] ?? '—']) }}</flux:link>
+            </div>
+            <div class="font-display text-4xl font-semibold text-zinc-900 dark:text-white">{{ number_format($this->standing['total'] ?? 0) }}</div>
+            <flux:text class="text-sm">
+                {{ __(':tasks from tasks · :referrals from :count verified delegates · :bonus bonus', ['tasks' => $this->standing['task_points'] ?? 0, 'referrals' => $this->standing['referral_points'] ?? 0, 'count' => $this->standing['verified_delegates'] ?? 0, 'bonus' => $this->standing['bonus_points'] ?? 0]) }}
+            </flux:text>
+            @foreach ($this->adjustments as $adjustment)
+                <div class="flex items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-sm dark:border-white/5" wire:key="adjustment-{{ $adjustment->id }}">
+                    <span><span class="font-semibold">{{ $adjustment->points > 0 ? '+' : '' }}{{ $adjustment->points }}</span> · {{ $adjustment->reason }} <span class="text-xs text-zinc-400">({{ $adjustment->creator?->name }}, {{ $adjustment->created_at->timezone('Asia/Karachi')->format('j M') }})</span></span>
+                    <flux:button size="xs" variant="ghost" icon="x-mark" wire:click="removeAdjustment({{ $adjustment->id }})" wire:confirm="{{ __('Remove this points adjustment?') }}" :aria-label="__('Remove')" />
+                </div>
+            @endforeach
+        </flux:card>
+    </div>
+
+    @if ($this->submissions->isNotEmpty())
+        <div class="flex flex-col gap-3">
+            <flux:heading size="lg">{{ __('Tasks handed in') }}</flux:heading>
+            @foreach ($this->submissions as $submission)
+                @include('partials.ambassador-review-card', ['submission' => $submission])
+            @endforeach
+        </div>
+    @endif
+
     <div class="flex flex-col gap-3">
         <flux:heading size="lg">{{ __('Registrations using this code') }}</flux:heading>
         <flux:table>
@@ -280,6 +415,7 @@ new #[Title('Campus ambassador')] class extends Component {
     </div>
 
     @include('partials.ambassador-form')
+    @include('partials.ambassador-send-back')
 
     <flux:modal name="ambassador-message" class="w-full md:max-w-xl">
         <div class="space-y-5">

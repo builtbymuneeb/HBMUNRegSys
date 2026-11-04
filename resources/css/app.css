@@ -1,5 +1,6 @@
 @import 'tailwindcss';
 @import '../../vendor/livewire/flux/dist/flux.css';
+@import './themes.css';
 
 @source '../views';
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
@@ -103,22 +104,22 @@ select:focus[data-flux-control] {
  */
 .hb-app {
     background:
-        radial-gradient(900px 420px at 85% -8%, rgb(59 10 107 / 0.45), transparent 65%),
-        radial-gradient(700px 380px at 10% 110%, rgb(59 10 107 / 0.22), transparent 70%),
-        var(--color-zinc-950);
+        radial-gradient(900px 420px at 85% -8%, rgb(var(--hb-glow) / 0.45), transparent 65%),
+        radial-gradient(700px 380px at 10% 110%, rgb(var(--hb-glow) / 0.22), transparent 70%),
+        var(--hb-bg);
     background-attachment: fixed;
 }
 
 .hb-app [data-flux-sidebar] {
-    background: linear-gradient(180deg, #1d0b33 0%, #120a1c 45%, #0b0810 100%);
-    border-color: rgb(169 139 214 / 0.16);
+    background: linear-gradient(180deg, var(--hb-sidebar-1) 0%, var(--hb-sidebar-2) 45%, var(--hb-bg) 100%);
+    border-color: rgb(var(--hb-line) / 0.16);
 }
 
 .hb-app [data-flux-sidebar-item][data-current] {
-    background: rgb(169 139 214 / 0.14);
+    background: rgb(var(--hb-line) / 0.14);
     border-color: transparent;
     box-shadow: inset 2px 0 0 var(--color-hb-lavender);
-    color: #fff;
+    color: var(--color-zinc-900);
 }
 
 .hb-app [data-flux-heading] {
@@ -127,12 +128,78 @@ select:focus[data-flux-control] {
 }
 
 .hb-app [data-flux-card][data-flux-card-variant='default'] {
-    background: linear-gradient(160deg, rgb(59 10 107 / 0.22) 0%, rgb(19 14 26 / 0.92) 55%), var(--color-zinc-900);
-    border-color: rgb(169 139 214 / 0.16);
+    background: linear-gradient(160deg, rgb(var(--hb-glow) / 0.22) 0%, color-mix(in srgb, var(--color-zinc-900) 92%, transparent) 55%), var(--color-zinc-900);
+    border-color: rgb(var(--hb-line) / 0.16);
+}
+
+:root:not(.dark) .hb-app [data-flux-card][data-flux-card-variant='default'] {
+    background: #fff;
+    border-color: rgb(var(--hb-line) / 0.18);
 }
 
 .hb-app [data-flux-card][data-flux-card-variant='default']:has(a:hover, button:hover) {
-    border-color: rgb(169 139 214 / 0.32);
+    border-color: rgb(var(--hb-line) / 0.32);
+}
+
+.dark .hb-app [data-flux-sidebar-item][data-current] {
+    color: #fff;
+}
+
+/*
+ * Phone layout: the dashboard behaves like an app. Content runs nearly edge to edge,
+ * a tab bar sits at the bottom, and modals slide up as sheets.
+ */
+.hb-hero {
+    background: linear-gradient(140deg, var(--hb-hero-1), var(--hb-hero-2));
+}
+
+.hb-tabbar {
+    background: var(--hb-tab);
+    border-color: rgb(var(--hb-line) / 0.18);
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+}
+
+.hb-row {
+    @apply flex items-center gap-3 border-b border-zinc-200 px-3.5 py-3 last:border-b-0 dark:border-white/8;
+}
+
+.hb-list {
+    @apply overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-white/8 dark:bg-zinc-900/70;
+}
+
+.hb-icon-tile {
+    @apply grid size-9 shrink-0 place-items-center rounded-xl bg-zinc-100 text-hb-lavender dark:bg-white/6;
+}
+
+@media (max-width: 1023px) {
+    .hb-app [data-flux-main] {
+        padding: 0.5rem 0.5rem calc(5.5rem + env(safe-area-inset-bottom));
+    }
+
+    .hb-app [data-flux-main] > div:first-child:where(.p-6) {
+        padding: 0.25rem 0 0;
+        gap: 0.75rem;
+    }
+
+    .hb-app [data-flux-card] {
+        padding: 1rem;
+        border-radius: 1rem;
+    }
+
+}
+
+@media (max-width: 639px) {
+    /* Centred popups become bottom sheets. */
+    .hb-app [data-flux-modal] > dialog:not([data-flux-flyout]):not([data-flux-modal-overflow]) {
+        margin: auto 0 0;
+        width: 100%;
+        min-width: 100%;
+        max-width: 100%;
+        max-height: 92dvh;
+        overflow-y: auto;
+        border-radius: 1.25rem 1.25rem 0 0;
+        padding: 1.25rem 1rem calc(1.25rem + env(safe-area-inset-bottom));
+    }
 }
 
 .hb-app [data-flux-table] th {
@@ -198,10 +265,266 @@ select:focus[data-flux-control] {
     background: var(--color-hb-soft);
 }
 
+/* Homepage committee folders: hover peeks the papers out, clicking opens the file. */
+.hb-folder {
+    --hb-folder-back: #17121e;
+    --hb-folder-edge: var(--color-hb-line);
+    --hb-folder-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+    position: relative;
+    padding-top: 2.5rem;
+    cursor: pointer;
+    isolation: isolate;
+    perspective: 1100px;
+    perspective-origin: 50% 0;
+}
+
+.hb-folder-special {
+    --hb-folder-back: #23103a;
+    --hb-folder-edge: #5a2d8c;
+}
+
+.hb-folder-back {
+    position: absolute;
+    inset: 1.25rem 0 0;
+    z-index: 0;
+    border: 1px solid var(--hb-folder-edge);
+    border-radius: 0 4px 4px 4px;
+    background: var(--hb-folder-back);
+}
+
+.hb-folder-tab {
+    position: absolute;
+    bottom: calc(100% - 1px);
+    left: -1px;
+    display: flex;
+    align-items: center;
+    max-width: calc(100% + 2px);
+    height: calc(1.25rem + 1px);
+    padding: 0 1.4rem 0 0.65rem;
+    border: 1px solid var(--hb-folder-edge);
+    border-bottom: 0;
+    border-radius: 4px 0 0 0;
+    background: var(--hb-folder-back);
+    clip-path: polygon(0 0, calc(100% - 0.9rem) 0, 100% 100%, 0 100%);
+    color: var(--color-hb-lavender);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.hb-folder-papers {
+    position: absolute;
+    top: 1.6rem;
+    right: 7%;
+    left: 7%;
+    z-index: 1;
+    height: 45%;
+    transition: transform 0.35s var(--hb-folder-ease);
+}
+
+.hb-folder-papers span {
+    position: absolute;
+    inset: 0;
+    border-radius: 2px;
+    background-color: var(--color-hb-parchment);
+    box-shadow: 0 -1px 3px rgb(0 0 0 / 0.35);
+    transition: transform 0.35s var(--hb-folder-ease);
+}
+
+.hb-folder-papers span:first-child {
+    background-color: #b9b2a7;
+    transform: rotate(-3deg) translate(-3px, 3px);
+}
+
+.hb-folder-papers span:last-child {
+    background-image: repeating-linear-gradient(to bottom, transparent 0 6px, rgb(27 19 32 / 0.16) 6px 7px);
+    background-position: 0 5px;
+    transform: rotate(1.5deg);
+}
+
+.hb-folder-front {
+    position: relative;
+    z-index: 2;
+    overflow: hidden;
+    border-radius: 0 0 4px 4px;
+    box-shadow: 0 -6px 12px -6px rgb(0 0 0 / 0.6);
+    transform-origin: 50% 100%;
+    transition: transform 0.35s var(--hb-folder-ease), border-color 0.2s ease;
+}
+
+.hb-folder:hover .hb-folder-papers {
+    transform: translateY(-0.7rem);
+}
+
+.hb-folder:hover .hb-folder-papers span:first-child {
+    transform: rotate(-5deg) translate(-6px, 2px);
+}
+
+.hb-folder:hover .hb-folder-papers span:last-child {
+    transform: rotate(3deg) translate(4px, -2px);
+}
+
+.hb-folder:hover .hb-folder-front {
+    transform: rotateX(-7deg);
+    border-color: var(--color-hb-lavender);
+}
+
+.hb-folder.is-opening .hb-folder-papers {
+    transform: translateY(-2.6rem);
+    transition-duration: 0.45s;
+}
+
+.hb-folder.is-opening .hb-folder-front {
+    transform: rotateX(-28deg) translateY(4px);
+    transition-duration: 0.45s;
+}
+
+.hb-folder:has(:focus-visible) {
+    outline: 2px solid var(--color-hb-lavender);
+    outline-offset: 4px;
+}
+
+/* The folder's button: sinks in when pressed and springs back, like a DaisyUI button. */
+.hb-card-cta {
+    display: inline-flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.25rem;
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.55rem 0.6rem;
+    border: 1px solid var(--color-hb-purple-line);
+    border-radius: 3px;
+    background: var(--color-hb-purple);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.12), 0 2px 0 rgb(0 0 0 / 0.45);
+    color: #fff;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: transform 0.2s var(--hb-folder-ease, ease), background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hb-card-cta:focus-visible {
+    outline: none;
+}
+
+.hb-card-cta svg {
+    width: 1rem;
+    height: 1rem;
+    flex-shrink: 0;
+    transition: transform 0.15s ease;
+}
+
+.hb-folder:hover .hb-card-cta {
+    background: #fff;
+    color: var(--color-hb-purple);
+}
+
+.hb-folder:hover .hb-card-cta svg {
+    transform: translateX(3px);
+}
+
+.hb-folder:active .hb-card-cta,
+.hb-file-button:active {
+    transform: scale(0.95);
+    box-shadow: inset 0 2px 4px rgb(0 0 0 / 0.35);
+}
+
+@media (max-width: 24.99rem) {
+    .hb-card-cta-view {
+        display: none;
+    }
+
+    .hb-folder-tab {
+        letter-spacing: 0.1em;
+    }
+}
+
+@media (min-width: 64rem) {
+    .hb-folder {
+        padding-top: 2.95rem;
+    }
+
+    .hb-folder-back {
+        inset: 1.5rem 0 0;
+    }
+
+    .hb-folder-tab {
+        height: calc(1.5rem + 1px);
+        padding-left: 0.85rem;
+        font-size: 10px;
+    }
+
+    .hb-folder-papers {
+        top: 1.9rem;
+    }
+
+    .hb-card-cta {
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        padding: 0.7rem 1rem;
+        font-size: 0.8125rem;
+    }
+}
+
+/* The committee file itself: a sheet of paper that slides up out of the folder. */
+.hb-file-sheet {
+    position: relative;
+    border-radius: 3px;
+    background:
+        radial-gradient(120% 80% at 0% 0%, rgb(255 255 255 / 0.35), transparent 60%),
+        var(--color-hb-parchment);
+    box-shadow: 0 30px 60px -20px rgb(0 0 0 / 0.8);
+    color: #1b1320;
+}
+
+.hb-file-dialog[open] .hb-file-sheet {
+    animation: hb-file-out 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.hb-file-dialog[open]::backdrop {
+    animation: hb-fade-in 0.3s ease;
+}
+
+@keyframes hb-file-out {
+    from { opacity: 0; transform: translateY(70px) rotate(-2deg) scale(0.96); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes hb-fade-in {
+    from { opacity: 0; }
+}
+
+.hb-file-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 3rem;
+    padding: 0 1.75rem;
+    border-radius: 3px;
+    background: var(--color-hb-purple);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.15), 0 2px 0 rgb(0 0 0 / 0.35);
+    color: #fff;
+    font-weight: 600;
+    transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hb-file-button:hover {
+    background: #4d1588;
+}
+
 @media (prefers-reduced-motion: reduce) {
     .hb-marquee { animation: none; }
     .hb-sweep { animation: none; display: none; }
     .hb-stamp { transition: none; }
+    .hb-folder *, .hb-folder:hover *, .hb-folder.is-opening * { transition: none; }
+    .hb-folder:hover .hb-folder-front, .hb-folder.is-opening .hb-folder-front { transform: none; }
+    .hb-file-dialog[open] .hb-file-sheet, .hb-file-dialog[open]::backdrop { animation: none; }
 }
 
 @layer components {
@@ -251,5 +574,13 @@ select:focus[data-flux-control] {
 @keyframes hb-fresh-in {
     from {
         background-color: rgb(169 139 214 / 0.35);
+    }
+}
+
+@media (max-width: 1023px) {
+    /* Phone: page titles stand alone; the explanation under them is for the desktop. */
+    .hb-app [data-flux-main] h1[data-flux-heading] + [data-flux-text],
+    .hb-app [data-flux-main] div:has(> h1[data-flux-heading]) > [data-flux-text] {
+        display: none;
     }
 }

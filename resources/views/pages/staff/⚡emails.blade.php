@@ -66,7 +66,7 @@ new #[Title('Email log')] class extends Component {
         <flux:text class="mt-1">{{ __('Every email the system sends. Emails sent from here don’t appear in the mailbox’s Sent folder, so check here instead.') }}</flux:text>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-3">
+    <div class="grid grid-cols-3 gap-2 sm:gap-4">
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('Sent') }}</flux:text>
             <flux:heading size="xl">{{ $this->sentCount }}</flux:heading>

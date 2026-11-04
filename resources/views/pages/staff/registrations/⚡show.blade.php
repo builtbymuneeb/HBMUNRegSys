@@ -1,22 +1,56 @@
 <?php
 
+use App\Actions\Registrations\AddPaymentScreenshot;
 use App\Actions\Registrations\RejectRegistration;
+use App\Actions\Registrations\RemovePaymentScreenshot;
+use App\Actions\Registrations\UpdateDelegate;
 use App\Actions\Registrations\VerifyRegistration;
+use App\Enums\PortfolioType;
+use App\Enums\RegistrationStatus;
 use App\Models\AuditLog;
+use App\Models\Committee;
 use App\Models\Delegate;
+use App\Models\PaymentScreenshot;
 use App\Models\Registration;
+use App\Models\User;
 use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Locked;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithFileUploads;
 
 new #[Title('Review registration')] class extends Component {
+    use WithFileUploads;
+
     public Registration $registration;
 
     public string $rejectionReason = '';
+
+    /**
+     * A payment slip staff are adding, e.g. a second receipt sent over WhatsApp. Saved as soon as it uploads.
+     */
+    public $newSlip;
+
+    #[Locked]
+    public ?int $editingDelegateId = null;
+
+    /** @var array{name: string, email: string, phone: string, cnic: string, first_committee_id: string, second_committee_id: string, first_preference: string, second_preference: string} */
+    public array $delegateForm = [
+        'name' => '',
+        'email' => '',
+        'phone' => '',
+        'cnic' => '',
+        'first_committee_id' => '',
+        'second_committee_id' => '',
+        'first_preference' => '',
+        'second_preference' => '',
+    ];
 
     /**
      * Mount the component.
@@ -65,6 +99,229 @@ new #[Title('Review registration')] class extends Component {
         $this->reset('rejectionReason');
         Flux::modal('reject-registration')->close();
         Flux::toast(variant: 'success', text: __(':reference rejected. The contact has been emailed.', ['reference' => $this->registration->reference]));
+    }
+
+    /**
+     * Attach the slip that just uploaded to this registration.
+     */
+    public function updatedNewSlip(AddPaymentScreenshot $addPaymentScreenshot): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $this->resetValidation('newSlip');
+
+        $validator = Validator::make(
+            ['newSlip' => $this->newSlip],
+            ['newSlip' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120']],
+            attributes: ['newSlip' => 'payment slip'],
+        );
+
+        if ($validator->fails()) {
+            $this->addError('newSlip', $validator->errors()->first('newSlip'));
+            $this->reset('newSlip');
+
+            return;
+        }
+
+        $addPaymentScreenshot->handle($this->registration, $this->newSlip, Auth::user());
+
+        $this->reset('newSlip');
+        unset($this->paymentScreenshots);
+        Flux::toast(variant: 'success', text: __('Payment slip added.'));
+    }
+
+    /**
+     * Take a slip off this registration, as long as at least one is left.
+     */
+    public function removeSlip(int $screenshotId, RemovePaymentScreenshot $removePaymentScreenshot): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $screenshot = $this->registration->paymentScreenshots()->findOrFail($screenshotId);
+
+        if ($this->registration->paymentScreenshots()->count() <= 1) {
+            Flux::toast(variant: 'warning', text: __('A registration needs at least one payment slip.'));
+
+            return;
+        }
+
+        $removePaymentScreenshot->handle($screenshot, Auth::user());
+
+        unset($this->paymentScreenshots);
+        Flux::toast(variant: 'success', text: __('Payment slip removed.'));
+    }
+
+    /**
+     * @return Collection<int, PaymentScreenshot>
+     */
+    #[Computed]
+    public function paymentScreenshots(): Collection
+    {
+        return $this->registration->paymentScreenshots()->with('uploader')->get();
+    }
+
+    /**
+     * Open the edit form for one of this registration's delegates.
+     */
+    public function editDelegate(int $delegateId): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $delegate = $this->findDelegate($delegateId);
+        $this->resetValidation();
+        $this->editingDelegateId = $delegate->id;
+        $this->delegateForm = [
+            'name' => $delegate->name,
+            'email' => $delegate->email,
+            'phone' => $delegate->phone,
+            'cnic' => $delegate->cnic,
+            'first_committee_id' => (string) $delegate->first_committee_id,
+            'second_committee_id' => (string) $delegate->second_committee_id,
+            'first_preference' => (string) $delegate->preferenceFor($delegate->firstCommittee),
+            'second_preference' => (string) $delegate->preferenceFor($delegate->secondCommittee),
+        ];
+
+        Flux::modal('edit-delegate')->show();
+    }
+
+    /**
+     * Save the corrected details, resending the set-password email if the address changed.
+     */
+    public function saveDelegate(UpdateDelegate $updateDelegate): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $delegate = $this->findDelegate((int) $this->editingDelegateId);
+
+        $this->delegateForm['email'] = trim($this->delegateForm['email']);
+
+        $validated = $this->validate([
+            'delegateForm.name' => ['required', 'string', 'max:255'],
+            'delegateForm.email' => [
+                'required', 'email', 'max:255',
+                function (string $attribute, mixed $value, Closure $fail) use ($delegate) {
+                    $taken = Delegate::query()
+                        ->whereKeyNot($delegate->id)
+                        ->where('email', $value)
+                        ->whereHas('registration', fn ($query) => $query->where('status', '!=', RegistrationStatus::Rejected))
+                        ->exists();
+
+                    if ($taken) {
+                        $fail(__('Another delegate is already registered with this email.'));
+                    }
+                },
+                Rule::unique(User::class, 'email')->ignore($delegate->user_id),
+            ],
+            'delegateForm.phone' => ['required', 'string', 'regex:/^\+?[0-9\s\-]{10,15}$/'],
+            'delegateForm.cnic' => ['required', 'string', 'regex:/^[0-9-]+$/', 'max:30'],
+            'delegateForm.first_committee_id' => ['required', Rule::exists('committees', 'id')],
+            'delegateForm.second_committee_id' => ['required', Rule::exists('committees', 'id'), 'different:delegateForm.first_committee_id'],
+            'delegateForm.first_preference' => ['nullable', 'string', 'max:255', $this->onFormPreferenceList('first')],
+            'delegateForm.second_preference' => ['nullable', 'string', 'max:255', $this->onFormPreferenceList('second')],
+        ], attributes: [
+            'delegateForm.name' => 'full name',
+            'delegateForm.email' => 'email',
+            'delegateForm.phone' => 'phone number',
+            'delegateForm.cnic' => 'CNIC / B-Form',
+            'delegateForm.first_committee_id' => '1st committee',
+            'delegateForm.second_committee_id' => '2nd committee',
+            'delegateForm.first_preference' => '1st committee preference',
+            'delegateForm.second_preference' => '2nd committee preference',
+        ], messages: [
+            'delegateForm.email.unique' => __('This email already belongs to another account.'),
+        ])['delegateForm'];
+
+        $validated['first_preference'] = $validated['first_preference'] ?: null;
+        $validated['second_preference'] = $validated['second_preference'] ?: null;
+
+        $emailed = $updateDelegate->handle($delegate, Auth::user(), $validated);
+
+        $this->registration->refresh();
+        unset($this->delegates, $this->auditLogs);
+        $this->editingDelegateId = null;
+
+        Flux::modal('edit-delegate')->close();
+        Flux::toast(variant: 'success', text: $emailed
+            ? __('Saved. A new set-password email is on its way to :email.', ['email' => $delegate->email])
+            : __(':name’s details are saved.', ['name' => $delegate->name]));
+    }
+
+    /**
+     * Send a delegate a fresh set-password link, for when the first one was lost or expired.
+     */
+    public function resendSetPassword(int $delegateId, UpdateDelegate $updateDelegate): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $delegate = $this->findDelegate($delegateId);
+
+        if (! $delegate->user) {
+            Flux::toast(variant: 'warning', text: __('This delegate has no account yet. Verify the registration first.'));
+
+            return;
+        }
+
+        $updateDelegate->sendSetPasswordLink($delegate->user);
+        AuditLog::record('set_password_resent', $this->registration, Auth::user(), ['reason' => $delegate->user->email]);
+        unset($this->auditLogs);
+
+        Flux::toast(variant: 'success', text: __('Set-password email sent to :email.', ['email' => $delegate->user->email]));
+    }
+
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Committee>
+     */
+    #[Computed]
+    public function committees(): Collection
+    {
+        return Committee::ordered()->get();
+    }
+
+    /**
+     * The committee picked as the 1st or 2nd choice in the edit form.
+     */
+    public function formCommittee(string $slot): ?Committee
+    {
+        $id = $this->delegateForm[$slot.'_committee_id'] ?? null;
+
+        return $id ? $this->committees->firstWhere('id', (int) $id) : null;
+    }
+
+    /**
+     * The same choices the registration form offers for one committee choice: that committee's
+     * public list, or null to type freely when the committee keeps its list secret.
+     *
+     * @return list<string>|null
+     */
+    public function formPreferenceOptions(string $slot): ?array
+    {
+        return $this->formCommittee($slot)?->publicPortfolioOptions();
+    }
+
+    /**
+     * A new committee starts with a blank preference, as on the registration form.
+     */
+    public function updatedDelegateForm(mixed $value, string $key): void
+    {
+        if (in_array($key, ['first_committee_id', 'second_committee_id'], true)) {
+            $this->delegateForm[str_replace('_committee_id', '', $key).'_preference'] = '';
+        }
+    }
+
+    private function onFormPreferenceList(string $slot): Closure
+    {
+        return function (string $attribute, mixed $value, Closure $fail) use ($slot): void {
+            $options = $this->formPreferenceOptions($slot);
+
+            if ($options !== null && ! in_array($value, $options, true)) {
+                $fail(__('Choose the :attribute from the list.'));
+            }
+        };
+    }
+
+    private function findDelegate(int $delegateId): Delegate
+    {
+        return $this->registration->delegates()->with('user')->findOrFail($delegateId);
     }
 
     public function useReason(string $reason): void
@@ -131,10 +388,49 @@ new #[Title('Review registration')] class extends Component {
                 <flux:heading size="lg">{{ __('Payment') }}</flux:heading>
                 <flux:heading size="lg">PKR {{ number_format($registration->amount_due) }}</flux:heading>
             </div>
-            <a href="{{ route('staff.registrations.payment-screenshot', $registration) }}" target="_blank" class="block overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
-                <img src="{{ route('staff.registrations.payment-screenshot', $registration) }}" alt="{{ __('Payment screenshot for :reference', ['reference' => $registration->reference]) }}" class="max-h-[640px] w-full object-contain bg-zinc-100 dark:bg-zinc-900">
-            </a>
-            <flux:text class="text-xs">{{ __('Click the screenshot to open it full size.') }}</flux:text>
+            @foreach ($this->paymentScreenshots as $screenshot)
+                <div class="flex flex-col gap-2" wire:key="slip-{{ $screenshot->id }}">
+                    <a href="{{ route('staff.registrations.payment-screenshot', [$registration, $screenshot]) }}" target="_blank" class="block overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
+                        <img src="{{ route('staff.registrations.payment-screenshot', [$registration, $screenshot]) }}" alt="{{ __('Payment screenshot :number for :reference', ['number' => $loop->iteration, 'reference' => $registration->reference]) }}" class="max-h-[640px] w-full object-contain bg-zinc-100 dark:bg-zinc-900">
+                    </a>
+                    <div class="flex items-center justify-between gap-3">
+                        <flux:text class="text-xs">
+                            @if ($this->paymentScreenshots->count() > 1)
+                                {{ __('Slip :number of :total', ['number' => $loop->iteration, 'total' => $this->paymentScreenshots->count()]) }} ·
+                            @endif
+                            {{ $screenshot->uploader ? __('Added by :name, :date', ['name' => $screenshot->uploader->name, 'date' => $screenshot->created_at?->format('j M, g:i a')]) : __('Uploaded by the registrant') }}
+                        </flux:text>
+                        @if ($this->canReview && $this->paymentScreenshots->count() > 1)
+                            <flux:button size="xs" variant="ghost" icon="trash" wire:click="removeSlip({{ $screenshot->id }})" wire:confirm="{{ __('Remove this payment slip from the registration?') }}">{{ __('Remove') }}</flux:button>
+                        @endif
+                    </div>
+                </div>
+            @endforeach
+            <flux:text class="text-xs">{{ __('Click a screenshot to open it full size.') }}</flux:text>
+
+            @if ($this->canReview)
+                <div class="flex flex-col gap-2"
+                    x-data="{
+                        uploading: false,
+                        async pick(input) {
+                            const files = [...input.files];
+                            input.value = '';
+                            this.uploading = true;
+                            for (const file of files) {
+                                await new Promise((done) => this.$wire.$upload('newSlip', file, done, done));
+                            }
+                            this.uploading = false;
+                        },
+                    }">
+                    <label class="inline-flex cursor-pointer items-center gap-2 self-start rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium hover:bg-zinc-50 has-focus-visible:outline-2 dark:border-zinc-700 dark:hover:bg-zinc-800">
+                        <flux:icon.plus variant="mini" />
+                        <span x-text="uploading ? @js(__('Uploading…')) : @js(__('Add payment slip'))">{{ __('Add payment slip') }}</span>
+                        <input type="file" multiple accept=".jpg,.jpeg,.png" class="sr-only" x-on:change="pick($el)" data-test="add-slip">
+                    </label>
+                    <flux:text class="text-xs">{{ __('For a receipt the delegation sent separately. JPG, JPEG or PNG, up to 5 MB each.') }}</flux:text>
+                    <flux:error name="newSlip" />
+                </div>
+            @endif
         </flux:card>
 
         <div class="flex flex-col gap-6">
@@ -176,15 +472,22 @@ new #[Title('Review registration')] class extends Component {
                                 <div class="font-medium text-zinc-800 dark:text-white">{{ $delegate->name }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ $delegate->email }} · {{ $delegate->phone }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('CNIC') }} {{ $delegate->cnic }}</div>
+                                @if ($this->canReview)
+                                    <div class="mt-2 flex flex-wrap gap-1.5">
+                                        <flux:button size="xs" icon="pencil-square" wire:click="editDelegate({{ $delegate->id }})" data-test="edit-delegate-{{ $delegate->id }}">{{ __('Edit details') }}</flux:button>
+                                        @if ($delegate->user)
+                                            <flux:button size="xs" icon="envelope" wire:click="resendSetPassword({{ $delegate->id }})" wire:confirm="{{ __('Send a new set-password email to :email?', ['email' => $delegate->user->email]) }}" data-test="resend-set-password-{{ $delegate->id }}">{{ __('Resend set-password email') }}</flux:button>
+                                        @endif
+                                    </div>
+                                @endif
                             </div>
                             <div>
                                 <div>1. {{ $delegate->firstCommittee->code }} · 2. {{ $delegate->secondCommittee->code }}</div>
-                                @if ($delegate->country_preference)
-                                    <div class="text-zinc-500 dark:text-zinc-400">{{ __('Country') }}: {{ $delegate->country_preference }}</div>
-                                @endif
-                                @if ($delegate->personality_preference)
-                                    <div class="text-zinc-500 dark:text-zinc-400">{{ __('Personality') }}: {{ $delegate->personality_preference }}</div>
-                                @endif
+                                @foreach ([$delegate->firstCommittee, $delegate->secondCommittee] as $choice)
+                                    @if ($preference = $delegate->preferenceFor($choice))
+                                        <div class="text-zinc-500 dark:text-zinc-400">{{ $choice->code }}: {{ $preference }}</div>
+                                    @endif
+                                @endforeach
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('Experience') }}: {{ $delegate->mun_experience ? __($delegate->mun_experience->label()) : __('Not given') }}</div>
                                 @if ($delegate->user)
                                     <div class="mt-2 flex flex-col gap-1.5">
@@ -245,6 +548,54 @@ new #[Title('Review registration')] class extends Component {
                     <flux:button variant="primary" wire:click="verify" data-test="confirm-verify">{{ __('Verify payment') }}</flux:button>
                 </div>
             </div>
+        </flux:modal>
+
+        <flux:modal name="edit-delegate" class="w-full md:w-xl">
+            <form wire:submit="saveDelegate" class="flex flex-col gap-5">
+                <div>
+                    <flux:heading size="lg">{{ __('Edit delegate') }}</flux:heading>
+                    <flux:text class="mt-1">{{ __('A new email address gets a fresh set-password link.') }}</flux:text>
+                </div>
+                <div class="grid gap-4 sm:grid-cols-2">
+                    <flux:input wire:model="delegateForm.name" :label="__('Full name')" class="sm:col-span-2" />
+                    <flux:input wire:model="delegateForm.email" type="email" :label="__('Email')" class="sm:col-span-2" data-test="delegate-email" />
+                    <flux:input wire:model="delegateForm.phone" :label="__('Phone')" />
+                    <flux:input wire:model="delegateForm.cnic" :label="__('CNIC / B-Form')" />
+                    <flux:select wire:model.live="delegateForm.first_committee_id" :label="__('1st committee')">
+                        @foreach ($this->committees as $committee)
+                            <flux:select.option :value="$committee->id">{{ $committee->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    <flux:select wire:model.live="delegateForm.second_committee_id" :label="__('2nd committee')">
+                        @foreach ($this->committees as $committee)
+                            <flux:select.option :value="$committee->id">{{ $committee->label() }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                    @foreach (['first', 'second'] as $slot)
+                        @if ($chosen = $this->formCommittee($slot))
+                            @php($isCharacter = $chosen->portfolio_type === PortfolioType::Character)
+                            @php($example = $chosen->code === 'SPECIAL' ? __('Tony Stark / Iron Man') : ($isCharacter ? __('Maryam Nawaz') : __('France')))
+                            @php($pickerLabel = $chosen->code === 'SPECIAL' ? __('Marvel character') : __(':committee :kind', ['committee' => $chosen->code, 'kind' => $isCharacter ? __('personality') : __('country')]))
+                            @php($options = $this->formPreferenceOptions($slot))
+                            <flux:field wire:key="{{ $slot }}-pref-{{ $editingDelegateId }}-{{ $chosen->id }}">
+                                <flux:label>{{ $pickerLabel }}</flux:label>
+                                @if ($options === null)
+                                    <flux:input wire:model="delegateForm.{{ $slot }}_preference" :placeholder="__('e.g. :example', ['example' => $example])" data-test="delegate-{{ $slot }}_preference" />
+                                @else
+                                    <x-portfolio-select wire:model="delegateForm.{{ $slot }}_preference" variant="staff" :options="$options" :placeholder="__('Search, e.g. :example', ['example' => $example])" data-test="delegate-{{ $slot }}_preference" />
+                                @endif
+                                <flux:error name="delegateForm.{{ $slot }}_preference" />
+                            </flux:field>
+                        @endif
+                    @endforeach
+                </div>
+                <div class="flex justify-end gap-2">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                    </flux:modal.close>
+                    <flux:button type="submit" variant="primary" data-test="save-delegate">{{ __('Save') }}</flux:button>
+                </div>
+            </form>
         </flux:modal>
 
         <flux:modal name="reject-registration" class="md:w-lg">

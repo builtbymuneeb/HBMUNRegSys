@@ -1,6 +1,6 @@
 @props(['label', 'name', 'hint' => null])
 
-<div {{ $attributes->class(['flex min-w-0 flex-col gap-2', '[&_.hb-input]:border-red-400' => $errors->has($name)]) }}>
+<div @error($name) data-invalid @enderror {{ $attributes->class(['flex min-w-0 flex-col gap-2', '[&_.hb-input]:border-red-400' => $errors->has($name)]) }}>
     <label class="flex flex-col gap-2">
         <span class="hb-label">{{ $label }}</span>
         {{ $slot }}

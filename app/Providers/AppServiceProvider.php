@@ -43,6 +43,8 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-staff', fn (User $user): bool => $user->isAdmin());
         Gate::define('manage-conference', fn (User $user): bool => $user->canManageConference());
         Gate::define('manage-ambassadors', fn (User $user): bool => $user->canManageAmbassadors());
+        Gate::define('use-inbox', fn (User $user): bool => $user->canUseInbox());
+        Gate::define('use-ambassador-portal', fn (User $user): bool => $user->isAmbassador());
 
         Event::listen(MessageSent::class, [RecordMail::class, 'sent']);
         Event::listen(JobFailed::class, [RecordMail::class, 'failed']);

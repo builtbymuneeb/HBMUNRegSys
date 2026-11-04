@@ -143,7 +143,7 @@ new #[Title('Visitors')] class extends Component {
         </flux:radio.group>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+    <div class="grid grid-cols-2 gap-2 sm:gap-4 lg:grid-cols-5">
         <flux:card class="flex flex-col gap-1">
             <flux:text>{{ __('On the site now') }}</flux:text>
             <flux:heading size="xl" class="flex items-center gap-2">

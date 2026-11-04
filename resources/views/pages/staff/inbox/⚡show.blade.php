@@ -46,7 +46,7 @@ new #[Title('Inbox')] class extends Component {
 
     public function sendReply(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('use-inbox');
 
         $this->validate(['reply' => ['required', 'string', 'max:5000']], attributes: ['reply' => __('reply')]);
 
@@ -99,7 +99,7 @@ new #[Title('Inbox')] class extends Component {
             <flux:heading size="xl" level="1">{{ $message->displayName() }}</flux:heading>
             <flux:text class="mt-1 flex flex-wrap items-center gap-2">
                 <a href="mailto:{{ $message->email }}" class="underline decoration-zinc-500 underline-offset-2">{{ $message->email }}</a>
-                @if ($ambassador = $this->conversation->pluck('ambassador')->filter()->first())
+                @if (auth()->user()->can('manage-ambassadors') && ($ambassador = $this->conversation->pluck('ambassador')->filter()->first()))
                     <flux:badge size="sm" color="purple" icon="ticket" :href="route('staff.ambassadors.show', $ambassador)" wire:navigate>
                         {{ __('Campus ambassador :code', ['code' => $ambassador->code]) }}
                     </flux:badge>
@@ -123,7 +123,7 @@ new #[Title('Inbox')] class extends Component {
                     <div>
                         <flux:heading>{{ $item->subject ?: __('(no subject)') }}</flux:heading>
                         <flux:text class="text-xs">
-                            {{ $item->isIncoming() ? __('From :name', ['name' => $item->displayName()]) : __('Reply by :name', ['name' => $item->sender?->name ?? __('staff')]) }}
+                            {{ $item->isIncoming() ? __('From :name', ['name' => $item->displayName()]) : __('Sent by :name', ['name' => $item->sender?->name ?? __('staff')]) }}
                         </flux:text>
                     </div>
                     <flux:text class="text-xs whitespace-nowrap">{{ $item->received_at->timezone('Asia/Karachi')->format('j M Y, g:i a') }}</flux:text>

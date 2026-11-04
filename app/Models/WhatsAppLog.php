@@ -42,6 +42,9 @@ class WhatsAppLog extends Model
     /** A campus ambassador, with a message staff wrote. */
     public const AMBASSADOR_MESSAGE = 'ambassador_message';
 
+    /** A campus ambassador, pointing them to the portal set-password email. */
+    public const AMBASSADOR_PORTAL = 'ambassador_portal';
+
     /**
      * @return BelongsTo<User, $this>
      */

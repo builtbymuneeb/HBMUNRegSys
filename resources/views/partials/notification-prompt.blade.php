@@ -1,11 +1,9 @@
 {{-- Asks the delegate to allow browser notifications, until they answer or dismiss it. --}}
 <div x-data="{ state: window.hbNotifications.state() }" x-show="state === 'default'" x-cloak>
-    <flux:callout icon="bell-alert" color="purple" inline>
-        <flux:callout.heading>{{ __('Get notified about updates') }}</flux:callout.heading>
-        <flux:callout.text>{{ __('Turn on notifications to hear about new announcements, study guides, your allocation and session changes, even when the dashboard is closed.') }}</flux:callout.text>
-        <x-slot name="actions">
-            <flux:button size="sm" variant="primary" x-on:click="state = await window.hbNotifications.enable()">{{ __('Turn on') }}</flux:button>
-            <flux:button size="sm" variant="ghost" x-on:click="window.hbNotifications.dismiss(); state = 'dismissed'">{{ __('Not now') }}</flux:button>
-        </x-slot>
-    </flux:callout>
+    <div class="hb-list flex items-center gap-3 p-3">
+        <span class="hb-icon-tile"><flux:icon name="bell-alert" class="size-5" /></span>
+        <span class="min-w-0 flex-1 text-sm font-semibold text-zinc-900 dark:text-white">{{ __('Get notified about updates') }}</span>
+        <flux:button size="sm" variant="primary" x-on:click="state = await window.hbNotifications.enable()">{{ __('Turn on') }}</flux:button>
+        <button type="button" class="p-1 text-zinc-400" x-on:click="window.hbNotifications.dismiss(); state = 'dismissed'" aria-label="{{ __('Not now') }}"><flux:icon.x-mark variant="micro" /></button>
+    </div>
 </div>

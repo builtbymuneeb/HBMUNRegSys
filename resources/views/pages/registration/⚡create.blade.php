@@ -5,8 +5,10 @@ use App\Enums\MunExperience;
 use App\Enums\PortfolioType;
 use App\Enums\RegistrationStatus;
 use App\Enums\RegistrationType;
+use App\Livewire\Concerns\CollectsPaymentScreenshots;
 use App\Models\Committee;
 use App\Models\Delegate;
+use App\Models\PaymentScreenshot;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -21,6 +23,7 @@ use Livewire\Component;
 use Livewire\WithFileUploads;
 
 new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
+    use CollectsPaymentScreenshots;
     use WithFileUploads;
 
     /**
@@ -33,10 +36,28 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         4 => 'Payment',
     ];
 
+    /**
+     * What each step asks for, shown under its name so nobody wonders how long the form is.
+     */
+    public const STEP_HINTS = [
+        1 => 'Contact details',
+        2 => 'Names & committees',
+        3 => 'Check everything',
+        4 => 'Pay & upload',
+    ];
+
     #[Url]
     public string $type = 'institution_delegation';
 
     public int $step = 1;
+
+    /**
+     * Steps the registrant has already been on and left. Nothing blocks moving on, so these
+     * are the steps whose missing or wrong fields are flagged, here and on the step list.
+     *
+     * @var list<int>
+     */
+    public array $visited = [];
 
     /** @var array{organisation_name: string, city: string, name: string, cnic: string, phone: string, email: string, referral_code: string} */
     public array $contact = [
@@ -54,12 +75,15 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
      */
     public ?int $delegateCount = null;
 
-    /** @var list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: string, second_committee_id: string, country_preference: string, personality_preference: string, mun_experience: string}> */
+    /** @var list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: string, second_committee_id: string, first_preference: string, second_preference: string, mun_experience: string}> */
     public array $delegates = [];
 
-    public $paymentScreenshot;
-
     public bool $confirmed = false;
+
+    /**
+     * Whether submitting has been tried; only then is the payment step flagged too.
+     */
+    public bool $attemptedSubmit = false;
 
     public bool $restoredDraft = false;
 
@@ -89,13 +113,14 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     public function updatedType(): void
     {
         $this->ensureKnownType();
-        $this->resetValidation();
         $this->syncDelegateCount();
+        $this->recheckIfFlagged();
     }
 
     public function updatedDelegateCount(): void
     {
         $this->syncDelegateCount();
+        $this->recheckIfFlagged();
     }
 
     #[Computed]
@@ -120,56 +145,33 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     }
 
     /**
-     * Whether the delegate picked a committee where portfolios of this type are allocated.
+     * The committee the delegate chose as their 1st or 2nd choice, once they have picked one.
      */
-    public function delegateNeedsPortfolio(int $index, PortfolioType $portfolioType): bool
+    public function chosenCommittee(int $index, string $slot): ?Committee
     {
-        $chosen = array_filter([
-            $this->delegates[$index]['first_committee_id'] ?? null,
-            $this->delegates[$index]['second_committee_id'] ?? null,
-        ]);
+        $id = $this->delegates[$index][$slot.'_committee_id'] ?? null;
 
-        return $this->committees
-            ->whereIn('id', $chosen)
-            ->contains('portfolio_type', $portfolioType);
+        return $id ? $this->committees->firstWhere('id', (int) $id) : null;
     }
 
     /**
-     * What the delegate may pick as their preference of this type: the public lists of the
-     * committees they chose, combined. Null means they type it freely, because one of those
-     * committees has no public list (the Special Committee keeps its cast secret).
+     * What the delegate may pick as their preference for one committee choice: that committee's
+     * public list. Null means they type it freely, because the committee keeps its list secret
+     * (the Special Committee's cast).
      *
      * @return list<string>|null
      */
-    public function preferenceOptions(int $index, PortfolioType $portfolioType): ?array
+    public function preferenceOptions(int $index, string $slot): ?array
     {
-        $chosen = array_filter([
-            $this->delegates[$index]['first_committee_id'] ?? null,
-            $this->delegates[$index]['second_committee_id'] ?? null,
-        ]);
-
-        $options = [];
-
-        foreach ($this->committees->whereIn('id', $chosen)->where('portfolio_type', $portfolioType) as $committee) {
-            $list = $committee->publicPortfolioOptions();
-
-            if ($list === null) {
-                return null;
-            }
-
-            array_push($options, ...$list);
-        }
-
-        return array_values(array_unique($options));
+        return $this->chosenCommittee($index, $slot)?->publicPortfolioOptions();
     }
 
     /**
-     * Check the current step's fields, then move on to the next step.
+     * Move on to the next step. Nothing blocks this: anything missing is flagged instead,
+     * and has to be fixed before the registration can be submitted.
      */
     public function next(): void
     {
-        $this->validateStep($this->step);
-
         $this->goTo(min($this->step + 1, array_key_last(self::STEPS)));
     }
 
@@ -179,18 +181,78 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     }
 
     /**
-     * Jump back to an earlier step, e.g. "Edit" on the review step.
+     * Jump to any step, from the step list or "Edit"/"Fix" on the review step.
      */
     public function editStep(int $step): void
     {
-        if ($step >= 1 && $step < $this->step) {
+        if (array_key_exists($step, self::STEPS)) {
             $this->goTo($step);
         }
     }
 
     /**
+     * Once a flagged field changes, check the flagged steps again so fixed fields clear.
+     */
+    public function updated(string $property): void
+    {
+        // A preference belongs to the committee it was picked for, so a new committee starts blank.
+        if (preg_match('/^delegates\.(\d+)\.(first|second)_committee_id$/', $property, $match)) {
+            $this->delegates[(int) $match[1]][$match[2].'_preference'] = '';
+        }
+
+        if (! in_array($property, ['type', 'delegateCount', 'newScreenshot'], true)) {
+            $this->recheckIfFlagged();
+        }
+    }
+
+    /**
+     * The steps that have something to fix, among those already left.
+     *
+     * @return list<int>
+     */
+    public function stepsWithIssues(): array
+    {
+        return collect($this->getErrorBag()->keys())
+            ->map(fn (string $field) => $this->stepForField($field))
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Labels for what is wrong on a step, e.g. "Delegate 2: email", for the review checklist.
+     *
+     * @return list<string>
+     */
+    public function issuesOnStep(int $step): array
+    {
+        $attributes = $this->validationAttributes();
+
+        return collect($this->getErrorBag()->keys())
+            ->filter(fn (string $field) => $this->stepForField($field) === $step)
+            ->map(function (string $field) use ($attributes) {
+                if (preg_match('/^delegates\.(\d+)\.(.+)$/', $field, $matches)) {
+                    return __('Delegate :number: :field', [
+                        'number' => $matches[1] + 1,
+                        'field' => $attributes['delegates.*.'.$matches[2]] ?? $matches[2],
+                    ]);
+                }
+
+                if (Str::startsWith($field, 'paymentScreenshots')) {
+                    return Str::ucfirst($attributes['paymentScreenshots']);
+                }
+
+                return $field === 'delegates' ? __('Number of delegates') : Str::ucfirst($attributes[$field] ?? $field);
+            })
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
      * Fill the form from a draft the browser saved, landing on the furthest step
-     * whose earlier steps are still valid. The payment screenshot is never saved.
+     * whose earlier steps are still valid. The payment screenshots are never saved.
      *
      * @param  array<string, mixed>  $draft
      */
@@ -220,21 +282,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             }
         }
 
-        $target = max(1, min((int) ($draft['step'] ?? 1), array_key_last(self::STEPS)));
-        $step = 1;
-
-        while ($step < $target) {
-            try {
-                $this->validateStep($step);
-            } catch (ValidationException) {
-                break;
-            }
-
-            $step++;
-        }
-
-        $this->resetValidation();
-        $this->step = $step;
+        $this->step = max(1, min((int) ($draft['step'] ?? 1), array_key_last(self::STEPS)));
+        $this->visited = range(1, $this->step - 1);
+        $this->checkVisitedSteps();
         $this->restoredDraft = true;
     }
 
@@ -243,7 +293,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
      */
     public function startOver(): void
     {
-        $this->reset('contact', 'delegates', 'delegateCount', 'paymentScreenshot', 'confirmed', 'restoredDraft');
+        $this->reset('contact', 'delegates', 'delegateCount', 'paymentScreenshots', 'newScreenshot', 'confirmed', 'restoredDraft', 'visited', 'attemptedSubmit');
         $this->type = RegistrationType::InstitutionDelegation->value;
         $this->contact['referral_code'] = $this->linkReferralCode;
         $this->resetValidation();
@@ -260,15 +310,19 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         try {
             $validated = $this->validate();
         } catch (ValidationException $exception) {
+            // Everything counts as seen now, so every step's problems are flagged.
+            $this->visited = array_keys(self::STEPS);
+            $this->attemptedSubmit = true;
             $this->step = $this->stepForErrors(array_keys($exception->errors()));
+            $this->focusFirstError();
 
             throw $exception;
         }
 
         $delegates = array_map(fn (array $delegate) => [
             ...Arr::only($delegate, ['name', 'cnic', 'email', 'phone', 'first_committee_id', 'second_committee_id']),
-            'country_preference' => $delegate['country_preference'] ?: null,
-            'personality_preference' => $delegate['personality_preference'] ?: null,
+            'first_preference' => $delegate['first_preference'] ?: null,
+            'second_preference' => $delegate['second_preference'] ?: null,
             'mun_experience' => MunExperience::tryFrom($delegate['mun_experience'] ?? ''),
         ], $validated['delegates']);
 
@@ -277,7 +331,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'referral_code' => Str::upper(trim($validated['contact']['referral_code'] ?? '')) ?: null,
         ];
 
-        $registration = $submitRegistration->handle($this->registrationType, $contact, $delegates, $this->paymentScreenshot);
+        $registration = $submitRegistration->handle($this->registrationType, $contact, $delegates, $this->paymentScreenshots);
 
         $this->submittedReference = $registration->reference;
         $this->dispatch('registration-draft-cleared');
@@ -291,7 +345,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     {
         $type = $this->registrationType;
         $phone = ['required', 'string', 'regex:/^\+?[0-9\s\-]{10,15}$/'];
-        $cnic = ['required', 'string', 'regex:/^\d{5}-?\d{7}-?\d$/'];
+        $cnic = ['required', 'string', 'regex:/^\d+$/', 'max:30'];
 
         return [
             'type' => ['required', Rule::enum(RegistrationType::class)],
@@ -309,10 +363,10 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.phone' => $phone,
             'delegates.*.first_committee_id' => ['required', Rule::exists('committees', 'id')],
             'delegates.*.second_committee_id' => ['required', Rule::exists('committees', 'id'), 'different:delegates.*.first_committee_id'],
-            'delegates.*.country_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Country)],
-            'delegates.*.personality_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList(PortfolioType::Character)],
+            'delegates.*.first_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList('first')],
+            'delegates.*.second_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList('second')],
             'delegates.*.mun_experience' => ['nullable', Rule::enum(MunExperience::class)],
-            'paymentScreenshot' => ['required', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+            ...$this->paymentScreenshotsRules(),
             'confirmed' => ['accepted'],
         ];
     }
@@ -336,10 +390,11 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.phone' => 'phone number',
             'delegates.*.first_committee_id' => '1st committee',
             'delegates.*.second_committee_id' => '2nd committee',
-            'delegates.*.country_preference' => 'country preference',
-            'delegates.*.personality_preference' => 'personality preference',
+            'delegates.*.first_preference' => '1st committee preference',
+            'delegates.*.second_preference' => '2nd committee preference',
             'delegates.*.mun_experience' => 'previous MUN experience',
-            'paymentScreenshot' => 'payment screenshot',
+            'paymentScreenshots' => 'payment screenshot',
+            'paymentScreenshots.*' => 'payment screenshot',
         ];
     }
 
@@ -350,10 +405,11 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     {
         return [
             'delegates.*.second_committee_id.different' => 'Choose a different committee from the 1st preference.',
-            'delegates.*.cnic.regex' => 'Enter a 13-digit CNIC / B-Form number, e.g. 35202-1234567-1.',
-            'contact.cnic.regex' => 'Enter a 13-digit CNIC / B-Form number, e.g. 35202-1234567-1.',
+            'delegates.*.cnic.regex' => 'The ID number can only contain digits.',
+            'contact.cnic.regex' => 'The ID number can only contain digits.',
             'delegates.*.email.distinct' => 'Each delegate needs their own email address.',
             'delegates.*.cnic.distinct' => 'Each delegate needs their own CNIC / B-Form number.',
+            'paymentScreenshots.max' => 'You can upload up to :max screenshots.',
             'confirmed.accepted' => 'Please confirm your details and payment amount.',
             'delegates.required' => 'Choose how many delegates are in your delegation.',
         ];
@@ -395,8 +451,64 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
     private function goTo(int $step): void
     {
+        if (! in_array($this->step, $this->visited, true)) {
+            $this->visited[] = $this->step;
+        }
+
+        // Review and payment look over everything, so steps 1 and 2 count as seen from there.
+        if ($step >= 3) {
+            $this->visited = array_values(array_unique([...$this->visited, 1, 2]));
+        }
+
         $this->step = $step;
+        $this->checkVisitedSteps();
         $this->js("document.getElementById('registration-steps')?.scrollIntoView({ behavior: 'smooth', block: 'start' })");
+    }
+
+    private function recheckIfFlagged(): void
+    {
+        if ($this->getErrorBag()->isNotEmpty()) {
+            $this->checkVisitedSteps();
+        }
+    }
+
+    /**
+     * Flag the problems on every step already left, without stopping the registrant.
+     * The payment step is only checked once submitting has been tried.
+     */
+    private function checkVisitedSteps(): void
+    {
+        $this->resetValidation();
+        $errors = [];
+
+        foreach ($this->attemptedSubmit ? $this->visited : array_diff($this->visited, [4]) as $step) {
+            try {
+                $this->validateStep($step);
+            } catch (ValidationException $exception) {
+                $errors += $exception->errors();
+            }
+        }
+
+        foreach ($errors as $field => $messages) {
+            foreach ($messages as $message) {
+                $this->addError($field, $message);
+            }
+        }
+    }
+
+    /**
+     * After the page shows the step with the problem, scroll to and focus its first flagged field.
+     */
+    private function focusFirstError(): void
+    {
+        $this->js(<<<'JS'
+            setTimeout(() => {
+                const field = document.querySelector('[data-invalid]');
+                if (! field) return;
+                field.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                field.querySelector('input:not([type=hidden]), select, textarea')?.focus({ preventScroll: true });
+            }, 50);
+        JS);
     }
 
     private function cleanString(mixed $value): string
@@ -410,10 +522,10 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     /**
      * A preference must be on the list the delegate was shown, when they were shown one.
      */
-    private function onPreferenceList(PortfolioType $portfolioType): Closure
+    private function onPreferenceList(string $slot): Closure
     {
-        return function (string $attribute, mixed $value, Closure $fail) use ($portfolioType): void {
-            $options = $this->preferenceOptions((int) explode('.', $attribute)[1], $portfolioType);
+        return function (string $attribute, mixed $value, Closure $fail) use ($slot): void {
+            $options = $this->preferenceOptions((int) explode('.', $attribute)[1], $slot);
 
             if ($options !== null && ! in_array($value, $options, true)) {
                 $fail(__('Choose your :attribute from the list.'));
@@ -465,8 +577,8 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'phone' => '',
             'first_committee_id' => '',
             'second_committee_id' => '',
-            'country_preference' => '',
-            'personality_preference' => '',
+            'first_preference' => '',
+            'second_preference' => '',
             'mun_experience' => '',
         ];
 
@@ -537,23 +649,54 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
             <div class="flex min-w-0 flex-[2_1_600px] flex-col gap-8">
                 {{-- Progress --}}
+                @php($stepsWithIssues = $this->stepsWithIssues())
                 <ol id="registration-steps" class="grid scroll-mt-6 grid-cols-4 gap-2" aria-label="{{ __('Registration steps') }}">
                     @foreach ($this::STEPS as $number => $label)
+                        @php($flagged = in_array($number, $stepsWithIssues, true) && $number !== $step)
+                        @php($done = in_array($number, $visited, true) && ! in_array($number, $stepsWithIssues, true))
                         <li wire:key="step-{{ $number }}">
-                            <button type="button" wire:click="editStep({{ $number }})" @disabled($number >= $step)
+                            <button type="button" wire:click="editStep({{ $number }})" @disabled($number === $step)
                                 @if ($number === $step) aria-current="step" @endif
+                                data-test="step-tab-{{ $number }}"
                                 @class([
-                                    'flex w-full flex-col items-start gap-1.5 border-t-2 pt-3 text-left transition',
+                                    'flex w-full flex-col items-start gap-1 border-t-2 pt-3 text-left transition',
                                     'border-white text-white' => $number === $step,
-                                    'border-[#a98bd6] text-hb-lavender hover:text-white' => $number < $step,
-                                    'cursor-default border-[#3a3542] text-hb-subtle' => $number > $step,
+                                    'border-amber-300 text-amber-200 hover:text-white' => $flagged,
+                                    'border-[#a98bd6] text-hb-lavender hover:text-white' => $number !== $step && ! $flagged && $done,
+                                    'border-[#3a3542] text-hb-subtle hover:text-hb-soft' => $number !== $step && ! $flagged && ! $done,
                                 ])>
-                                <span class="font-display text-xs tracking-[0.2em]">{{ __('Step :number', ['number' => $number]) }}</span>
+                                <span class="flex items-center gap-1.5 font-display text-xs tracking-[0.2em]">
+                                    {{ __('Step :number', ['number' => $number]) }}
+                                    @if ($flagged)
+                                        <span class="inline-flex size-4 items-center justify-center rounded-full bg-amber-300 text-[10px] font-bold tracking-normal text-black" aria-hidden="true">!</span>
+                                        <span class="sr-only">{{ __('(needs attention)') }}</span>
+                                    @elseif ($done && $number !== $step)
+                                        <svg class="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5" /></svg>
+                                    @endif
+                                </span>
                                 <span class="text-sm font-semibold">{{ __($label) }}</span>
+                                <span class="hidden text-xs font-normal opacity-75 sm:block">{{ __($this::STEP_HINTS[$number]) }}</span>
                             </button>
                         </li>
                     @endforeach
                 </ol>
+
+                @if ($step === 1 && $visited === [] && ! $restoredDraft)
+                    <p class="-mt-3 text-sm leading-relaxed text-hb-muted">{{ __('Four short steps. You can move between them freely and fill things in later; we’ll point out anything missing before you submit.') }}</p>
+                @endif
+
+                @php($otherFlagged = array_values(array_diff($stepsWithIssues, [$step, 3])))
+                @if ($otherFlagged !== [] && $step !== 3)
+                    <div class="flex flex-wrap items-center justify-between gap-3 border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-sm text-amber-100" role="status" data-test="pending-issues">
+                        <span>
+                            @php($flaggedNames = collect($otherFlagged)->map(fn ($n) => __('Step :number (:label)', ['number' => $n, 'label' => __($this::STEPS[$n])]))->join(', ', ' '.__('and').' '))
+                            {{ $attemptedSubmit
+                                ? __(':steps also need fixing before you can submit.', ['steps' => $flaggedNames])
+                                : __('Some details on :steps still need to be filled in. You can carry on and come back to them.', ['steps' => $flaggedNames]) }}
+                        </span>
+                        <button type="button" wire:click="editStep({{ $otherFlagged[0] }})" class="font-semibold text-amber-200 underline-offset-4 hover:underline">{{ __('Fix now') }}</button>
+                    </div>
+                @endif
 
                 @if ($restoredDraft)
                     <div class="flex flex-wrap items-center justify-between gap-3 border border-hb-purple-line bg-hb-purple/40 px-4 py-3 text-sm" role="status">
@@ -601,7 +744,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     <input type="text" wire:model="contact.name" class="hb-input" autocomplete="name">
                                 </x-public.field>
                                 <x-public.field :label="$who.' '.__('CNIC / B-Form')" name="contact.cnic">
-                                    <input type="text" wire:model="contact.cnic" class="hb-input" inputmode="numeric" x-mask="99999-9999999-9" placeholder="35202-1234567-1">
+                                    <input type="text" wire:model="contact.cnic" class="hb-input" inputmode="numeric" x-mask="{{ str_repeat('9', 30) }}" placeholder="{{ __('Numbers only') }}">
                                 </x-public.field>
                                 <x-public.field :label="$who.' '.__('phone (WhatsApp)')" name="contact.phone">
                                     <input type="tel" wire:model="contact.phone" class="hb-input" inputmode="numeric" x-mask="9999 9999999" placeholder="03XX XXXXXXX" autocomplete="tel-national">
@@ -642,7 +785,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     <span class="font-display text-xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
                                 </div>
                             @endif
-                            <x-public.error name="delegates" />
+                            <div @error('delegates') data-invalid @enderror>
+                                <x-public.error name="delegates" />
+                            </div>
 
                             @foreach ($delegates as $index => $delegate)
                                 <div wire:key="delegate-{{ $index }}" class="flex flex-col gap-3.5 border border-hb-line bg-hb-surface p-4 sm:p-5">
@@ -652,7 +797,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                             <input type="text" wire:model="delegates.{{ $index }}.name" class="hb-input">
                                         </x-public.field>
                                         <x-public.field :label="__('CNIC / B-Form')" name="delegates.{{ $index }}.cnic">
-                                            <input type="text" wire:model="delegates.{{ $index }}.cnic" class="hb-input" inputmode="numeric" x-mask="99999-9999999-9" placeholder="35202-1234567-1">
+                                            <input type="text" wire:model="delegates.{{ $index }}.cnic" class="hb-input" inputmode="numeric" x-mask="{{ str_repeat('9', 30) }}" placeholder="{{ __('Numbers only') }}">
                                         </x-public.field>
                                         <x-public.field :label="__('Email (Gmail)')" name="delegates.{{ $index }}.email">
                                             <input type="email" wire:model="delegates.{{ $index }}.email" class="hb-input" placeholder="name@gmail.com">
@@ -676,20 +821,20 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                                 @endforeach
                                             </select>
                                         </x-public.field>
-                                        @if ($this->delegateNeedsPortfolio($index, PortfolioType::Country))
-                                            <x-public.field :label="__('Country preference')" name="delegates.{{ $index }}.country_preference" :hint="__('For UNW / UNSC')">
-                                                <x-portfolio-select wire:model="delegates.{{ $index }}.country_preference" wire:key="country-{{ $index }}-{{ $delegate['first_committee_id'] }}-{{ $delegate['second_committee_id'] }}" :options="$this->preferenceOptions($index, PortfolioType::Country)" :placeholder="__('Search, e.g. France')" />
-                                            </x-public.field>
-                                        @endif
-                                        @if ($this->delegateNeedsPortfolio($index, PortfolioType::Character))
-                                            <x-public.field :label="__('Personality preference')" name="delegates.{{ $index }}.personality_preference" :hint="__('For PNA / Special Committee')">
-                                                @if (($personalities = $this->preferenceOptions($index, PortfolioType::Character)) !== null)
-                                                    <x-portfolio-select wire:model="delegates.{{ $index }}.personality_preference" wire:key="personality-{{ $index }}-{{ $delegate['first_committee_id'] }}-{{ $delegate['second_committee_id'] }}" :options="$personalities" :placeholder="__('Search, e.g. Maryam Nawaz')" />
-                                                @else
-                                                    <input type="text" wire:model="delegates.{{ $index }}.personality_preference" class="hb-input" placeholder="{{ __('e.g. Maryam Nawaz') }}">
-                                                @endif
-                                            </x-public.field>
-                                        @endif
+                                        @foreach (['first', 'second'] as $slot)
+                                            @if ($chosen = $this->chosenCommittee($index, $slot))
+                                                @php($isCharacter = $chosen->portfolio_type === PortfolioType::Character)
+                                                @php($example = $chosen->code === 'SPECIAL' ? __('Tony Stark / Iron Man') : ($isCharacter ? __('Maryam Nawaz') : __('France')))
+                                                @php($pickerLabel = $chosen->code === 'SPECIAL' ? __('Marvel character') : __(':committee :kind', ['committee' => $chosen->code, 'kind' => $isCharacter ? __('personality') : __('country')]))
+                                                <x-public.field :label="$pickerLabel" name="delegates.{{ $index }}.{{ $slot }}_preference" :hint="$slot === 'first' ? __('1st choice') : __('2nd choice')">
+                                                    @if (($options = $this->preferenceOptions($index, $slot)) !== null)
+                                                        <x-portfolio-select wire:model="delegates.{{ $index }}.{{ $slot }}_preference" wire:key="{{ $slot }}-pref-{{ $index }}-{{ $chosen->id }}" :options="$options" :placeholder="__('Search, e.g. :example', ['example' => $example])" />
+                                                    @else
+                                                        <input type="text" wire:model="delegates.{{ $index }}.{{ $slot }}_preference" wire:key="{{ $slot }}-pref-{{ $index }}-{{ $chosen->id }}" class="hb-input" placeholder="{{ __('e.g. :example', ['example' => $example]) }}">
+                                                    @endif
+                                                </x-public.field>
+                                            @endif
+                                        @endforeach
                                         <x-public.field :label="__('Previous MUN experience (optional)')" name="delegates.{{ $index }}.mun_experience" class="col-span-full">
                                             <div class="flex flex-wrap gap-2" role="radiogroup" aria-label="{{ __('Previous MUN experience') }}">
                                                 @foreach (MunExperience::cases() as $level)
@@ -712,6 +857,22 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 <p class="text-sm leading-relaxed text-hb-muted">{{ __('Make sure everything is spelled correctly. Names and emails are used for certificates and logins.') }}</p>
                             </div>
 
+                            @foreach ([1, 2] as $reviewStep)
+                                @if ($issues = $this->issuesOnStep($reviewStep))
+                                    <div wire:key="review-issues-{{ $reviewStep }}" class="flex flex-col gap-2 border border-amber-300/40 bg-amber-300/10 p-4 text-sm" data-test="review-issues-{{ $reviewStep }}">
+                                        <div class="flex items-center justify-between gap-3">
+                                            <span class="font-semibold text-amber-100">{{ __('Still needed on Step :number (:label)', ['number' => $reviewStep, 'label' => __($this::STEPS[$reviewStep])]) }}</span>
+                                            <button type="button" wire:click="editStep({{ $reviewStep }})" class="font-semibold text-amber-200 underline-offset-4 hover:underline">{{ __('Fix') }}</button>
+                                        </div>
+                                        <ul class="list-disc pl-5 text-amber-100/90">
+                                            @foreach ($issues as $issue)
+                                                <li>{{ $issue }}</li>
+                                            @endforeach
+                                        </ul>
+                                    </div>
+                                @endif
+                            @endforeach
+
                             <section class="flex flex-col gap-3 border border-hb-line bg-hb-surface p-5">
                                 <div class="flex items-center justify-between gap-3">
                                     <h3 class="font-display font-semibold">{{ $isInstitution ? __('Institution') : __('Delegation head') }}</h3>
@@ -730,7 +891,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     ] as $label => $value)
                                         <div class="min-w-0">
                                             <dt class="text-xs text-hb-subtle">{{ $label }}</dt>
-                                            <dd class="mt-0.5 font-medium break-words">{{ $value }}</dd>
+                                            <dd @class(['mt-0.5 font-medium break-words', 'text-amber-200' => blank($value)])>{{ filled($value) ? $value : __('Missing') }}</dd>
                                         </div>
                                     @endforeach
                                 </dl>
@@ -738,18 +899,21 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
                             <section class="flex flex-col gap-3 border border-hb-line bg-hb-surface p-5">
                                 <div class="flex items-center justify-between gap-3">
-                                    <h3 class="font-display font-semibold">{{ __(':count delegates', ['count' => count($delegates)]) }}</h3>
+                                    <h3 class="font-display font-semibold">{{ $delegates === [] ? __('Delegates') : __(':count delegates', ['count' => count($delegates)]) }}</h3>
                                     <button type="button" wire:click="editStep(2)" class="text-sm text-hb-lavender hover:underline">{{ __('Edit') }}</button>
                                 </div>
+                                @if ($delegates === [])
+                                    <p class="text-sm text-amber-200">{{ __('Number of delegates not chosen yet.') }}</p>
+                                @endif
                                 @foreach ($delegates as $index => $delegate)
                                     @php($first = $this->committees->firstWhere('id', (int) $delegate['first_committee_id']))
                                     @php($second = $this->committees->firstWhere('id', (int) $delegate['second_committee_id']))
                                     <div wire:key="review-{{ $index }}" class="flex flex-col gap-1 border-t border-hb-line pt-3 text-sm first-of-type:border-0 first-of-type:pt-0">
-                                        <div class="font-semibold">{{ $index + 1 }}. {{ $delegate['name'] }}</div>
+                                        <div class="font-semibold">{{ $index + 1 }}. {{ $delegate['name'] ?: __('(name missing)') }}</div>
                                         <div class="break-words text-hb-muted">{{ $delegate['email'] }} · {{ $delegate['phone'] }} · {{ $delegate['cnic'] }}</div>
                                         <div class="text-hb-soft">
-                                            {{ __('1st: :committee', ['committee' => $first?->code]) }}@if ($first && ($pref = $first->portfolio_type === PortfolioType::Character ? $delegate['personality_preference'] : $delegate['country_preference'])) ({{ $pref }})@endif
-                                            · {{ __('2nd: :committee', ['committee' => $second?->code]) }}@if ($second && ($pref = $second->portfolio_type === PortfolioType::Character ? $delegate['personality_preference'] : $delegate['country_preference'])) ({{ $pref }})@endif
+                                            {{ __('1st: :committee', ['committee' => $first?->code]) }}@if ($first && $delegate['first_preference']) ({{ $delegate['first_preference'] }})@endif
+                                            · {{ __('2nd: :committee', ['committee' => $second?->code]) }}@if ($second && $delegate['second_preference']) ({{ $delegate['second_preference'] }})@endif
                                         </div>
                                         @if ($experience = MunExperience::tryFrom($delegate['mun_experience'] ?? ''))
                                             <div class="text-hb-muted">{{ __('Experience: :experience', ['experience' => __($experience->label())]) }}</div>
@@ -760,7 +924,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
                             <div class="flex items-center justify-between gap-3 border border-hb-purple-line bg-hb-purple p-5">
                                 <span class="text-sm tracking-[0.12em] uppercase">{{ __('Amount to pay') }}</span>
-                                <span class="font-display text-2xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
+                                <span class="font-display text-2xl font-bold">{{ $delegates === [] ? '—' : 'PKR '.number_format($this->amountDue) }}</span>
                             </div>
                         </div>
                     @else
@@ -809,30 +973,15 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 @endforeach
                                 <div>
                                     <dt class="text-xs tracking-[0.16em] text-[#dccff0] uppercase">{{ __('Send exactly') }}</dt>
-                                    <dd class="mt-0.5 font-display text-2xl font-bold">PKR {{ number_format($this->amountDue) }}</dd>
+                                    @if ($delegates === [])
+                                        <dd class="mt-1 text-sm">{{ __('Choose the number of delegates on Step 2 first.') }}</dd>
+                                    @else
+                                        <dd class="mt-0.5 font-display text-2xl font-bold">PKR {{ number_format($this->amountDue) }}</dd>
+                                    @endif
                                 </div>
                             </dl>
 
-                            <div class="flex flex-col gap-2">
-                                <label for="payment-screenshot" class="relative flex min-h-40 cursor-pointer flex-col items-center justify-center gap-2.5 border border-dashed border-[#6e6a75] bg-hb-surface p-6 text-center has-focus-visible:outline-2 has-focus-visible:outline-[#8e6bc8]">
-                                    @if ($paymentScreenshot && ! $errors->has('paymentScreenshot') && $paymentScreenshot->isPreviewable())
-                                        <img src="{{ $paymentScreenshot->temporaryUrl() }}" alt="{{ __('Payment screenshot preview') }}" class="max-h-72 w-auto max-w-full border border-hb-line object-contain" wire:loading.class="opacity-40" wire:target="paymentScreenshot">
-                                    @else
-                                        <svg class="size-7" viewBox="0 0 24 24" fill="none" stroke="#c9b6ea" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V4" /><path d="m6 10 6-6 6 6" /><path d="M4 20h16" /></svg>
-                                    @endif
-                                    <span class="font-semibold">
-                                        @if ($paymentScreenshot && ! $errors->has('paymentScreenshot'))
-                                            {{ $paymentScreenshot->getClientOriginalName() }}
-                                        @else
-                                            {{ __('Upload payment screenshot') }}
-                                        @endif
-                                    </span>
-                                    <span class="max-w-md text-sm leading-relaxed text-hb-subtle">{{ __('One clear screenshot showing the transaction confirmation and the amount paid. JPG, JPEG or PNG, up to 5 MB.') }}</span>
-                                    <span wire:loading wire:target="paymentScreenshot" class="text-sm text-hb-lavender">{{ __('Uploading…') }}</span>
-                                    <input id="payment-screenshot" type="file" wire:model="paymentScreenshot" accept=".jpg,.jpeg,.png" class="sr-only">
-                                </label>
-                                <x-public.error name="paymentScreenshot" />
-                            </div>
+                            <x-public.screenshot-picker :screenshots="$paymentScreenshots" :hint="__('A clear screenshot of each transaction, showing the confirmation and the amount paid. Paid in more than one transfer? Upload one screenshot per receipt, up to :max. JPG, JPEG or PNG, up to 5 MB each.', ['max' => PaymentScreenshot::MAX_UPLOADS])" />
 
                             @if (config('conference.contacts.heads') || config('conference.contacts.email'))
                                 <div class="flex flex-col gap-3 border border-hb-line p-5">
@@ -863,7 +1012,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                             @endif
                         </fieldset>
 
-                        <div class="flex flex-col gap-2">
+                        <div class="flex flex-col gap-2" @error('confirmed') data-invalid @enderror>
                             <label class="flex items-start gap-3 text-sm leading-relaxed text-hb-soft">
                                 <input type="checkbox" wire:model="confirmed" class="mt-0.5 size-5 accent-[#8e6bc8]">
                                 <span>{{ __('I confirm the details are correct and the amount paid matches my registration category.') }}</span>
@@ -873,8 +1022,10 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                     @endif
 
                     <div class="flex flex-col gap-4 border-t border-hb-line pt-5">
-                        @if ($errors->any())
-                            <p class="hb-error" role="alert">{{ __('Please fix the highlighted fields above.') }}</p>
+                        @if (in_array($step, $stepsWithIssues, true) && $step !== 3)
+                            <p class="hb-error" role="alert">
+                                {{ $step === 4 || $attemptedSubmit ? __('Please fix the highlighted fields above before submitting.') : __('Some fields above are missing or need a fix. You can continue and come back to them.') }}
+                            </p>
                         @endif
 
                         <div class="flex flex-wrap items-center gap-3">
@@ -884,11 +1035,11 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
                             @if ($step < 4)
                                 <button type="submit" class="hb-button-primary min-h-13 px-10 text-base" wire:loading.attr="disabled" wire:target="next" data-test="next-step">
-                                    <span wire:loading.remove wire:target="next">{{ $step === 3 ? __('Looks good, continue to payment') : __('Continue') }}</span>
-                                    <span wire:loading wire:target="next">{{ __('Checking…') }}</span>
+                                    <span wire:loading.remove wire:target="next">{{ $step === 3 ? ($stepsWithIssues === [] ? __('Looks good, continue to payment') : __('Continue to payment')) : __('Continue') }}</span>
+                                    <span wire:loading wire:target="next">{{ __('Loading…') }}</span>
                                 </button>
                             @else
-                                <button type="submit" class="hb-button-primary min-h-13 px-10 text-base" wire:loading.attr="disabled" wire:target="submit,paymentScreenshot" data-test="submit-registration">
+                                <button type="submit" class="hb-button-primary min-h-13 px-10 text-base" wire:loading.attr="disabled" wire:target="submit,newScreenshot" data-test="submit-registration">
                                     <span wire:loading.remove wire:target="submit">{{ __('Submit registration') }}</span>
                                     <span wire:loading wire:target="submit">{{ __('Submitting…') }}</span>
                                 </button>

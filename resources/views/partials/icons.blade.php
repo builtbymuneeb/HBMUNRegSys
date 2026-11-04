@@ -1,4 +1,4 @@
-@php($description = __('Two days of diplomacy, debate and negotiation across UNW, UNSC, PNA and a Special Committee. :dates, online.', ['dates' => config('conference.dates_label')]))
+@php($description = __('Two days of diplomacy, debate and negotiation across UNW, UNSC, PNA and the Marvel Crisis Committee. :dates, online.', ['dates' => config('conference.dates_label')]))
 
 <meta name="description" content="{{ $description }}">
 <meta name="theme-color" content="#3b0a6b">

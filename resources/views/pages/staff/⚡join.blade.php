@@ -43,7 +43,7 @@ new #[Layout('layouts::auth')] #[Title('Request staff access')] class extends Co
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique(User::class)],
             'password' => $this->passwordRules(),
-            'role' => ['required', Rule::in([UserRole::Registrations->value, UserRole::Ambassadors->value])],
+            'role' => ['required', Rule::in([UserRole::Registrations->value, UserRole::Ambassadors->value, UserRole::OtherManagement->value])],
         ]);
 
         RateLimiter::hit($throttleKey, 3600);
@@ -67,7 +67,7 @@ new #[Layout('layouts::auth')] #[Title('Request staff access')] class extends Co
             <flux:input wire:model="email" :label="__('Email address')" type="email" required autocomplete="email" placeholder="email@example.com" />
 
             <flux:radio.group wire:model="role" :label="__('Team')" variant="cards" class="flex-col">
-                @foreach ([UserRole::Registrations, UserRole::Ambassadors] as $option)
+                @foreach ([UserRole::Registrations, UserRole::Ambassadors, UserRole::OtherManagement] as $option)
                     <flux:radio :value="$option->value" :label="$option->label()" :description="$option->description()" />
                 @endforeach
             </flux:radio.group>
