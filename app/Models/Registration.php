@@ -142,9 +142,14 @@ class Registration extends Model
 
     /**
      * The institution or delegation name, falling back to the contact's name.
+     * A private delegate is shown by their own name.
      */
     public function displayName(): string
     {
+        if ($this->type?->isIndividual()) {
+            return $this->contact_name;
+        }
+
         return $this->organisation_name ?: $this->contact_name;
     }
 

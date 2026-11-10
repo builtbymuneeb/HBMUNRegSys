@@ -85,7 +85,7 @@ new #[Title('Task')] class extends Component {
      */
     public static function fileRules(): array
     {
-        return ['required', 'file', 'mimes:jpg,jpeg,png,webp,gif,pdf,mp4,mov', 'max:10240'];
+        return ['required', 'file', 'mimes:jpg,jpeg,png,webp,gif,pdf,mp4,mov', 'max:25600'];
     }
 
     public function submit(SubmitTask $submitTask): void
@@ -218,7 +218,7 @@ new #[Title('Task')] class extends Component {
                     <label class="flex min-h-28 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 p-5 text-center hover:bg-zinc-50 has-focus-visible:outline-2 dark:border-white/15 dark:hover:bg-white/4">
                         <flux:icon.arrow-up-tray class="size-6 text-zinc-400" />
                         <span class="font-medium" x-text="uploading ? @js(__('Uploading…')) : @js($proofFiles ? __('Add another file') : __('Upload proof'))">{{ $proofFiles ? __('Add another file') : __('Upload proof') }}</span>
-                        <span class="text-xs text-zinc-500">{{ __('Screenshots, photos, PDFs or short videos. Up to :max files, 10 MB each.', ['max' => \App\Models\AmbassadorSubmission::MAX_FILES]) }}</span>
+                        <span class="text-xs text-zinc-500">{{ __('Screenshots, photos, PDFs or short videos. Up to :max files, 25 MB each.', ['max' => \App\Models\AmbassadorSubmission::MAX_FILES]) }}</span>
                         <input type="file" multiple accept=".jpg,.jpeg,.png,.webp,.gif,.pdf,.mp4,.mov" class="sr-only" x-on:change.stop="pick($el)" data-test="proof-input">
                     </label>
                 @endif

@@ -56,6 +56,18 @@ class RegistrationFactory extends Factory
         ])->has(Delegate::factory()->count($delegates));
     }
 
+    /**
+     * A Homebridge student registering on their own.
+     */
+    public function privateDelegate(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => RegistrationType::PrivateDelegate,
+            'organisation_name' => 'Homebridge '.fake()->city().' campus',
+            'amount_due' => RegistrationType::PrivateDelegate->amountDueFor(1),
+        ])->has(Delegate::factory()->count(1));
+    }
+
     public function rejected(string $reason = 'Screenshot is unreadable.'): static
     {
         return $this->state(fn (array $attributes) => [

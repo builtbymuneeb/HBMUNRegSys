@@ -6,6 +6,7 @@
     $feePerDelegation = number_format(config('conference.fees.per_delegation'));
     $minDelegates = config('conference.delegation.min_delegates');
     $maxDelegates = config('conference.delegation.max_delegates');
+    $feePrivateDelegate = number_format(\App\Enums\RegistrationType::PrivateDelegate->amountDueFor(1));
     $fileNumbers = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
     $committeeArt = ['UNW' => 'hb-art-seal', 'UNSC' => 'hb-art-globe', 'PNA' => 'hb-art-column', 'SPECIAL' => 'hb-art-banner'];
     $tickerItems = [__('Registrations now open'), config('conference.dates_label'), __('Virtual conference'), __('Delegate fee PKR :fee', ['fee' => $feePerDelegate])];
@@ -199,7 +200,7 @@
                 <div class="hb-eyebrow">{{ __('Registration fees') }}</div>
                 <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Bring your team.') }}</h2>
             </div>
-            <div class="mx-auto w-full max-w-xl">
+            <div class="mx-auto grid w-full max-w-xl gap-4 lg:max-w-none lg:grid-cols-2 lg:gap-6">
                 <div class="flex flex-col gap-3.5 border border-hb-purple-line bg-hb-purple px-6 py-7 md:gap-4.5 md:px-9 md:py-10">
                     <div class="flex items-center justify-between gap-3">
                         <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Delegation') }}</div>
@@ -217,6 +218,17 @@
                     </dl>
                     <p class="text-sm leading-relaxed text-[#dccff0]">{{ __('Want to discuss a fee adjustment for your institute? Contact the registration team.') }}</p>
                     <a href="{{ route('register') }}" class="hb-button-primary mt-auto">{{ __('Register a delegation') }}</a>
+                </div>
+
+                <div class="flex flex-col gap-3.5 border border-hb-line-strong bg-hb-field px-6 py-7 md:gap-4.5 md:px-9 md:py-10" data-test="private-delegate-fee">
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Individual Homebridge delegate') }}</div>
+                        <div class="bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase">{{ __('1 person') }}</div>
+                    </div>
+                    <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span class="text-hb-muted">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePrivateDelegate }}</span><span class="text-hb-muted">{{ __('/ delegate') }}</span></div>
+                    <p class="leading-relaxed text-hb-soft">{{ __('Homebridge students can register on their own, without a delegation. No delegation fee.') }}</p>
+                    <p class="text-sm leading-relaxed text-hb-muted">{{ __('Only open to current Homebridge students. Our team checks this before verifying your registration.') }}</p>
+                    <a href="{{ route('register', ['type' => \App\Enums\RegistrationType::PrivateDelegate->value]) }}" class="hb-button-primary mt-auto">{{ __('Register as an individual delegate') }}</a>
                 </div>
             </div>
         </div>
@@ -309,6 +321,7 @@
                 @foreach ([
                     __('Is the conference fully online?') => __('Yes. Session links appear on your delegate dashboard on both conference days.'),
                     __('Can I register my whole team?') => __('Yes, as an institution or private delegation of :min–:max delegates. The head fills one form for everyone and pays PKR :delegate per delegate plus PKR :delegation per delegation.', ['min' => $minDelegates, 'max' => $maxDelegates, 'delegate' => $feePerDelegate, 'delegation' => $feePerDelegation]),
+                    __('Can I register on my own?') => __('Only if you are a Homebridge student. Choose “Individual Homebridge delegate” on the registration form and pay PKR :fee. Students from other institutes register as part of a delegation.', ['fee' => $feePrivateDelegate]),
                     __('When will I know my committee and portfolio?') => __('After your payment is verified, our team allocates seats. You’ll get an email and see it on your dashboard.'),
                     __('What if my payment screenshot is rejected?') => __('You’ll see the reason on the status page and can upload a new screenshot there.'),
                 ] as $question => $answer)

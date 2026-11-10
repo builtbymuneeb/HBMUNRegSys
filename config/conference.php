@@ -35,6 +35,8 @@ return [
     'fees' => [
         'per_delegate' => (int) env('CONFERENCE_FEE_PER_DELEGATE', 1000),
         'per_delegation' => (int) env('CONFERENCE_FEE_PER_DELEGATION', 1000),
+        // A single Homebridge student registering on their own; no delegation fee.
+        'private_delegate' => (int) env('CONFERENCE_FEE_PRIVATE_DELEGATE', 1000),
     ],
 
     'delegation' => [
