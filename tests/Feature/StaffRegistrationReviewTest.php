@@ -351,3 +351,95 @@ test('a delegate’s preference must come from the chosen committees’ lists, l
         ->first_preference->toBe('Japan')
         ->second_preference->toBe('Anyone at all');
 });
+
+test('verifying records the full fee as received by default', function () {
+    Notification::fake();
+    $registration = Registration::factory()->institutionDelegation(3)->create();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.registrations.show', ['registration' => $registration])
+        ->assertSet('amountPaid', (string) $registration->amount_due)
+        ->call('verify')
+        ->assertHasNoErrors();
+
+    expect($registration->refresh()->amount_paid)->toBe($registration->amount_due);
+});
+
+test('reviewers can record a discounted amount when verifying', function () {
+    Notification::fake();
+    $registration = Registration::factory()->institutionDelegation(3)->create();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.registrations.show', ['registration' => $registration])
+        ->set('amountPaid', '2500')
+        ->call('verify')
+        ->assertHasNoErrors();
+
+    $registration->refresh();
+
+    expect($registration->status)->toBe(RegistrationStatus::Verified)
+        ->and($registration->amount_paid)->toBe(2500)
+        ->and($registration->amountReceived())->toBe(2500)
+        ->and($registration->discount())->toBe($registration->amount_due - 2500)
+        ->and($registration->auditLogs()->first()->properties['amount_paid'])->toBe(2500);
+});
+
+test('the amount received must be a whole number of zero or more', function (string $amount) {
+    Notification::fake();
+    $registration = Registration::factory()->institutionDelegation(3)->create();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.registrations.show', ['registration' => $registration])
+        ->set('amountPaid', $amount)
+        ->call('verify')
+        ->assertHasErrors('amountPaid');
+
+    expect($registration->refresh()->isPending())->toBeTrue();
+})->with(['', '-100', 'abc', '12.5']);
+
+test('admins can edit the amount received on a verified registration', function () {
+    $admin = User::factory()->role(UserRole::Admin)->create();
+    $registration = Registration::factory()->institutionDelegation(3)->verified()->create();
+
+    Livewire::actingAs($admin)
+        ->test('pages::staff.registrations.show', ['registration' => $registration])
+        ->call('editAmount')
+        ->assertSet('editedAmount', (string) $registration->amount_due)
+        ->set('editedAmount', '3000')
+        ->call('saveAmount')
+        ->assertHasNoErrors()
+        ->assertSee('PKR 3,000');
+
+    $registration->refresh();
+    $log = $registration->auditLogs()->first();
+
+    expect($registration->amount_paid)->toBe(3000)
+        ->and($log->action)->toBe('payment_amount_changed')
+        ->and($log->user_id)->toBe($admin->id)
+        ->and($log->properties['to'])->toBe(3000);
+});
+
+test('only admins can edit the amount received, and only once verified', function () {
+    $verified = Registration::factory()->verified()->create();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Registrations)->create())
+        ->test('pages::staff.registrations.show', ['registration' => $verified])
+        ->assertDontSeeHtml('data-test="edit-amount"')
+        ->call('saveAmount')
+        ->assertForbidden();
+
+    Livewire::actingAs(User::factory()->role(UserRole::Admin)->create())
+        ->test('pages::staff.registrations.show', ['registration' => Registration::factory()->create()])
+        ->call('editAmount')
+        ->assertForbidden();
+});
+
+test('the verified total counts the amounts actually received', function () {
+    Registration::factory()->create(['amount_due' => 5000, 'amount_paid' => 3000, 'status' => RegistrationStatus::Verified]);
+    Registration::factory()->create(['amount_due' => 4000, 'amount_paid' => 4000, 'status' => RegistrationStatus::Verified]);
+    Registration::factory()->create(['amount_due' => 9000]);
+
+    Livewire::actingAs(User::factory()->role(UserRole::Admin)->create())
+        ->test('pages::staff.registrations.index')
+        ->assertSee('PKR 7,000');
+});

@@ -26,7 +26,8 @@ use Illuminate\Support\Carbon;
  * @property string $contact_email
  * @property string|null $referral_code
  * @property int|null $campus_ambassador_id
- * @property int $amount_due
+ * @property int $amount_due The full fee for the registration type and size.
+ * @property int|null $amount_paid What staff recorded as received when verifying (may be discounted).
  * @property string $payment_screenshot_path The first screenshot; see paymentScreenshots() for all of them.
  * @property string|null $rejection_reason
  * @property int|null $reviewed_by
@@ -46,6 +47,7 @@ use Illuminate\Support\Carbon;
     'referral_code',
     'campus_ambassador_id',
     'amount_due',
+    'amount_paid',
     'payment_screenshot_path',
     'rejection_reason',
     'reviewed_by',
@@ -67,6 +69,7 @@ class Registration extends Model
             'type' => RegistrationType::class,
             'status' => RegistrationStatus::class,
             'reviewed_at' => 'datetime',
+            'amount_paid' => 'integer',
         ];
     }
 
@@ -133,6 +136,22 @@ class Registration extends Model
     public function isPending(): bool
     {
         return $this->status === RegistrationStatus::Pending;
+    }
+
+    /**
+     * The amount actually received once verified, otherwise the full fee.
+     */
+    public function amountReceived(): int
+    {
+        return $this->amount_paid ?? $this->amount_due;
+    }
+
+    /**
+     * How much less than the full fee was received, or 0.
+     */
+    public function discount(): int
+    {
+        return $this->amount_paid === null ? 0 : max(0, $this->amount_due - $this->amount_paid);
     }
 
     public function isRejected(): bool

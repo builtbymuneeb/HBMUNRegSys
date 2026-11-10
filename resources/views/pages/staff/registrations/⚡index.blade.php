@@ -100,7 +100,7 @@ new #[Title('Registrations')] class extends Component {
     #[Computed]
     public function verifiedAmount(): int
     {
-        return (int) Registration::query()->where('status', RegistrationStatus::Verified)->sum('amount_due');
+        return (int) Registration::query()->where('status', RegistrationStatus::Verified)->sum('amount_paid');
     }
 
     /**
@@ -230,7 +230,12 @@ new #[Title('Registrations')] class extends Component {
                     </flux:table.cell>
                     <flux:table.cell>{{ $registration->type->label() }}</flux:table.cell>
                     <flux:table.cell>{{ $registration->delegates_count }}</flux:table.cell>
-                    <flux:table.cell>PKR {{ number_format($registration->amount_due) }}</flux:table.cell>
+                    <flux:table.cell>
+                        PKR {{ number_format($registration->amountReceived()) }}
+                        @if ($registration->discount() > 0)
+                            <div class="text-xs text-amber-600 dark:text-amber-400">{{ __('of :fee', ['fee' => number_format($registration->amount_due)]) }}</div>
+                        @endif
+                    </flux:table.cell>
                     <flux:table.cell>{{ $registration->created_at->timezone('Asia/Karachi')->format('j M, g:i a') }}</flux:table.cell>
                     <flux:table.cell>
                         <flux:badge size="sm" :color="$registration->status->color()" inset="top bottom">{{ $registration->status->label() }}</flux:badge>

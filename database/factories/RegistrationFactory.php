@@ -81,6 +81,7 @@ class RegistrationFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => RegistrationStatus::Verified,
+            'amount_paid' => $attributes['amount_due'] ?? null,
             'reviewed_at' => now(),
         ]);
     }

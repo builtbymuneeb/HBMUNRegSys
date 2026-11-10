@@ -4,6 +4,7 @@ use App\Actions\Registrations\AddPaymentScreenshot;
 use App\Actions\Registrations\RejectRegistration;
 use App\Actions\Registrations\RemovePaymentScreenshot;
 use App\Actions\Registrations\UpdateDelegate;
+use App\Actions\Registrations\UpdatePaymentAmount;
 use App\Actions\Registrations\VerifyRegistration;
 use App\Enums\PortfolioType;
 use App\Enums\RegistrationStatus;
@@ -33,6 +34,16 @@ new #[Title('Review registration')] class extends Component {
     public string $rejectionReason = '';
 
     /**
+     * The amount received, entered when verifying (fees can be discounted).
+     */
+    public string $amountPaid = '';
+
+    /**
+     * The corrected amount an admin enters for an already-verified registration.
+     */
+    public string $editedAmount = '';
+
+    /**
      * A payment slip staff are adding, e.g. a second receipt sent over WhatsApp. Saved as soon as it uploads.
      */
     public $newSlip;
@@ -58,6 +69,7 @@ new #[Title('Review registration')] class extends Component {
     public function mount(Registration $registration): void
     {
         $this->registration = $registration;
+        $this->amountPaid = (string) $registration->amount_due;
     }
 
     /**
@@ -73,10 +85,47 @@ new #[Title('Review registration')] class extends Component {
             return;
         }
 
-        $verifyRegistration->handle($this->registration, Auth::user());
+        $this->validate(
+            ['amountPaid' => ['required', 'integer', 'min:0', 'max:10000000']],
+            attributes: ['amountPaid' => 'amount received'],
+        );
+
+        $verifyRegistration->handle($this->registration, Auth::user(), (int) $this->amountPaid);
+        unset($this->auditLogs);
 
         Flux::modal('verify-registration')->close();
         Flux::toast(variant: 'success', text: __(':reference verified. Set-password emails are on their way.', ['reference' => $this->registration->reference]));
+    }
+
+    /**
+     * Open the admin's edit-amount form with the current amount received.
+     */
+    public function editAmount(): void
+    {
+        abort_unless($this->canEditAmount, 403);
+
+        $this->resetValidation('editedAmount');
+        $this->editedAmount = (string) $this->registration->amountReceived();
+        Flux::modal('edit-amount')->show();
+    }
+
+    /**
+     * Save a corrected amount received for a verified registration (admins only).
+     */
+    public function saveAmount(UpdatePaymentAmount $updatePaymentAmount): void
+    {
+        abort_unless($this->canEditAmount, 403);
+
+        $this->validate(
+            ['editedAmount' => ['required', 'integer', 'min:0', 'max:10000000']],
+            attributes: ['editedAmount' => 'amount received'],
+        );
+
+        $updatePaymentAmount->handle($this->registration, Auth::user(), (int) $this->editedAmount);
+
+        unset($this->auditLogs);
+        Flux::modal('edit-amount')->close();
+        Flux::toast(variant: 'success', text: __('Amount received updated to PKR :amount.', ['amount' => number_format((int) $this->editedAmount)]));
     }
 
     /**
@@ -352,6 +401,12 @@ new #[Title('Review registration')] class extends Component {
     {
         return Auth::user()->can('review', $this->registration);
     }
+
+    #[Computed]
+    public function canEditAmount(): bool
+    {
+        return Auth::user()->isAdmin() && $this->registration->status === RegistrationStatus::Verified;
+    }
 }; ?>
 
 <div class="flex w-full flex-col gap-6 p-6 lg:p-8">
@@ -384,9 +439,28 @@ new #[Title('Review registration')] class extends Component {
     <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
         {{-- Payment --}}
         <flux:card class="flex flex-col gap-4">
-            <div class="flex items-center justify-between gap-4">
+            <div class="flex items-start justify-between gap-4">
                 <flux:heading size="lg">{{ __('Payment') }}</flux:heading>
-                <flux:heading size="lg">PKR {{ number_format($registration->amount_due) }}</flux:heading>
+                <div class="flex flex-col items-end gap-1 text-right">
+                    <div class="flex items-center gap-1">
+                        <flux:heading size="lg" data-test="amount-received">PKR {{ number_format($registration->amountReceived()) }}</flux:heading>
+                        @if ($this->canEditAmount)
+                            <flux:button size="xs" variant="ghost" icon="pencil-square" wire:click="editAmount" data-test="edit-amount" :tooltip="__('Edit amount received')" />
+                        @endif
+                    </div>
+                    @if ($registration->amount_paid === null)
+                        <flux:text class="text-xs">{{ __('Full fee') }}</flux:text>
+                    @elseif ($registration->amount_paid !== $registration->amount_due)
+                        <flux:text class="flex items-center gap-2 text-xs">
+                            {{ __('Received · full fee PKR :fee', ['fee' => number_format($registration->amount_due)]) }}
+                            @if ($registration->discount() > 0)
+                                <flux:badge size="sm" color="amber" inset="top bottom">{{ __('PKR :amount off', ['amount' => number_format($registration->discount())]) }}</flux:badge>
+                            @endif
+                        </flux:text>
+                    @else
+                        <flux:text class="text-xs">{{ __('Received') }}</flux:text>
+                    @endif
+                </div>
             </div>
             @foreach ($this->paymentScreenshots as $screenshot)
                 <div class="flex flex-col gap-2" wire:key="slip-{{ $screenshot->id }}">
@@ -541,9 +615,10 @@ new #[Title('Review registration')] class extends Component {
                 <div>
                     <flux:heading size="lg">{{ __('Verify :reference?', ['reference' => $registration->reference]) }}</flux:heading>
                     <flux:text class="mt-2">
-                        {{ __('Confirm the screenshot shows PKR :amount received. :count delegate account(s) will be created and each delegate will be emailed a link to set their password.', ['amount' => number_format($registration->amount_due), 'count' => $this->delegates->count()]) }}
+                        {{ __('Enter the amount the screenshot shows was received. :count delegate account(s) will be created and each delegate will be emailed a link to set their password.', ['count' => $this->delegates->count()]) }}
                     </flux:text>
                 </div>
+                <flux:input wire:model="amountPaid" type="number" min="0" step="1" inputmode="numeric" :label="__('Amount received (PKR)')" :description="__('Full fee is PKR :fee. Change it if they got a discount.', ['fee' => number_format($registration->amount_due)])" data-test="amount-paid" />
                 <div class="flex justify-end gap-2">
                     <flux:modal.close>
                         <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
@@ -552,6 +627,24 @@ new #[Title('Review registration')] class extends Component {
                 </div>
             </div>
         </flux:modal>
+
+        @if ($this->canEditAmount)
+            <flux:modal name="edit-amount" class="md:w-md">
+                <form wire:submit="saveAmount" class="flex flex-col gap-6">
+                    <div>
+                        <flux:heading size="lg">{{ __('Edit amount received') }}</flux:heading>
+                        <flux:text class="mt-2">{{ __('Full fee is PKR :fee. The change is recorded in the history.', ['fee' => number_format($registration->amount_due)]) }}</flux:text>
+                    </div>
+                    <flux:input wire:model="editedAmount" type="number" min="0" step="1" inputmode="numeric" :label="__('Amount received (PKR)')" data-test="edited-amount" />
+                    <div class="flex justify-end gap-2">
+                        <flux:modal.close>
+                            <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                        </flux:modal.close>
+                        <flux:button type="submit" variant="primary" data-test="save-amount">{{ __('Save') }}</flux:button>
+                    </div>
+                </form>
+            </flux:modal>
+        @endif
 
         <flux:modal name="edit-delegate" class="w-full md:w-xl">
             <form wire:submit="saveDelegate" class="flex flex-col gap-5">

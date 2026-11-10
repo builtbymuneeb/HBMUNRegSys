@@ -19,13 +19,17 @@ class VerifyRegistration
     /**
      * Mark the registration's payment as verified, create a delegate account
      * for each delegate and email them a link to set their password.
+     * $amountPaid is what was actually received; it defaults to the full fee.
      */
-    public function handle(Registration $registration, User $reviewer): void
+    public function handle(Registration $registration, User $reviewer, ?int $amountPaid = null): void
     {
+        $amountPaid ??= $registration->amount_due;
+
         /** @var list<User> $newUsers */
-        $newUsers = DB::transaction(function () use ($registration, $reviewer) {
+        $newUsers = DB::transaction(function () use ($registration, $reviewer, $amountPaid) {
             $registration->update([
                 'status' => RegistrationStatus::Verified,
+                'amount_paid' => $amountPaid,
                 'rejection_reason' => null,
                 'reviewed_by' => $reviewer->id,
                 'reviewed_at' => now(),
@@ -37,7 +41,11 @@ class VerifyRegistration
                 ->values()
                 ->all();
 
-            AuditLog::record('verified', $registration, $reviewer);
+            AuditLog::record('verified', $registration, $reviewer, [
+                'reason' => 'PKR '.number_format($amountPaid).' received'
+                    .($amountPaid !== $registration->amount_due ? ' (full fee PKR '.number_format($registration->amount_due).')' : ''),
+                'amount_paid' => $amountPaid,
+            ]);
 
             return $newUsers;
         });
