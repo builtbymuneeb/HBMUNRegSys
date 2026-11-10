@@ -93,7 +93,7 @@
                         @foreach ([__('Days') => $remaining->days, __('Hours') => $remaining->h] as $label => $value)
                             <div class="min-w-21 border border-hb-line bg-hb-field px-3.5 py-3 text-center">
                                 <dd class="font-display text-3xl font-semibold">{{ str_pad($value, 2, '0', STR_PAD_LEFT) }}</dd>
-                                <dt class="mt-0.5 text-[11px] tracking-[0.18em] text-hb-subtle uppercase">{{ $label }}</dt>
+                                <dt class="mt-0.5 text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ $label }}</dt>
                             </div>
                         @endforeach
                     </dl>
@@ -130,7 +130,7 @@
                                 <div class="absolute inset-0 bg-[linear-gradient(115deg,rgb(160_24_40/0.72)_0%,rgb(160_24_40/0.35)_47%,transparent_49.5%,transparent_50.5%,rgb(28_64_150/0.4)_53%,rgb(28_64_150/0.75)_100%)]"></div>
                                 <div class="absolute inset-y-[-10%] left-1/2 w-0.5 -translate-x-1/2 rotate-[12deg] bg-white/70 shadow-[0_0_14px_rgb(255_255_255/0.8)]"></div>
                                 <div class="hb-scanlines absolute inset-0 opacity-40"></div>
-                                <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5 text-[9px] tracking-[0.18em] text-white/90 uppercase lg:top-4 lg:right-4 lg:text-[10px]">
+                                <div class="absolute top-2.5 right-2.5 flex items-center gap-1.5 text-[11px] tracking-[0.12em] text-white/90 uppercase lg:top-4 lg:right-4 lg:text-xs lg:tracking-[0.18em]">
                                     <span class="relative flex size-1.5"><span class="absolute inline-flex size-full animate-ping rounded-full bg-[#7fb0ff] opacity-75 motion-reduce:animate-none"></span><span class="relative inline-flex size-1.5 rounded-full bg-[#7fb0ff]"></span></span>
                                     {{ __('Revealed') }}
                                 </div>
@@ -143,7 +143,7 @@
                                 <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ __('Special') }}</h3>
                                 <div class="text-[13px] leading-snug text-hb-soft lg:text-sm">{{ __('Marvel Crisis Committee') }}</div>
                                 <p class="font-display text-[13px] text-[#e8a0aa] italic lg:text-base">{{ __('Whose side are you on?') }}</p>
-                                <div class="mt-auto pt-1 text-[10px] tracking-[0.1em] text-hb-lavender uppercase lg:pt-2 lg:text-xs lg:tracking-[0.12em]">
+                                <div class="mt-auto pt-1 text-xs tracking-[0.06em] text-hb-lavender uppercase lg:pt-2 lg:tracking-[0.12em]">
                                     {{ __('Crisis') }} · {{ __('Characters') }}
                                 </div>
                                 @include('partials.committee-read-more')
@@ -160,7 +160,7 @@
                         <div class="flex grow flex-col gap-1.5 p-3.5 lg:gap-2.5 lg:p-6">
                             <h3 class="font-display text-lg font-bold tracking-[0.06em] lg:text-2xl">{{ $committee->code === 'SPECIAL' ? __('Special') : $committee->code }}</h3>
                             <div class="text-[13px] leading-snug text-hb-soft lg:text-sm">{{ $committee->name }}</div>
-                            <div class="mt-auto pt-1 text-[10px] tracking-[0.1em] text-hb-lavender uppercase lg:pt-2 lg:text-xs lg:tracking-[0.12em]">
+                            <div class="mt-auto pt-1 text-xs tracking-[0.06em] text-hb-lavender uppercase lg:pt-2 lg:tracking-[0.12em]">
                                 {{ __('Portfolio') }} · {{ $committee->portfolio_type === \App\Enums\PortfolioType::Country ? __('Countries') : __('Characters') }}
                             </div>
                             @include('partials.committee-read-more')
@@ -204,14 +204,14 @@
                 <div class="flex flex-col gap-3.5 border border-hb-purple-line bg-hb-purple px-6 py-7 md:gap-4.5 md:px-9 md:py-10">
                     <div class="flex items-center justify-between gap-3">
                         <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Delegation') }}</div>
-                        <div class="bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase">{{ __(':min–:max members', ['min' => $minDelegates, 'max' => $maxDelegates]) }}</div>
+                        <div class="bg-white px-2.5 py-1 text-xs font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase">{{ __(':min–:max members', ['min' => $minDelegates, 'max' => $maxDelegates]) }}</div>
                     </div>
                     <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span class="text-[#dccff0]">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePerDelegate }}</span><span class="text-[#dccff0]">{{ __('/ delegate + :fee', ['fee' => $feePerDelegation]) }}</span></div>
                     <p class="leading-relaxed text-[#e6ddf3]">{{ __('Register as an institution or private delegation. The head registers the whole team in one form.') }}</p>
                     <dl class="grid grid-cols-2 gap-px border border-[#7a4fb0] bg-[#7a4fb0] text-center sm:grid-cols-4">
                         @foreach (range($minDelegates, $maxDelegates) as $size)
                             <div class="flex flex-col-reverse gap-0.5 bg-hb-purple px-1 py-2.5">
-                                <dt class="text-[11px] tracking-[0.08em] text-[#dccff0] uppercase">{{ __(':count delegates', ['count' => $size]) }}</dt>
+                                <dt class="text-xs tracking-[0.06em] text-[#dccff0] uppercase">{{ __(':count delegates', ['count' => $size]) }}</dt>
                                 <dd class="font-semibold tabular-nums">{{ number_format(\App\Enums\RegistrationType::InstitutionDelegation->amountDueFor($size)) }}</dd>
                             </div>
                         @endforeach
@@ -325,12 +325,12 @@
                     __('When will I know my committee and portfolio?') => __('After your payment is verified, our team allocates seats. You’ll get an email and see it on your dashboard.'),
                     __('What if my payment screenshot is rejected?') => __('You’ll see the reason on the status page and can upload a new screenshot there.'),
                 ] as $question => $answer)
-                    <details class="group border-b border-hb-line px-1 py-4 lg:py-5.5" @if ($loop->first) open @endif>
-                        <summary class="flex cursor-pointer list-none justify-between gap-4 font-medium lg:text-lg [&::-webkit-details-marker]:hidden">
+                    <details class="group border-b border-hb-line px-1" @if ($loop->first) open @endif>
+                        <summary class="flex cursor-pointer list-none items-center justify-between gap-4 py-4 font-medium lg:py-5.5 lg:text-lg [&::-webkit-details-marker]:hidden">
                             {{ $question }}
                             <span class="text-hb-lavender group-open:rotate-45 transition" aria-hidden="true">+</span>
                         </summary>
-                        <p class="mt-3.5 leading-relaxed text-hb-muted">{{ $answer }}</p>
+                        <p class="pb-4 leading-relaxed text-hb-muted lg:pb-5.5">{{ $answer }}</p>
                     </details>
                 @endforeach
             </div>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="scroll-pt-20">
     <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -15,7 +15,7 @@
         @include('partials.clarity')
     </head>
     <body class="min-h-screen bg-hb-ink font-sans text-white antialiased">
-        <header class="border-b border-hb-line bg-black/85">
+        <header class="sticky top-0 z-30 border-b border-hb-line bg-black/85 backdrop-blur-md">
             <div class="relative mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
                 <a href="{{ route('home') }}" class="flex min-w-0 items-center gap-2.5 sm:gap-3">
                     <span class="hb-art hb-art-crest block w-8 shrink-0 sm:w-10" aria-hidden="true"></span>
@@ -24,8 +24,13 @@
 
                 @if (isset($nav))
                     {{ $nav }}
+                @elseif (request()->routeIs('registration.status'))
+                    <a href="{{ route('register') }}" class="shrink-0 py-2.5 text-sm text-hb-soft underline-offset-4 hover:text-white hover:underline">
+                        <span class="sm:hidden">{{ __('Register') }}</span>
+                        <span class="hidden sm:inline">{{ __('Not registered yet? Register') }}</span>
+                    </a>
                 @else
-                    <a href="{{ route('registration.status') }}" class="shrink-0 text-sm text-hb-soft underline-offset-4 hover:text-white hover:underline">
+                    <a href="{{ route('registration.status') }}" class="shrink-0 py-2.5 text-sm text-hb-soft underline-offset-4 hover:text-white hover:underline">
                         <span class="sm:hidden">{{ __('Check status') }}</span>
                         <span class="hidden sm:inline">{{ __('Already registered? Check your status') }}</span>
                     </a>
@@ -48,18 +53,18 @@
                         </div>
                     </div>
 
-                    <div class="flex flex-wrap items-center gap-x-6 gap-y-3 text-sm">
-                        <a href="{{ route('home') }}#committees" class="text-hb-soft hover:text-white">{{ __('Committees') }}</a>
-                        <a href="{{ route('home') }}#fees" class="text-hb-soft hover:text-white">{{ __('Fees') }}</a>
-                        <a href="{{ route('registration.status') }}" class="text-hb-soft hover:text-white">{{ __('Registration status') }}</a>
-                        <button type="button" onclick="document.getElementById('ambassador-dialog').showModal()" class="cursor-pointer text-hb-soft hover:text-white">{{ __('Campus Ambassadors') }}</button>
+                    <div class="flex flex-wrap items-center gap-x-6 text-sm">
+                        <a href="{{ route('home') }}#committees" class="py-2.5 text-hb-soft hover:text-white">{{ __('Committees') }}</a>
+                        <a href="{{ route('home') }}#fees" class="py-2.5 text-hb-soft hover:text-white">{{ __('Fees') }}</a>
+                        <a href="{{ route('registration.status') }}" class="py-2.5 text-hb-soft hover:text-white">{{ __('Registration status') }}</a>
+                        <button type="button" onclick="document.getElementById('ambassador-dialog').showModal()" class="cursor-pointer py-2.5 text-hb-soft hover:text-white">{{ __('Campus Ambassadors') }}</button>
                         @if (config('conference.contacts.email'))
-                            <a href="mailto:{{ config('conference.contacts.email') }}" class="text-hb-soft hover:text-white">{{ config('conference.contacts.email') }}</a>
+                            <a href="mailto:{{ config('conference.contacts.email') }}" class="py-2.5 text-hb-soft hover:text-white">{{ config('conference.contacts.email') }}</a>
                         @endif
                     </div>
                 </div>
 
-                <div class="flex flex-wrap justify-between gap-x-4 gap-y-2 border-t border-[#2a2630] pt-6 font-display text-[11px] tracking-[0.18em] text-[#8f8996] sm:text-xs sm:tracking-[0.22em]">
+                <div class="flex flex-wrap justify-between gap-x-4 gap-y-2 border-t border-[#2a2630] pt-6 font-display text-xs tracking-[0.18em] text-[#8f8996] sm:tracking-[0.22em]">
                     <span>DIPLOMACY · LEADERSHIP · DISCUSSION · IMPACT</span>
                     <span>© {{ date('Y') }} HOMEBRIDGE MUN</span>
                 </div>

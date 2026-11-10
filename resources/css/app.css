@@ -533,7 +533,7 @@ select:focus[data-flux-control] {
     }
 
     .hb-input {
-        @apply min-h-12 w-full rounded-xs border border-[#3a3542] bg-hb-field px-3.5 text-[15px] text-white placeholder:text-[#7d7785] focus:border-[#8e6bc8] focus:outline-2 focus:outline-offset-1 focus:outline-[#8e6bc8];
+        @apply min-h-12 w-full rounded-xs border border-[#3a3542] bg-hb-field px-3.5 text-base text-white placeholder:text-[#7d7785] focus:border-[#8e6bc8] focus:outline-2 focus:outline-offset-1 focus:outline-[#8e6bc8];
     }
 
     .hb-error {

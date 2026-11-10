@@ -663,7 +663,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             x-on:input.debounce.400ms="save()"
             x-on:change="save()">
             {{-- Side panel --}}
-            <aside class="flex min-w-0 flex-[1_1_300px] flex-col gap-6 lg:sticky lg:top-6">
+            <aside class="flex min-w-0 flex-[1_1_300px] flex-col gap-6 lg:sticky lg:top-24">
                 <div class="hb-eyebrow">{{ __('Delegate registration') }}</div>
                 <h1 class="font-display text-4xl leading-tight font-semibold">{{ __('Claim your seat.') }}</h1>
                 <p class="leading-relaxed text-hb-muted">
