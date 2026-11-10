@@ -4,7 +4,6 @@
     $links = [
         ['label' => __('Register your delegation'), 'note' => __('Registrations are open'), 'href' => route('register'), 'primary' => true],
         ['label' => __('Check your registration status'), 'href' => route('registration.status')],
-        ['label' => __('Apply for Campus Ambassador'), 'opens' => 'ambassador-dialog'],
     ];
 
     if ($contacts['email']) {
@@ -77,6 +76,5 @@
         </main>
         </div>
 
-        @include('partials.ambassador-dialog')
     </body>
 </html>

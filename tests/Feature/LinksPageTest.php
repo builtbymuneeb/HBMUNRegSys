@@ -1,6 +1,6 @@
 <?php
 
-test('the links page points to registration, status and the campus ambassador forms', function () {
+test('the links page points to registration and status, with campus ambassador applications closed', function () {
     config([
         'conference.contacts.email' => 'contact@example.com',
         'conference.socials.instagram' => 'https://instagram.com/example',
@@ -10,9 +10,9 @@ test('the links page points to registration, status and the campus ambassador fo
         ->assertOk()
         ->assertSee(route('register'))
         ->assertSee(route('registration.status'))
-        ->assertSeeText(['Apply for Campus Ambassador', 'Private Campus Ambassador', 'HB Campus Ambassador'])
-        ->assertSee(config('conference.ambassador_forms.private'))
-        ->assertSee(config('conference.ambassador_forms.hb'))
+        ->assertDontSeeText('Apply for Campus Ambassador')
+        ->assertDontSee(config('conference.ambassador_forms.private'))
+        ->assertDontSee(config('conference.ambassador_forms.hb'))
         ->assertSee('mailto:contact@example.com')
         ->assertSee('https://instagram.com/example')
         ->assertDontSeeText('LinkedIn');
