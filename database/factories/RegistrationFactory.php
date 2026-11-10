@@ -57,13 +57,13 @@ class RegistrationFactory extends Factory
     }
 
     /**
-     * A Homebridge student registering on their own.
+     * A delegate registering on their own.
      */
     public function privateDelegate(): static
     {
         return $this->state(fn (array $attributes) => [
             'type' => RegistrationType::PrivateDelegate,
-            'organisation_name' => 'Homebridge '.fake()->city().' campus',
+            'organisation_name' => fake()->company().' School',
             'amount_due' => RegistrationType::PrivateDelegate->amountDueFor(1),
         ])->has(Delegate::factory()->count(1));
     }

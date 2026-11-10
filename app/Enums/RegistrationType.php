@@ -13,7 +13,7 @@ enum RegistrationType: string
         return match ($this) {
             self::InstitutionDelegation => 'Institution delegation',
             self::PrivateDelegation => 'Private delegation',
-            self::PrivateDelegate => 'Individual Homebridge delegate',
+            self::PrivateDelegate => 'Individual delegate',
         };
     }
 

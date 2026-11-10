@@ -222,12 +222,11 @@
 
                 <div class="flex flex-col gap-3.5 border border-hb-line-strong bg-hb-field px-6 py-7 md:gap-4.5 md:px-9 md:py-10" data-test="private-delegate-fee">
                     <div class="flex items-center justify-between gap-3">
-                        <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Individual Homebridge delegate') }}</div>
+                        <div class="font-display tracking-[0.14em] uppercase md:text-lg">{{ __('Individual delegate') }}</div>
                         <div class="bg-white px-2.5 py-1 text-[11px] font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase">{{ __('1 person') }}</div>
                     </div>
                     <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span class="text-hb-muted">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePrivateDelegate }}</span><span class="text-hb-muted">{{ __('/ delegate') }}</span></div>
-                    <p class="leading-relaxed text-hb-soft">{{ __('Homebridge students can register on their own, without a delegation. No delegation fee.') }}</p>
-                    <p class="text-sm leading-relaxed text-hb-muted">{{ __('Only open to current Homebridge students. Our team checks this before verifying your registration.') }}</p>
+                    <p class="leading-relaxed text-hb-soft">{{ __('Register on your own, without a delegation. No delegation fee.') }}</p>
                     <a href="{{ route('register', ['type' => \App\Enums\RegistrationType::PrivateDelegate->value]) }}" class="hb-button-primary mt-auto">{{ __('Register as an individual delegate') }}</a>
                 </div>
             </div>
@@ -321,7 +320,7 @@
                 @foreach ([
                     __('Is the conference fully online?') => __('Yes. Session links appear on your delegate dashboard on both conference days.'),
                     __('Can I register my whole team?') => __('Yes, as an institution or private delegation of :min–:max delegates. The head fills one form for everyone and pays PKR :delegate per delegate plus PKR :delegation per delegation.', ['min' => $minDelegates, 'max' => $maxDelegates, 'delegate' => $feePerDelegate, 'delegation' => $feePerDelegation]),
-                    __('Can I register on my own?') => __('Only if you are a Homebridge student. Choose “Individual Homebridge delegate” on the registration form and pay PKR :fee. Students from other institutes register as part of a delegation.', ['fee' => $feePrivateDelegate]),
+                    __('Can I register on my own?') => __('Yes. Choose “Individual delegate” on the registration form and pay PKR :fee. There is no delegation fee.', ['fee' => $feePrivateDelegate]),
                     __('When will I know my committee and portfolio?') => __('After your payment is verified, our team allocates seats. You’ll get an email and see it on your dashboard.'),
                     __('What if my payment screenshot is rejected?') => __('You’ll see the reason on the status page and can upload a new screenshot there.'),
                 ] as $question => $answer)

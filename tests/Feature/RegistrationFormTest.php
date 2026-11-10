@@ -123,13 +123,54 @@ function filledDelegationForm(array $delegateOverrides = []): Testable
         ->set('confirmed', true);
 }
 
-test('individual (private delegate) registration is not offered', function () {
-    Livewire::withQueryParams(['type' => 'private_delegate'])
+/**
+ * A delegate registering on their own, with every field filled in.
+ */
+function filledIndividualForm(array $contactOverrides = []): Testable
+{
+    $contact = [
+        'organisation_name' => 'Beaconhouse School',
+        'city' => 'Lahore',
+        'name' => 'Solo Student',
+        'cnic' => '3520211111111',
+        'phone' => '03001234567',
+        'email' => 'solo@gmail.com',
+        ...$contactOverrides,
+    ];
+
+    return Livewire::withQueryParams(['type' => RegistrationType::PrivateDelegate->value])
         ->test('pages::registration.create')
-        ->assertSet('type', RegistrationType::InstitutionDelegation->value)
-        ->assertDontSeeText('Private delegate')
-        ->set('type', 'private_delegate')
-        ->assertSet('type', RegistrationType::InstitutionDelegation->value);
+        ->set('contact', $contact)
+        ->set('delegates', [delegateInput(1, ['name' => $contact['name'], 'cnic' => $contact['cnic'], 'email' => $contact['email'], 'phone' => $contact['phone']])])
+        ->set('newScreenshot', UploadedFile::fake()->image('payment.png'))
+        ->set('confirmed', true);
+}
+
+test('anyone can register as an individual delegate with any email', function () {
+    filledIndividualForm()
+        ->assertSet('type', RegistrationType::PrivateDelegate->value)
+        ->assertSeeText('Individual delegate')
+        ->assertDontSeeText('Homebridge student')
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $registration = Registration::sole();
+
+    expect($registration->type)->toBe(RegistrationType::PrivateDelegate)
+        ->and($registration->type->label())->toBe('Individual delegate')
+        ->and($registration->amount_due)->toBe(1000)
+        ->and($registration->displayName())->toBe('Solo Student')
+        ->and($registration->delegates)->toHaveCount(1)
+        ->and($registration->delegates->first()->email)->toBe('solo@gmail.com');
+});
+
+test('an individual delegate registers exactly one delegate', function () {
+    filledIndividualForm()
+        ->set('delegates', array_map(fn (int $number) => delegateInput($number), range(1, 2)))
+        ->call('submit')
+        ->assertHasErrors('delegates');
+
+    expect(Registration::count())->toBe(0);
 });
 
 test('a private delegation registers with the head as contact', function () {

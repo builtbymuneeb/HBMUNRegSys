@@ -514,12 +514,9 @@ new #[Title('Review registration')] class extends Component {
                     <flux:heading size="lg">{{ __('Contact') }}</flux:heading>
                     <x-whatsapp-button :href="route('staff.whatsapp.contact', $registration)" :phone="$registration->contact_phone" :sent="$registration->load('whatsAppLogs.sender')->contactWhatsApp()" />
                 </div>
-                @if ($registration->type->isIndividual())
-                    <flux:callout icon="academic-cap" color="amber" :heading="__('Individual Homebridge delegate: Homebridge students only')" :text="__('They confirmed they are a current Homebridge student. Check this before verifying.')" data-test="homebridge-check" />
-                @endif
                 <dl class="grid gap-4 text-sm sm:grid-cols-2">
                     @foreach ([
-                        ($registration->type->isIndividual() ? __('Homebridge campus') : __('Institution / delegation')) => $registration->organisation_name,
+                        ($registration->type->isIndividual() ? __('Institution') : __('Institution / delegation')) => $registration->organisation_name,
                         __('City') => $registration->city,
                         __('Name') => $registration->contact_name,
                         __('CNIC / B-Form') => $registration->contact_cnic,

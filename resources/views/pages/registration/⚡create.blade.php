@@ -81,11 +81,6 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     public bool $confirmed = false;
 
     /**
-     * A private delegate confirms they are a current Homebridge student; only they may register alone.
-     */
-    public bool $homebridgeStudent = false;
-
-    /**
      * Whether submitting has been tried; only then is the payment step flagged too.
      */
     public bool $attemptedSubmit = false;
@@ -269,7 +264,6 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
         $this->type = is_string($draft['type'] ?? null) ? $draft['type'] : $this->type;
         $this->ensureKnownType();
-        $this->homebridgeStudent = ($draft['homebridgeStudent'] ?? false) === true;
 
         foreach (array_keys($this->contact) as $key) {
             $this->contact[$key] = $this->cleanString($draft['contact'][$key] ?? '');
@@ -299,7 +293,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
      */
     public function startOver(): void
     {
-        $this->reset('contact', 'delegates', 'delegateCount', 'paymentScreenshots', 'newScreenshot', 'confirmed', 'homebridgeStudent', 'restoredDraft', 'visited', 'attemptedSubmit');
+        $this->reset('contact', 'delegates', 'delegateCount', 'paymentScreenshots', 'newScreenshot', 'confirmed', 'restoredDraft', 'visited', 'attemptedSubmit');
         $this->type = RegistrationType::InstitutionDelegation->value;
         $this->contact['referral_code'] = $this->linkReferralCode;
         $this->resetValidation();
@@ -352,7 +346,6 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         $type = $this->registrationType;
         // Any country's format, since delegates can join from abroad.
         $phone = ['required', 'string', 'max:30', 'regex:/^[0-9+\s\-()]+$/'];
-        $homebridgeEmail = $type->isIndividual() ? [$this->homebridgeEmail(...)] : [];
         $cnic = ['required', 'string', 'regex:/^\d+$/', 'max:30'];
 
         return [
@@ -362,13 +355,12 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'contact.name' => ['required', 'string', 'max:255'],
             'contact.cnic' => $cnic,
             'contact.phone' => $phone,
-            'contact.email' => ['required', 'email', 'max:255', ...$homebridgeEmail],
+            'contact.email' => ['required', 'email', 'max:255'],
             'contact.referral_code' => ['nullable', 'string', 'max:50'],
-            'homebridgeStudent' => $type->isIndividual() ? ['accepted'] : ['boolean'],
             'delegates' => ['required', 'array', 'min:'.$type->minimumDelegates(), 'max:'.$type->maximumDelegates()],
             'delegates.*.name' => ['required', 'string', 'max:255'],
             'delegates.*.cnic' => [...$cnic, 'distinct'],
-            'delegates.*.email' => ['required', 'email', 'max:255', 'distinct:ignore_case', $this->notAlreadyRegistered(...), ...$homebridgeEmail],
+            'delegates.*.email' => ['required', 'email', 'max:255', 'distinct:ignore_case', $this->notAlreadyRegistered(...)],
             'delegates.*.phone' => $phone,
             'delegates.*.first_committee_id' => ['required', Rule::exists('committees', 'id')],
             'delegates.*.second_committee_id' => ['required', Rule::exists('committees', 'id'), 'different:delegates.*.first_committee_id'],
@@ -388,10 +380,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         return [
             'contact.organisation_name' => match ($this->registrationType) {
                 RegistrationType::InstitutionDelegation => 'institution name',
-                RegistrationType::PrivateDelegate => 'Homebridge campus',
+                RegistrationType::PrivateDelegate => 'institution name',
                 default => 'delegation name',
             },
-            'homebridgeStudent' => 'Homebridge student confirmation',
             'contact.city' => 'city',
             'contact.name' => 'full name',
             'contact.cnic' => 'CNIC / B-Form',
@@ -427,7 +418,6 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.cnic.distinct' => 'Each delegate needs their own CNIC / B-Form number.',
             'paymentScreenshots.max' => 'You can upload up to :max screenshots.',
             'confirmed.accepted' => 'Please confirm your details and payment amount.',
-            'homebridgeStudent.accepted' => 'Individual delegate registration is only open to Homebridge students. Please confirm you are one.',
             'delegates.required' => 'Choose how many delegates are in your delegation.',
         ];
     }
@@ -450,7 +440,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     private function stepForField(string $field): int
     {
         return match (true) {
-            $field === 'type', $field === 'homebridgeStudent', Str::startsWith($field, 'contact.') => 1,
+            $field === 'type', Str::startsWith($field, 'contact.') => 1,
             $field === 'delegates', Str::startsWith($field, 'delegates.') => 2,
             default => 4,
         };
@@ -549,16 +539,6 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                 $fail(__('Choose your :attribute from the list.'));
             }
         };
-    }
-
-    /**
-     * An Individual Homebridge delegate must use a Homebridge email address.
-     */
-    private function homebridgeEmail(string $attribute, mixed $value, Closure $fail): void
-    {
-        if (! str_contains(Str::lower(Str::after((string) $value, '@')), 'homebridge')) {
-            $fail(__('Use your Homebridge email address (it must end in a Homebridge domain).'));
-        }
     }
 
     private function notAlreadyRegistered(string $attribute, mixed $value, Closure $fail): void
@@ -678,7 +658,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                         <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
                         <div class="font-display text-4xl font-bold" data-test="amount-due">PKR {{ number_format($this->amountDue) }}</div>
                         <div class="text-sm leading-relaxed text-hb-muted">
-                            {{ __('Individual Homebridge delegate fee. No delegation fee.') }}
+                            {{ __('Individual delegate fee. No delegation fee.') }}
                         </div>
                     @elseif ($step === 1)
                         <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Fees') }}</div>
@@ -778,7 +758,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         <span class="font-semibold">{{ $option->label() }}</span>
                                         <span class="mt-1 text-sm opacity-80">
                                             {{ $option->isIndividual()
-                                                ? __('1 person · Homebridge students only')
+                                                ? __('1 person · register on your own')
                                                 : __(':min–:max members', ['min' => $option->minimumDelegates(), 'max' => $option->maximumDelegates()]) }}
                                         </span>
                                     </label>
@@ -790,12 +770,12 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                             <legend class="hb-legend">{{ $isInstitution ? __('Institution information') : ($isIndividual ? __('Your details') : __('Delegation head')) }}</legend>
 
                             @if ($isIndividual)
-                                <p class="-mt-1 text-sm leading-relaxed text-hb-muted">{{ __('Registering on your own is only open to current Homebridge students, for PKR :fee. Use your Homebridge email address. Our team checks this before your registration is verified.', ['fee' => number_format(RegistrationType::PrivateDelegate->amountDueFor(1))]) }}</p>
+                                <p class="-mt-1 text-sm leading-relaxed text-hb-muted">{{ __('Register on your own, without a delegation, for PKR :fee.', ['fee' => number_format(RegistrationType::PrivateDelegate->amountDueFor(1))]) }}</p>
                             @endif
 
                             <div class="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
-                                <x-public.field :label="$isInstitution ? __('Institution / school / college name') : ($isIndividual ? __('Homebridge campus / branch') : __('Delegation name'))" name="contact.organisation_name">
-                                    <input type="text" wire:model="contact.organisation_name" class="hb-input" autocomplete="organization" @if ($isIndividual) placeholder="{{ __('e.g. Homebridge DHA campus') }}" @endif>
+                                <x-public.field :label="$isInstitution || $isIndividual ? __('Institution / school / college name') : __('Delegation name')" name="contact.organisation_name">
+                                    <input type="text" wire:model="contact.organisation_name" class="hb-input" autocomplete="organization">
                                 </x-public.field>
 
                                 <x-public.field :label="__('City')" name="contact.city">
@@ -812,23 +792,13 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 <x-public.field :label="$who.' '.__('phone (WhatsApp)')" name="contact.phone">
                                     <input type="tel" wire:model="contact.phone" class="hb-input" inputmode="tel" placeholder="03XX XXXXXXX / +44 7700 900123" autocomplete="tel">
                                 </x-public.field>
-                                <x-public.field :label="$isIndividual ? __('Your Homebridge email') : $who.' '.__('email')" name="contact.email">
+                                <x-public.field :label="$who.' '.__('email')" name="contact.email">
                                     <input type="email" wire:model="contact.email" class="hb-input" autocomplete="email">
                                 </x-public.field>
                                 <x-public.field :label="__('Referral code (optional)')" name="contact.referral_code" :hint="__('If a delegate referred you, enter their referral code.')">
                                     <input type="text" wire:model="contact.referral_code" class="hb-input uppercase" maxlength="50" autocomplete="off" autocapitalize="characters" spellcheck="false">
                                 </x-public.field>
                             </div>
-
-                            @if ($isIndividual)
-                                <div @error('homebridgeStudent') data-invalid @enderror class="flex flex-col gap-1.5">
-                                    <label class="flex cursor-pointer items-start gap-3 border border-hb-line bg-hb-surface p-4 text-sm leading-relaxed text-hb-soft">
-                                        <input type="checkbox" wire:model.live="homebridgeStudent" class="mt-0.5 size-5 accent-[#8e6bc8]" data-test="homebridge-student">
-                                        <span>{{ __('I confirm I am a current Homebridge student. I understand my registration will be rejected if this can’t be confirmed.') }}</span>
-                                    </label>
-                                    <x-public.error name="homebridgeStudent" />
-                                </div>
-                            @endif
                         </fieldset>
                     @elseif ($step === 2)
                         {{-- 2. Delegates --}}
@@ -876,8 +846,8 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         <x-public.field :label="__('CNIC / B-Form')" name="delegates.{{ $index }}.cnic">
                                             <input type="text" wire:model="delegates.{{ $index }}.cnic" class="hb-input" inputmode="numeric" x-mask="{{ str_repeat('9', 30) }}" placeholder="{{ __('Numbers only') }}">
                                         </x-public.field>
-                                        <x-public.field :label="$isIndividual ? __('Homebridge email') : __('Email (Gmail)')" name="delegates.{{ $index }}.email">
-                                            <input type="email" wire:model="delegates.{{ $index }}.email" class="hb-input" placeholder="{{ $isIndividual ? __('Your Homebridge email') : 'name@gmail.com' }}">
+                                        <x-public.field :label="__('Email (Gmail)')" name="delegates.{{ $index }}.email">
+                                            <input type="email" wire:model="delegates.{{ $index }}.email" class="hb-input" placeholder="name@gmail.com">
                                         </x-public.field>
                                         <x-public.field :label="__('Phone (WhatsApp)')" name="delegates.{{ $index }}.phone">
                                             <input type="tel" wire:model="delegates.{{ $index }}.phone" class="hb-input" inputmode="tel" placeholder="03XX XXXXXXX / +44 7700 900123">
@@ -958,14 +928,13 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 <dl class="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-3 text-sm">
                                     @foreach ([
                                         __('Registration type') => $this->registrationType->label(),
-                                        ($isInstitution ? __('Institution') : ($isIndividual ? __('Homebridge campus') : __('Delegation name'))) => $contact['organisation_name'],
+                                        ($isInstitution || $isIndividual ? __('Institution') : __('Delegation name')) => $contact['organisation_name'],
                                         __('City') => $contact['city'],
                                         __('Full name') => $contact['name'],
                                         __('CNIC / B-Form') => $contact['cnic'],
                                         __('Phone') => $contact['phone'],
                                         __('Email') => $contact['email'],
                                         __('Referral code') => Str::upper(trim($contact['referral_code'] ?? '')) ?: __('None'),
-                                        ...($isIndividual ? [__('Homebridge student') => $homebridgeStudent ? __('Confirmed') : ''] : []),
                                     ] as $label => $value)
                                         <div class="min-w-0">
                                             <dt class="text-xs text-hb-subtle">{{ $label }}</dt>
@@ -1182,7 +1151,6 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                 contact: this.$wire.contact,
                 delegateCount: this.$wire.delegateCount,
                 delegates: this.$wire.delegates,
-                homebridgeStudent: this.$wire.homebridgeStudent,
             };
             const json = JSON.stringify(draft);
 
