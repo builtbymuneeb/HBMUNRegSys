@@ -9,7 +9,7 @@
     $feePrivateDelegate = number_format(\App\Enums\RegistrationType::PrivateDelegate->amountDueFor(1));
     $fileNumbers = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
     $committeeArt = ['UNW' => 'hb-art-seal', 'UNSC' => 'hb-art-globe', 'PNA' => 'hb-art-column', 'SPECIAL' => 'hb-art-banner'];
-    $tickerItems = [__('Registrations now open'), config('conference.dates_label'), __('Virtual conference'), __('Delegate fee PKR :fee', ['fee' => $feePerDelegate])];
+    $tickerItems = [__('Registrations now open'), config('conference.dates_label'), __('Virtual conference'), __('Delegate fee PKR :fee', ['fee' => $feePerDelegate]), __('HB delegations :percent% off', ['percent' => \App\Enums\RegistrationType::homebridgeDiscountPercent()])];
 @endphp
 
 <x-layouts::public>
@@ -346,4 +346,5 @@
             <a href="{{ route('register') }}" class="hb-button-primary min-h-13 px-9 text-base">{{ __('Register Now') }}</a>
         </div>
     </section>
+    @include('partials.hb-discount-dialog')
 </x-layouts::public>
