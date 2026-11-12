@@ -19,7 +19,7 @@ class SubmitRegistration
      * Store a new registration with its delegates and payment screenshots.
      *
      * @param  array{organisation_name?: string|null, city: string, name: string, cnic: string, phone: string, email: string, referral_code?: string|null}  $contact
-     * @param  list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: int, second_committee_id: int, country_preference?: string|null, personality_preference?: string|null, mun_experience?: MunExperience|null}>  $delegates
+     * @param  list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: int, second_committee_id: int, country_preference?: string|null, personality_preference?: string|null, mun_experience?: MunExperience|null, is_homebridge?: bool}>  $delegates
      * @param  non-empty-list<UploadedFile>  $paymentScreenshots
      */
     public function handle(RegistrationType $type, array $contact, array $delegates, array $paymentScreenshots): Registration
@@ -38,7 +38,7 @@ class SubmitRegistration
                 'contact_email' => $contact['email'],
                 'referral_code' => $contact['referral_code'] ?? null,
                 'campus_ambassador_id' => CampusAmbassador::forCode($contact['referral_code'] ?? null)?->id,
-                'amount_due' => $type->amountDueFor(count($delegates)),
+                'amount_due' => $type->amountDueFor(count($delegates), count(array_filter(array_column($delegates, 'is_homebridge')))),
                 'payment_screenshot_path' => $screenshotPaths[0],
             ]);
 

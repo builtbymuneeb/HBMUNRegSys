@@ -37,6 +37,8 @@ return [
         'per_delegation' => (int) env('CONFERENCE_FEE_PER_DELEGATION', 1000),
         // A single delegate registering on their own; no delegation fee.
         'private_delegate' => (int) env('CONFERENCE_FEE_PRIVATE_DELEGATE', 1000),
+        // Delegations only: percent off each Homebridge member's fee; an all-Homebridge delegation also gets it off the delegation fee. Individuals pay in full.
+        'homebridge_discount_percent' => (int) env('CONFERENCE_HOMEBRIDGE_DISCOUNT_PERCENT', 40),
     ],
 
     'delegation' => [

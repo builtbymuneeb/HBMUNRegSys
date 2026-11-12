@@ -150,7 +150,6 @@ test('anyone can register as an individual delegate with any email', function ()
     filledIndividualForm()
         ->assertSet('type', RegistrationType::PrivateDelegate->value)
         ->assertSeeText('Individual delegate')
-        ->assertDontSeeText('Homebridge student')
         ->call('submit')
         ->assertHasNoErrors();
 
@@ -609,4 +608,40 @@ test('the Marvel committee asks for a character from its list once the list is p
     $form->set('delegates.0.first_preference', 'Steve Rogers / Captain America')
         ->call('submit')
         ->assertHasNoErrors();
+});
+
+test('individual delegates pay the full fee, with no Homebridge discount', function () {
+    $delegate = filledIndividualForm()->get('delegates')[0];
+
+    filledIndividualForm()
+        ->assertDontSeeText('Homebridge student')
+        ->set('delegates', [[...$delegate, 'is_homebridge' => true]])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $registration = Registration::sole();
+
+    expect($registration->amount_due)->toBe(1000)
+        ->and($registration->delegates->first()->is_homebridge)->toBeFalse();
+});
+
+test('only the Homebridge students in a mixed delegation get the discount', function () {
+    filledDelegationForm([['is_homebridge' => true], [], ['is_homebridge' => true]])
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    $registration = Registration::sole();
+
+    // 2 × 600 + 1 × 1000 + 1000 delegation fee.
+    expect($registration->amount_due)->toBe(3200)
+        ->and($registration->delegates()->where('is_homebridge', true)->count())->toBe(2);
+});
+
+test('an all-Homebridge delegation gets 40% off the whole fee', function () {
+    filledDelegationForm(array_fill(0, 3, ['is_homebridge' => true]))
+        ->call('submit')
+        ->assertHasNoErrors();
+
+    // (3 × 1000 + 1000) × 60%.
+    expect(Registration::sole()->amount_due)->toBe(2400);
 });

@@ -27,6 +27,7 @@ use Illuminate\Support\Carbon;
  * @property string|null $first_preference
  * @property string|null $second_preference
  * @property MunExperience|null $mun_experience
+ * @property bool $is_homebridge A Homebridge student, who gets the Homebridge discount.
  * @property int|null $allocated_committee_id
  * @property string|null $allocated_portfolio
  * @property int|null $allocated_by
@@ -48,6 +49,7 @@ use Illuminate\Support\Carbon;
     'first_preference',
     'second_preference',
     'mun_experience',
+    'is_homebridge',
     'allocated_committee_id',
     'allocated_portfolio',
     'allocated_by',
@@ -70,6 +72,7 @@ class Delegate extends Model
             'allocated_at' => 'datetime',
             'allocation_published_at' => 'datetime',
             'mun_experience' => MunExperience::class,
+            'is_homebridge' => 'boolean',
         ];
     }
 

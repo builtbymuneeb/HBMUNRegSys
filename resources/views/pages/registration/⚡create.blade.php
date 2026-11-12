@@ -75,7 +75,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
      */
     public ?int $delegateCount = null;
 
-    /** @var list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: string, second_committee_id: string, first_preference: string, second_preference: string, mun_experience: string}> */
+    /** @var list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: string, second_committee_id: string, first_preference: string, second_preference: string, mun_experience: string, is_homebridge: bool}> */
     public array $delegates = [];
 
     public bool $confirmed = false;
@@ -140,6 +140,24 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
     #[Computed]
     public function amountDue(): int
+    {
+        return $this->registrationType->amountDueFor(count($this->delegates), $this->homebridgeCount);
+    }
+
+    /**
+     * How many of the delegates said they are Homebridge students.
+     */
+    #[Computed]
+    public function homebridgeCount(): int
+    {
+        return count(array_filter(array_column($this->delegates, 'is_homebridge')));
+    }
+
+    /**
+     * What the total would be with no Homebridge discount, to show the saving.
+     */
+    #[Computed]
+    public function amountBeforeDiscount(): int
     {
         return $this->registrationType->amountDueFor(count($this->delegates));
     }
@@ -278,7 +296,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
         foreach ($this->delegates as $index => $delegate) {
             foreach (array_keys($delegate) as $key) {
-                $this->delegates[$index][$key] = $this->cleanString($draft['delegates'][$index][$key] ?? '');
+                $this->delegates[$index][$key] = $key === 'is_homebridge'
+                    ? filter_var($draft['delegates'][$index][$key] ?? false, FILTER_VALIDATE_BOOL)
+                    : $this->cleanString($draft['delegates'][$index][$key] ?? '');
             }
         }
 
@@ -324,6 +344,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'first_preference' => $delegate['first_preference'] ?: null,
             'second_preference' => $delegate['second_preference'] ?: null,
             'mun_experience' => MunExperience::tryFrom($delegate['mun_experience'] ?? ''),
+            'is_homebridge' => ! $this->registrationType->isIndividual() && (bool) ($delegate['is_homebridge'] ?? false),
         ], $validated['delegates']);
 
         $contact = [
@@ -367,6 +388,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.first_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList('first')],
             'delegates.*.second_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList('second')],
             'delegates.*.mun_experience' => ['nullable', Rule::enum(MunExperience::class)],
+            'delegates.*.is_homebridge' => ['boolean'],
             ...$this->paymentScreenshotsRules(),
             'confirmed' => ['accepted'],
         ];
@@ -610,6 +632,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'first_preference' => '',
             'second_preference' => '',
             'mun_experience' => '',
+            'is_homebridge' => false,
         ];
 
         $this->delegates = array_slice(
@@ -652,6 +675,8 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                 <div class="hb-art hb-art-library hidden w-full max-w-[300px] border border-hb-line-strong lg:block" aria-hidden="true"></div>
                 @php($feePerDelegate = number_format(config('conference.fees.per_delegate')))
                 @php($feePerDelegation = number_format(config('conference.fees.per_delegation')))
+                @php($hbPercent = RegistrationType::homebridgeDiscountPercent())
+                @php($hbSaving = $this->amountBeforeDiscount - $this->amountDue)
                 {{-- Phones get the total inline on the delegates step instead, so the form comes first. --}}
                 <div class="hidden flex-col gap-2.5 border border-hb-line bg-hb-surface p-5 lg:flex">
                     @if ($isIndividual)
@@ -665,6 +690,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                         <div class="text-sm leading-relaxed text-hb-soft">
                             {{ __('PKR :fee per delegate, plus PKR :delegation per delegation.', ['fee' => $feePerDelegate, 'delegation' => $feePerDelegation]) }}
                         </div>
+                        <div class="text-sm leading-relaxed text-hb-lavender">{{ __('Homebridge students in a delegation get :percent% off.', ['percent' => $hbPercent]) }}</div>
                         <div class="text-sm leading-relaxed text-hb-muted">
                             {{ __('You’ll choose how many delegates (:min–:max) in the next step, and see your total there.', ['min' => $this->registrationType->minimumDelegates(), 'max' => $this->registrationType->maximumDelegates()]) }}
                         </div>
@@ -677,6 +703,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                         <div class="text-sm leading-relaxed text-hb-muted">
                             {{ __(':count delegates × PKR :fee + PKR :delegation delegation fee', ['count' => count($delegates), 'fee' => $feePerDelegate, 'delegation' => $feePerDelegation]) }}
                         </div>
+                        @if ($hbSaving > 0)
+                            <div class="text-sm leading-relaxed text-hb-lavender" data-test="homebridge-saving">{{ __('Includes :percent% Homebridge discount (−PKR :saving).', ['percent' => $hbPercent, 'saving' => number_format($hbSaving)]) }}</div>
+                        @endif
                     @endif
                     <div class="border-t border-hb-line pt-2 text-xs leading-relaxed text-hb-subtle">
                         {{ __('Questions about the fee or an adjustment? Contact the registration team on the payment step.') }}
@@ -829,7 +858,12 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                             @else
                                 <div class="flex items-baseline justify-between gap-3 border border-hb-line bg-hb-surface px-4 py-3 lg:hidden">
                                     <span class="text-xs tracking-[0.16em] text-hb-subtle uppercase">{{ __('Total') }}</span>
-                                    <span class="font-display text-xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
+                                    <span class="text-right">
+                                        <span class="font-display text-xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
+                                        @if ($hbSaving > 0)
+                                            <span class="block text-xs text-hb-lavender">{{ __(':percent% Homebridge discount (−PKR :saving)', ['percent' => $hbPercent, 'saving' => number_format($hbSaving)]) }}</span>
+                                        @endif
+                                    </span>
                                 </div>
                             @endif
                             <div @error('delegates') data-invalid @enderror>
@@ -892,6 +926,15 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                                 @endforeach
                                             </div>
                                         </x-public.field>
+                                        @unless ($isIndividual)
+                                        <label class="col-span-full flex cursor-pointer items-start gap-3 rounded-xs border border-[#3a3542] bg-hb-field px-4 py-3 text-sm has-checked:border-[#a98bd6] has-checked:bg-hb-purple/40 has-focus-visible:outline-2 has-focus-visible:outline-[#8e6bc8]">
+                                            <input type="checkbox" wire:model.live="delegates.{{ $index }}.is_homebridge" class="mt-0.5 size-5 shrink-0 accent-[#a98bd6]" data-test="homebridge-{{ $index }}">
+                                            <span class="flex flex-col gap-0.5">
+                                                <span class="font-semibold text-white">{{ __('Homebridge student') }}</span>
+                                                <span class="text-hb-muted">{{ __(':percent% off for Homebridge students in a delegation. The registration team checks this before verifying.', ['percent' => $hbPercent]) }}</span>
+                                            </span>
+                                        </label>
+                                        @endunless
                                     </div>
                                 </div>
                             @endforeach
@@ -965,13 +1008,21 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         @if ($experience = MunExperience::tryFrom($delegate['mun_experience'] ?? ''))
                                             <div class="text-hb-muted">{{ __('Experience: :experience', ['experience' => __($experience->label())]) }}</div>
                                         @endif
+                                        @if (! $isIndividual && ($delegate['is_homebridge'] ?? false))
+                                            <div class="text-hb-lavender">{{ __('Homebridge student · :percent% off', ['percent' => $hbPercent]) }}</div>
+                                        @endif
                                     </div>
                                 @endforeach
                             </section>
 
                             <div class="flex items-center justify-between gap-3 border border-hb-purple-line bg-hb-purple p-5">
                                 <span class="text-sm tracking-[0.12em] uppercase">{{ __('Amount to pay') }}</span>
-                                <span class="font-display text-2xl font-bold">{{ $delegates === [] ? '—' : 'PKR '.number_format($this->amountDue) }}</span>
+                                <span class="text-right">
+                                    <span class="font-display text-2xl font-bold">{{ $delegates === [] ? '—' : 'PKR '.number_format($this->amountDue) }}</span>
+                                    @if ($hbSaving > 0)
+                                        <span class="block text-xs text-[#dccff0]">{{ __('After :percent% Homebridge discount (−PKR :saving)', ['percent' => $hbPercent, 'saving' => number_format($hbSaving)]) }}</span>
+                                    @endif
+                                </span>
                             </div>
                         </div>
                     @else

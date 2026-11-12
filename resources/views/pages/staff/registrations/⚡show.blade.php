@@ -543,7 +543,12 @@ new #[Title('Review registration')] class extends Component {
                     @foreach ($this->delegates as $delegate)
                         <div wire:key="delegate-{{ $delegate->id }}" class="grid gap-x-6 gap-y-2 py-3 text-sm first:pt-0 last:pb-0 sm:grid-cols-2">
                             <div>
-                                <div class="font-medium text-zinc-800 dark:text-white">{{ $delegate->name }}</div>
+                                <div class="flex flex-wrap items-center gap-2 font-medium text-zinc-800 dark:text-white">
+                                    {{ $delegate->name }}
+                                    @if ($delegate->is_homebridge)
+                                        <flux:badge size="sm" color="purple" :title="__('Says they are a Homebridge student and got the Homebridge discount. Check before verifying.')">{{ __('Homebridge student') }}</flux:badge>
+                                    @endif
+                                </div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ $delegate->email }} · {{ $delegate->phone }}</div>
                                 <div class="text-zinc-500 dark:text-zinc-400">{{ __('CNIC') }} {{ $delegate->cnic }}</div>
                                 @if ($this->canReview)

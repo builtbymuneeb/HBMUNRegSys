@@ -216,6 +216,7 @@
                             </div>
                         @endforeach
                     </dl>
+                    <p class="border-l-2 border-white pl-3 text-sm leading-relaxed text-white" data-test="homebridge-discount">{{ __('Homebridge students in a delegation get :percent% off. An all-Homebridge delegation gets :percent% off the whole fee.', ['percent' => \App\Enums\RegistrationType::homebridgeDiscountPercent()]) }}</p>
                     <p class="text-sm leading-relaxed text-[#dccff0]">{{ __('Want to discuss a fee adjustment for your institute? Contact the registration team.') }}</p>
                     <a href="{{ route('register') }}" class="hb-button-primary mt-auto">{{ __('Register a delegation') }}</a>
                 </div>
