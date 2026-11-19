@@ -150,6 +150,17 @@ test('blocked registrations leave the verified totals, and archived and binned o
         ->assertDontSeeText($kept->reference);
 });
 
+test('the flagged, appeals, blocked, archived and bin buttons call their filters', function () {
+    $this->actingAs(registrationsStaff())
+        ->get(route('staff.registrations.index'))
+        ->assertOk()
+        ->assertSee("wire:click=\"showTag('flagged')\"", false)
+        ->assertSee("wire:click=\"showTag('appeals')\"", false)
+        ->assertSee("wire:click=\"showStatus('blocked')\"", false)
+        ->assertSee("wire:click=\"showStatus('archived')\"", false)
+        ->assertSee("wire:click=\"showStatus('deleted')\"", false);
+});
+
 test('staff can flag and unflag a registration without changing its status', function () {
     $registration = Registration::factory()->privateDelegate()->verified()->create();
     $staff = registrationsStaff();

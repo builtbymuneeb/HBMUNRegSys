@@ -210,7 +210,7 @@ new #[Title('Registrations')] class extends Component {
             ['status', RegistrationStatus::Deleted->value, __('Bin'), $this->statusCounts[RegistrationStatus::Deleted->value] ?? 0, 'trash'],
         ] as [$filter, $value, $label, $count, $icon])
             <flux:button size="sm" :icon="$icon" :variant="($filter === 'tag' ? $tag : $status) === $value ? 'primary' : 'outline'"
-                wire:click="{{ $filter === 'tag' ? 'showTag' : 'showStatus' }}(@js($value))">
+                wire:click="{{ $filter === 'tag' ? 'showTag' : 'showStatus' }}('{{ $value }}')" data-test="filter-{{ $value }}">
                 {{ $label }} · {{ $count }}
             </flux:button>
         @endforeach
