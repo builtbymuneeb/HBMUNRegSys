@@ -1,6 +1,7 @@
 <?php
 
 use App\Actions\Registrations\AddPaymentScreenshot;
+use App\Actions\Registrations\ModerateRegistration;
 use App\Actions\Registrations\RejectRegistration;
 use App\Actions\Registrations\RemovePaymentScreenshot;
 use App\Actions\Registrations\UpdateDelegate;
@@ -32,6 +33,19 @@ new #[Title('Review registration')] class extends Component {
     public Registration $registration;
 
     public string $rejectionReason = '';
+
+    /** Which of blocked, archived or deleted the open moderation dialog is for. */
+    #[Locked]
+    public string $moderateTo = '';
+
+    public string $moderationReason = '';
+
+    public string $flagNote = '';
+
+    public string $restoreNote = '';
+
+    /** The reference typed to confirm deleting permanently. */
+    public string $purgeConfirmation = '';
 
     /**
      * The amount received, entered when verifying (fees can be discounted).
@@ -148,6 +162,109 @@ new #[Title('Review registration')] class extends Component {
         $this->reset('rejectionReason');
         Flux::modal('reject-registration')->close();
         Flux::toast(variant: 'success', text: __(':reference rejected. The contact has been emailed.', ['reference' => $this->registration->reference]));
+    }
+
+    /**
+     * Open the dialog to block, archive or bin this registration.
+     */
+    public function startModeration(string $to): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $status = RegistrationStatus::tryFrom($to);
+        abort_unless($status?->isModerated(), 404);
+
+        $this->moderateTo = $status->value;
+        $this->moderationReason = '';
+        $this->resetValidation();
+        Flux::modal('moderate-registration')->show();
+    }
+
+    public function moderate(ModerateRegistration $moderate): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $status = RegistrationStatus::tryFrom($this->moderateTo);
+        abort_unless($status?->isModerated(), 404);
+
+        $this->validate(['moderationReason' => ['required', 'string', 'min:5', 'max:1000']], attributes: ['moderationReason' => 'reason']);
+
+        $moderate->moderate($this->registration, Auth::user(), $status, trim($this->moderationReason));
+
+        $this->reset('moderationReason', 'moderateTo');
+        unset($this->auditLogs);
+        Flux::modal('moderate-registration')->close();
+        Flux::toast(variant: 'success', text: match ($status) {
+            RegistrationStatus::Blocked => __(':reference blocked. Its delegates can’t use their dashboard and can appeal.', ['reference' => $this->registration->reference]),
+            RegistrationStatus::Archived => __(':reference archived.', ['reference' => $this->registration->reference]),
+            default => __(':reference moved to the bin.', ['reference' => $this->registration->reference]),
+        });
+    }
+
+    public function restore(ModerateRegistration $moderate): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $this->validate(['restoreNote' => ['nullable', 'string', 'max:1000']]);
+
+        $moderate->restore($this->registration, Auth::user(), trim($this->restoreNote) ?: null);
+
+        $this->reset('restoreNote');
+        unset($this->auditLogs);
+        Flux::modal('restore-registration')->close();
+        Flux::toast(variant: 'success', text: __(':reference restored to :status.', ['reference' => $this->registration->reference, 'status' => strtolower($this->registration->status->label())]));
+    }
+
+    public function dismissAppeal(ModerateRegistration $moderate): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $moderate->dismissAppeal($this->registration, Auth::user());
+
+        unset($this->auditLogs);
+        Flux::toast(text: __('Appeal dismissed. They can appeal again.'));
+    }
+
+    public function flag(ModerateRegistration $moderate): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $this->validate(['flagNote' => ['required', 'string', 'min:3', 'max:1000']], attributes: ['flagNote' => 'note']);
+
+        $moderate->flag($this->registration, Auth::user(), trim($this->flagNote));
+
+        $this->reset('flagNote');
+        unset($this->auditLogs);
+        Flux::modal('flag-registration')->close();
+        Flux::toast(variant: 'success', text: __(':reference flagged.', ['reference' => $this->registration->reference]));
+    }
+
+    public function unflag(ModerateRegistration $moderate): void
+    {
+        Gate::authorize('review', $this->registration);
+
+        $moderate->unflag($this->registration, Auth::user());
+
+        unset($this->auditLogs);
+        Flux::toast(text: __('Flag removed.'));
+    }
+
+    /**
+     * Delete a binned registration for good (admins only).
+     */
+    public function purge(ModerateRegistration $moderate): void
+    {
+        abort_unless(Auth::user()->isAdmin() && $this->registration->status === RegistrationStatus::Deleted, 403);
+
+        $this->validate(['purgeConfirmation' => ['required', Rule::in([$this->registration->reference])]], [
+            'purgeConfirmation.in' => __('Type :reference exactly to confirm.', ['reference' => $this->registration->reference]),
+        ], ['purgeConfirmation' => 'reference']);
+
+        $reference = $this->registration->reference;
+        $moderate->purge($this->registration, Auth::user());
+
+        Flux::toast(variant: 'success', text: __(':reference deleted permanently.', ['reference' => $reference]));
+        $this->redirectRoute('staff.registrations.index', ['status' => RegistrationStatus::Deleted->value], navigate: true);
     }
 
     /**
@@ -416,24 +533,95 @@ new #[Title('Review registration')] class extends Component {
             <div class="flex flex-wrap items-center gap-3">
                 <flux:heading size="xl" level="1">{{ $registration->reference }}</flux:heading>
                 <flux:badge :color="$registration->status->color()">{{ $registration->status->label() }}</flux:badge>
+                @if ($registration->isFlagged())
+                    <flux:badge color="orange" icon="flag">{{ __('Flagged') }}</flux:badge>
+                @endif
             </div>
             <flux:text>{{ $registration->type->label() }} · {{ $registration->displayName() }}</flux:text>
         </div>
 
-        @if ($this->canReview && $registration->isPending())
-            <div class="flex gap-2">
-                <flux:modal.trigger name="reject-registration">
-                    <flux:button variant="danger" icon="x-mark">{{ __('Reject') }}</flux:button>
-                </flux:modal.trigger>
-                <flux:modal.trigger name="verify-registration">
-                    <flux:button variant="primary" icon="check" data-test="open-verify">{{ __('Verify payment') }}</flux:button>
-                </flux:modal.trigger>
+        @if ($this->canReview)
+            <div class="flex flex-wrap gap-2">
+                @if ($registration->isPending())
+                    <flux:modal.trigger name="reject-registration">
+                        <flux:button variant="danger" icon="x-mark">{{ __('Reject') }}</flux:button>
+                    </flux:modal.trigger>
+                    <flux:modal.trigger name="verify-registration">
+                        <flux:button variant="primary" icon="check" data-test="open-verify">{{ __('Verify payment') }}</flux:button>
+                    </flux:modal.trigger>
+                @endif
+
+                @if ($registration->isModerated())
+                    <flux:modal.trigger name="restore-registration">
+                        <flux:button variant="primary" icon="arrow-uturn-left" data-test="open-restore">{{ __('Restore') }}</flux:button>
+                    </flux:modal.trigger>
+                @endif
+
+                <flux:dropdown position="bottom" align="end">
+                    <flux:button icon:trailing="chevron-down" data-test="moderation-menu">{{ __('More') }}</flux:button>
+                    <flux:menu>
+                        @if ($registration->isFlagged())
+                            <flux:menu.item icon="flag" wire:click="unflag">{{ __('Remove flag') }}</flux:menu.item>
+                        @else
+                            <flux:modal.trigger name="flag-registration">
+                                <flux:menu.item icon="flag">{{ __('Flag as suspicious') }}</flux:menu.item>
+                            </flux:modal.trigger>
+                        @endif
+                        <flux:menu.separator />
+                        @if ($registration->status !== RegistrationStatus::Blocked)
+                            <flux:menu.item icon="no-symbol" wire:click="startModeration('blocked')" data-test="start-block">{{ __('Block') }}</flux:menu.item>
+                        @endif
+                        @if ($registration->status !== RegistrationStatus::Archived)
+                            <flux:menu.item icon="archive-box" wire:click="startModeration('archived')" data-test="start-archive">{{ __('Archive') }}</flux:menu.item>
+                        @endif
+                        @if ($registration->status !== RegistrationStatus::Deleted)
+                            <flux:menu.item icon="trash" variant="danger" wire:click="startModeration('deleted')" data-test="start-delete">{{ __('Move to bin') }}</flux:menu.item>
+                        @elseif (auth()->user()->isAdmin())
+                            <flux:modal.trigger name="purge-registration">
+                                <flux:menu.item icon="trash" variant="danger">{{ __('Delete permanently') }}</flux:menu.item>
+                            </flux:modal.trigger>
+                        @endif
+                    </flux:menu>
+                </flux:dropdown>
             </div>
         @endif
     </div>
 
     @if ($registration->isRejected())
         <flux:callout variant="danger" icon="exclamation-triangle" :heading="__('Rejected')" :text="$registration->rejection_reason" />
+    @endif
+
+    @if ($registration->isModerated())
+        <flux:callout :color="$registration->status === RegistrationStatus::Blocked ? 'rose' : 'zinc'"
+            :icon="match ($registration->status) { RegistrationStatus::Blocked => 'no-symbol', RegistrationStatus::Archived => 'archive-box', default => 'trash' }"
+            :heading="__(':status by :name, :date', [
+                'status' => $registration->status->label(),
+                'name' => $registration->moderator?->name ?? __('staff'),
+                'date' => $registration->moderated_at?->timezone('Asia/Karachi')->format('j M, g:i a'),
+            ])"
+            :text="$registration->moderation_reason.' '.__('Restoring puts it back to :status.', ['status' => strtolower(\App\Enums\RegistrationStatus::tryFrom((string) $registration->status_before_moderation)?->label() ?? __('pending'))])"
+            data-test="moderation-callout" />
+    @endif
+
+    @if ($registration->hasOpenAppeal())
+        <flux:callout color="blue" icon="chat-bubble-left-ellipsis" data-test="appeal-callout">
+            <flux:callout.heading>{{ __('Appeal sent :date', ['date' => $registration->appealed_at->timezone('Asia/Karachi')->format('j M, g:i a')]) }}</flux:callout.heading>
+            <flux:callout.text>{!! nl2br(e($registration->appeal_message)) !!}</flux:callout.text>
+            @if ($this->canReview)
+                <x-slot name="actions">
+                    <flux:modal.trigger name="restore-registration">
+                        <flux:button size="sm" variant="primary">{{ __('Accept and restore') }}</flux:button>
+                    </flux:modal.trigger>
+                    <flux:button size="sm" variant="ghost" wire:click="dismissAppeal" wire:confirm="{{ __('Dismiss this appeal? The registration stays as it is.') }}">{{ __('Dismiss') }}</flux:button>
+                </x-slot>
+            @endif
+        </flux:callout>
+    @endif
+
+    @if ($registration->isFlagged())
+        <flux:callout color="orange" icon="flag"
+            :heading="__('Flagged by :name, :date', ['name' => $registration->flagger?->name ?? __('staff'), 'date' => $registration->flagged_at->timezone('Asia/Karachi')->format('j M, g:i a')])"
+            :text="$registration->flag_note" data-test="flag-callout" />
     @endif
 
     <div class="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
@@ -629,6 +817,87 @@ new #[Title('Review registration')] class extends Component {
                 </div>
             </div>
         </flux:modal>
+
+        @php($moderateStatus = \App\Enums\RegistrationStatus::tryFrom($moderateTo))
+        <flux:modal name="moderate-registration" class="md:w-md">
+            <form wire:submit="moderate" class="flex flex-col gap-6">
+                <div>
+                    <flux:heading size="lg">
+                        @switch($moderateStatus)
+                            @case(\App\Enums\RegistrationStatus::Blocked) {{ __('Block :reference?', ['reference' => $registration->reference]) }} @break
+                            @case(\App\Enums\RegistrationStatus::Archived) {{ __('Archive :reference?', ['reference' => $registration->reference]) }} @break
+                            @default {{ __('Move :reference to the bin?', ['reference' => $registration->reference]) }}
+                        @endswitch
+                    </flux:heading>
+                    <flux:text class="mt-2">
+                        @switch($moderateStatus)
+                            @case(\App\Enums\RegistrationStatus::Blocked) {{ __('Its delegates won’t be able to use their dashboard. They’ll see your reason and can appeal. It leaves the verified totals and allocations until you restore it.') }} @break
+                            @case(\App\Enums\RegistrationStatus::Archived) {{ __('It’s hidden from the list, totals and allocations, and its delegates see your reason and can appeal. You can restore it any time.') }} @break
+                            @default {{ __('It’s hidden everywhere and its delegates can’t log in to their dashboard. You can restore it from the bin; an admin can delete it permanently.') }}
+                        @endswitch
+                    </flux:text>
+                </div>
+                <flux:textarea wire:model="moderationReason" rows="3" :label="__('Reason')" :description="__('The delegates see this.')" data-test="moderation-reason" />
+                <div class="flex justify-end gap-2">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                    </flux:modal.close>
+                    <flux:button type="submit" :variant="$moderateStatus === \App\Enums\RegistrationStatus::Archived ? 'primary' : 'danger'" data-test="confirm-moderation">
+                        {{ match ($moderateStatus) { \App\Enums\RegistrationStatus::Blocked => __('Block'), \App\Enums\RegistrationStatus::Archived => __('Archive'), default => __('Move to bin') } }}
+                    </flux:button>
+                </div>
+            </form>
+        </flux:modal>
+
+        <flux:modal name="restore-registration" class="md:w-md">
+            <form wire:submit="restore" class="flex flex-col gap-6">
+                <div>
+                    <flux:heading size="lg">{{ __('Restore :reference?', ['reference' => $registration->reference]) }}</flux:heading>
+                    <flux:text class="mt-2">{{ __('It goes back to :status and its delegates can use their dashboard again.', ['status' => strtolower(\App\Enums\RegistrationStatus::tryFrom((string) $registration->status_before_moderation)?->label() ?? __('pending'))]) }}</flux:text>
+                </div>
+                <flux:textarea wire:model="restoreNote" rows="2" :label="__('Note (optional)')" :description="__('Only staff see this, in the history.')" />
+                <div class="flex justify-end gap-2">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                    </flux:modal.close>
+                    <flux:button type="submit" variant="primary" data-test="confirm-restore">{{ __('Restore') }}</flux:button>
+                </div>
+            </form>
+        </flux:modal>
+
+        <flux:modal name="flag-registration" class="md:w-md">
+            <form wire:submit="flag" class="flex flex-col gap-6">
+                <div>
+                    <flux:heading size="lg">{{ __('Flag :reference as suspicious?', ['reference' => $registration->reference]) }}</flux:heading>
+                    <flux:text class="mt-2">{{ __('Only staff see the flag. Nothing changes for the delegates.') }}</flux:text>
+                </div>
+                <flux:textarea wire:model="flagNote" rows="3" :label="__('Why?')" :placeholder="__('e.g. screenshot is a blank image')" data-test="flag-note" />
+                <div class="flex justify-end gap-2">
+                    <flux:modal.close>
+                        <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                    </flux:modal.close>
+                    <flux:button type="submit" variant="primary" data-test="confirm-flag">{{ __('Flag') }}</flux:button>
+                </div>
+            </form>
+        </flux:modal>
+
+        @if (auth()->user()->isAdmin() && $registration->status === \App\Enums\RegistrationStatus::Deleted)
+            <flux:modal name="purge-registration" class="md:w-md">
+                <form wire:submit="purge" class="flex flex-col gap-6">
+                    <div>
+                        <flux:heading size="lg">{{ __('Delete :reference permanently?', ['reference' => $registration->reference]) }}</flux:heading>
+                        <flux:text class="mt-2">{{ __('This removes the registration, its delegates, their logins and the payment screenshots for good. It can’t be undone.') }}</flux:text>
+                    </div>
+                    <flux:input wire:model="purgeConfirmation" :label="__('Type :reference to confirm', ['reference' => $registration->reference])" autocomplete="off" data-test="purge-confirmation" />
+                    <div class="flex justify-end gap-2">
+                        <flux:modal.close>
+                            <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                        </flux:modal.close>
+                        <flux:button type="submit" variant="danger" data-test="confirm-purge">{{ __('Delete permanently') }}</flux:button>
+                    </div>
+                </form>
+            </flux:modal>
+        @endif
 
         @if ($this->canEditAmount)
             <flux:modal name="edit-amount" class="md:w-md">

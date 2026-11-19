@@ -29,6 +29,8 @@ Route::livewire('status', 'pages::registration.status')->middleware(RecordPageVi
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::view('dashboard', 'dashboard')->name('dashboard');
 
+    Route::livewire('account/on-hold', 'pages::account.restricted')->name('account.restricted');
+
     Route::get('study-guides/{guide}', StudyGuideDownloadController::class)->name('study-guides.download');
 
     Route::post('push-subscriptions', [PushSubscriptionController::class, 'store'])->name('push-subscriptions.store');

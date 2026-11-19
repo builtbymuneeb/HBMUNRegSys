@@ -39,7 +39,11 @@ class DelegateExportController extends Controller
 
             Delegate::query()
                 ->with(['registration.campusAmbassador', 'firstCommittee', 'secondCommittee', 'allocatedCommittee'])
-                ->when($status, fn (Builder $query) => $query->whereHas('registration', fn (Builder $query) => $query->where('status', $status)))
+                ->when(
+                    $status,
+                    fn (Builder $query) => $query->whereHas('registration', fn (Builder $query) => $query->where('status', $status)),
+                    fn (Builder $query) => $query->whereHas('registration', fn (Builder $query) => $query->whereNotIn('status', RegistrationStatus::moderated())),
+                )
                 ->orderBy('registration_id')
                 ->orderBy('id')
                 ->chunk(200, function ($delegates) use ($out) {

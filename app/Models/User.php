@@ -95,6 +95,28 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
     }
 
     /**
+     * The blocked, archived or binned registration keeping this delegate out, if all of
+     * their registrations are like that. Someone also on a normal registration isn't kept out.
+     */
+    public function restrictedRegistration(): ?Registration
+    {
+        if ($this->isStaff()) {
+            return null;
+        }
+
+        $registrations = Registration::query()
+            ->whereHas('delegates', fn ($query) => $query->where('user_id', $this->id))
+            ->latest('id')
+            ->get();
+
+        if ($registrations->isEmpty() || $registrations->contains(fn (Registration $registration) => ! $registration->isModerated())) {
+            return null;
+        }
+
+        return $registrations->first();
+    }
+
+    /**
      * The campus ambassador this login belongs to, if any.
      *
      * @return HasOne<CampusAmbassador, $this>

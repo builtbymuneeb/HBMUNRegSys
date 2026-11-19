@@ -37,6 +37,7 @@ class WhatsAppController extends Controller
             RegistrationStatus::Pending => (new RegistrationReceived($registration))->toWhatsApp(),
             RegistrationStatus::Verified => (new RegistrationVerified($registration))->toWhatsApp(),
             RegistrationStatus::Rejected => (new RegistrationRejected($registration))->toWhatsApp(),
+            default => abort(404),
         };
 
         return $this->open($request, WhatsAppLog::CONTACT.'_'.$registration->status->value, $registration->contact_phone, $message, $registration);

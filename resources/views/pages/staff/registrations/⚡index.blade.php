@@ -25,12 +25,47 @@ new #[Title('Registrations')] class extends Component {
     #[Url]
     public string $search = '';
 
+    /** '', 'flagged' or 'appeals'. */
+    #[Url]
+    public string $tag = '';
+
+    public function showTag(string $tag): void
+    {
+        $this->tag = $this->tag === $tag ? '' : $tag;
+        $this->status = '';
+        $this->resetPage();
+    }
+
+    public function showStatus(string $status): void
+    {
+        $this->status = $this->status === $status ? '' : $status;
+        $this->tag = '';
+        $this->resetPage();
+    }
+
+    /**
+     * @return array{flagged: int, appeals: int}
+     */
+    #[Computed]
+    public function tagCounts(): array
+    {
+        return [
+            'flagged' => Registration::whereNotNull('flagged_at')->count(),
+            'appeals' => Registration::whereNotNull('appealed_at')->whereIn('status', RegistrationStatus::moderated())->count(),
+        ];
+    }
+
     public string $stamp = '';
 
     public int $pendingCount = 0;
 
     public function mount(): void
     {
+        // A link to the flagged or appeals view means every status, not just pending.
+        if ($this->tag !== '' && ! request()->has('status')) {
+            $this->status = '';
+        }
+
         $this->stamp = $this->fingerprint();
         $this->pendingCount = $this->pendingTotal();
     }
@@ -72,7 +107,7 @@ new #[Title('Registrations')] class extends Component {
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['status', 'type', 'search'], true)) {
+        if (in_array($property, ['status', 'type', 'search', 'tag'], true)) {
             $this->resetPage();
         }
     }
@@ -113,7 +148,14 @@ new #[Title('Registrations')] class extends Component {
 
         return Registration::query()
             ->withCount('delegates')
-            ->when(RegistrationStatus::tryFrom($this->status), fn ($query, $status) => $query->where('status', $status))
+            ->when(
+                RegistrationStatus::tryFrom($this->status),
+                fn ($query, $status) => $query->where('status', $status),
+                // "All" leaves out archived and binned ones unless a tag asks for them.
+                fn ($query) => $query->when($this->tag === '', fn ($query) => $query->whereNotIn('status', [RegistrationStatus::Archived, RegistrationStatus::Deleted])),
+            )
+            ->when($this->tag === 'flagged', fn ($query) => $query->whereNotNull('flagged_at'))
+            ->when($this->tag === 'appeals', fn ($query) => $query->whereNotNull('appealed_at')->whereIn('status', RegistrationStatus::moderated()))
             ->when(RegistrationType::tryFrom($this->type), fn ($query, $type) => $query->where('type', $type))
             ->when($search !== '', fn ($query) => $query->where(fn ($query) => $query
                 ->where('reference', 'like', "%{$search}%")
@@ -142,7 +184,7 @@ new #[Title('Registrations')] class extends Component {
     </div>
 
     <div class="hidden gap-4 sm:grid sm:grid-cols-2 xl:grid-cols-5">
-        @foreach (RegistrationStatus::cases() as $case)
+        @foreach (RegistrationStatus::review() as $case)
             <flux:card class="flex flex-col gap-1">
                 <flux:text>{{ $case->label() }}</flux:text>
                 <flux:heading size="xl">{{ $this->statusCounts[$case->value] ?? 0 }}</flux:heading>
@@ -158,9 +200,28 @@ new #[Title('Registrations')] class extends Component {
         </flux:card>
     </div>
 
+    {{-- Flagged, appeals, blocked, archived and the bin --}}
+    <div class="flex flex-wrap gap-2" data-test="moderation-links">
+        @foreach ([
+            ['tag', 'flagged', __('Flagged'), $this->tagCounts['flagged'], 'flag'],
+            ['tag', 'appeals', __('Appeals'), $this->tagCounts['appeals'], 'chat-bubble-left-ellipsis'],
+            ['status', RegistrationStatus::Blocked->value, __('Blocked'), $this->statusCounts[RegistrationStatus::Blocked->value] ?? 0, 'no-symbol'],
+            ['status', RegistrationStatus::Archived->value, __('Archived'), $this->statusCounts[RegistrationStatus::Archived->value] ?? 0, 'archive-box'],
+            ['status', RegistrationStatus::Deleted->value, __('Bin'), $this->statusCounts[RegistrationStatus::Deleted->value] ?? 0, 'trash'],
+        ] as [$filter, $value, $label, $count, $icon])
+            <flux:button size="sm" :icon="$icon" :variant="($filter === 'tag' ? $tag : $status) === $value ? 'primary' : 'outline'"
+                wire:click="{{ $filter === 'tag' ? 'showTag' : 'showStatus' }}(@js($value))">
+                {{ $label }} · {{ $count }}
+            </flux:button>
+        @endforeach
+        @if ($tag !== '')
+            <flux:button size="sm" variant="ghost" icon="x-mark" wire:click="$set('tag', '')">{{ __('Clear') }}</flux:button>
+        @endif
+    </div>
+
     {{-- Phone: status chips with counts --}}
     <div class="-mx-2 flex gap-1.5 overflow-x-auto px-2 sm:hidden" data-test="status-chips">
-        @foreach ([['', __('All')], ...collect(RegistrationStatus::cases())->map(fn ($case) => [$case->value, \Illuminate\Support\Str::ucfirst($case->value).' · '.($this->statusCounts[$case->value] ?? 0)])] as [$value, $label])
+        @foreach ([['', __('All')], ...collect(RegistrationStatus::review())->map(fn ($case) => [$case->value, \Illuminate\Support\Str::ucfirst($case->value).' · '.($this->statusCounts[$case->value] ?? 0)])] as [$value, $label])
             <button type="button" wire:click="$set('status', @js($value))" @class([
                 'shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold',
                 'border-zinc-900 bg-zinc-900 text-white dark:border-white dark:bg-white dark:text-zinc-900' => $status === $value,
@@ -173,7 +234,7 @@ new #[Title('Registrations')] class extends Component {
         <flux:input wire:model.live.debounce.300ms="search" icon="magnifying-glass" :placeholder="__('Search name, reference, email…')" :aria-label="__('Search')" class="sm:mt-[1.625rem]" />
         <div class="max-sm:hidden">
         <flux:select wire:model.live="status" :label="__('Status')">
-            <flux:select.option value="">{{ __('All statuses') }}</flux:select.option>
+            <flux:select.option value="">{{ __('All (not archived or binned)') }}</flux:select.option>
             @foreach (RegistrationStatus::cases() as $case)
                 <flux:select.option value="{{ $case->value }}">{{ $case->label() }}</flux:select.option>
             @endforeach
@@ -199,6 +260,12 @@ new #[Title('Registrations')] class extends Component {
                         <span class="block truncate text-sm font-semibold text-zinc-900 dark:text-white">{{ $registration->displayName() }}</span>
                         <span class="block truncate text-xs text-zinc-500 dark:text-zinc-400">{{ $registration->delegates_count === 1 ? __('Individual') : __(':count delegates', ['count' => $registration->delegates_count]) }}</span>
                     </span>
+                    @if ($registration->isFlagged())
+                        <flux:icon.flag variant="mini" class="shrink-0 text-orange-500" />
+                    @endif
+                    @if ($registration->hasOpenAppeal())
+                        <flux:icon.chat-bubble-left-ellipsis variant="mini" class="shrink-0 text-blue-500" />
+                    @endif
                     <flux:badge size="sm" :color="$registration->status->color()">{{ \Illuminate\Support\Str::ucfirst($registration->status->value) }}</flux:badge>
                 </a>
             @empty
@@ -238,7 +305,15 @@ new #[Title('Registrations')] class extends Component {
                     </flux:table.cell>
                     <flux:table.cell>{{ $registration->created_at->timezone('Asia/Karachi')->format('j M, g:i a') }}</flux:table.cell>
                     <flux:table.cell>
-                        <flux:badge size="sm" :color="$registration->status->color()" inset="top bottom">{{ $registration->status->label() }}</flux:badge>
+                        <div class="flex flex-wrap items-center gap-1">
+                            <flux:badge size="sm" :color="$registration->status->color()" inset="top bottom">{{ $registration->status->label() }}</flux:badge>
+                            @if ($registration->isFlagged())
+                                <flux:badge size="sm" color="orange" icon="flag" inset="top bottom" :title="$registration->flag_note" data-test="flag-badge">{{ __('Flagged') }}</flux:badge>
+                            @endif
+                            @if ($registration->hasOpenAppeal())
+                                <flux:badge size="sm" color="blue" icon="chat-bubble-left-ellipsis" inset="top bottom" data-test="appeal-badge">{{ __('Appeal') }}</flux:badge>
+                            @endif
+                        </div>
                     </flux:table.cell>
                     <flux:table.cell align="end">
                         <flux:button size="sm" :href="route('staff.registrations.show', $registration)" wire:navigate>

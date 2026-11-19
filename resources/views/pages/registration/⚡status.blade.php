@@ -1,5 +1,6 @@
 <?php
 
+use App\Actions\Registrations\ModerateRegistration;
 use App\Actions\Registrations\ResubmitPayment;
 use App\Enums\RegistrationStatus;
 use App\Livewire\Concerns\CollectsPaymentScreenshots;
@@ -113,6 +114,42 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
         unset($this->registration);
     }
 
+    public string $appealMessage = '';
+
+    public bool $appealed = false;
+
+    /**
+     * Ask for a blocked or archived registration back, once a second detail confirms who's asking.
+     */
+    public function appeal(ModerateRegistration $moderate): void
+    {
+        $registration = $this->registration;
+        abort_unless($registration?->isModerated(), 403);
+
+        $this->validate([
+            'confirmation' => ['required', 'string', 'max:255'],
+            'appealMessage' => ['required', 'string', 'min:10', 'max:2000'],
+        ], attributes: ['confirmation' => 'second detail', 'appealMessage' => 'appeal']);
+
+        $this->throttle('confirmation');
+
+        [$kind, $confirmed] = $this->find($this->confirmation, $registration);
+
+        if (! $confirmed || $kind === $this->matchedBy) {
+            throw ValidationException::withMessages([
+                'confirmation' => $confirmed
+                    ? __('Enter a different detail from the one you searched with.')
+                    : __('That doesn’t match this registration.'),
+            ]);
+        }
+
+        $moderate->appeal($registration, trim($this->appealMessage));
+
+        $this->reset('appealMessage', 'confirmation');
+        $this->appealed = true;
+        unset($this->registration);
+    }
+
     public function startOver(): void
     {
         $this->reset();
@@ -147,7 +184,12 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
         $registration = Registration::query()
             ->when($within, fn (Builder $query) => $query->whereKey($within->id))
             ->where($constraint)
-            ->orderByRaw('case when status = ? then 1 else 0 end', [RegistrationStatus::Rejected->value])
+            ->where('status', '!=', RegistrationStatus::Deleted)
+            ->orderByRaw('case when status in (?, ?, ?) then 1 else 0 end', [
+                RegistrationStatus::Rejected->value,
+                RegistrationStatus::Blocked->value,
+                RegistrationStatus::Archived->value,
+            ])
             ->latest('id')
             ->first();
 
@@ -197,7 +239,8 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
                     'rounded-xs px-3 py-1.5 text-sm font-semibold',
                     'bg-amber-300 text-amber-950' => $registration->status === RegistrationStatus::Pending,
                     'bg-emerald-300 text-emerald-950' => $registration->status === RegistrationStatus::Verified,
-                    'bg-red-300 text-red-950' => $registration->status === RegistrationStatus::Rejected,
+                    'bg-red-300 text-red-950' => in_array($registration->status, [RegistrationStatus::Rejected, RegistrationStatus::Blocked], true),
+                    'bg-zinc-300 text-zinc-950' => $registration->status === RegistrationStatus::Archived,
                 ]) data-test="registration-status">{{ $registration->status->label() }}</span>
             </div>
 
@@ -243,6 +286,37 @@ new #[Layout('layouts::public')] #[Title('Registration status')] class extends C
                             {{ __('Resubmit for verification') }}
                         </button>
                     </form>
+                    @break
+
+                @default
+                    <div class="border border-red-400/50 bg-red-950/40 p-4" data-test="moderation-notice">
+                        <div class="text-sm font-semibold text-red-200">
+                            {{ $registration->status === RegistrationStatus::Blocked ? __('This registration has been blocked') : __('This registration has been archived') }}
+                        </div>
+                        @if ($registration->moderation_reason)
+                            <p class="mt-1.5 leading-relaxed text-red-100">{{ $registration->moderation_reason }}</p>
+                        @endif
+                    </div>
+
+                    @if ($appealed || $registration->appealed_at)
+                        <p class="leading-relaxed text-hb-muted" data-test="appeal-received">{{ __('We’ve received your appeal. Our registration team will review it and email you.') }}</p>
+                    @else
+                        <form wire:submit="appeal" class="flex flex-col gap-4">
+                            <x-public.field :label="__('Think this is a mistake? Appeal')" name="appealMessage" :hint="__('Tell us what happened. If you paid, include the date, amount and the account you paid from.')">
+                                <textarea wire:model="appealMessage" rows="4" class="hb-input"></textarea>
+                            </x-public.field>
+
+                            <x-public.field :label="__('Confirm it’s you')" name="confirmation" :hint="match ($matchedBy) {
+                                'reference' => __('Enter an email or the head’s phone number used in this registration.'),
+                                'email' => __('Enter the reference number or the head’s phone number.'),
+                                default => __('Enter the reference number or an email used in this registration.'),
+                            }">
+                                <input type="text" wire:model="confirmation" class="hb-input" autocomplete="off" autocapitalize="off" spellcheck="false">
+                            </x-public.field>
+
+                            <button type="submit" class="hb-button-primary self-start" wire:loading.attr="disabled" wire:target="appeal">{{ __('Send appeal') }}</button>
+                        </form>
+                    @endif
                     @break
             @endswitch
         </section>

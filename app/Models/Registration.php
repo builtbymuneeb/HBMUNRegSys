@@ -32,6 +32,15 @@ use Illuminate\Support\Carbon;
  * @property string|null $rejection_reason
  * @property int|null $reviewed_by
  * @property Carbon|null $reviewed_at
+ * @property Carbon|null $flagged_at Marked as suspicious by staff.
+ * @property string|null $flag_note
+ * @property int|null $flagged_by
+ * @property string|null $status_before_moderation What restoring a blocked, archived or binned registration goes back to.
+ * @property string|null $moderation_reason
+ * @property int|null $moderated_by
+ * @property Carbon|null $moderated_at
+ * @property string|null $appeal_message
+ * @property Carbon|null $appealed_at
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -52,6 +61,15 @@ use Illuminate\Support\Carbon;
     'rejection_reason',
     'reviewed_by',
     'reviewed_at',
+    'flagged_at',
+    'flag_note',
+    'flagged_by',
+    'status_before_moderation',
+    'moderation_reason',
+    'moderated_by',
+    'moderated_at',
+    'appeal_message',
+    'appealed_at',
 ])]
 class Registration extends Model
 {
@@ -70,7 +88,44 @@ class Registration extends Model
             'status' => RegistrationStatus::class,
             'reviewed_at' => 'datetime',
             'amount_paid' => 'integer',
+            'flagged_at' => 'datetime',
+            'moderated_at' => 'datetime',
+            'appealed_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Blocked, archived or binned.
+     */
+    public function isModerated(): bool
+    {
+        return $this->status->isModerated();
+    }
+
+    public function isFlagged(): bool
+    {
+        return $this->flagged_at !== null;
+    }
+
+    public function hasOpenAppeal(): bool
+    {
+        return $this->appealed_at !== null && $this->isModerated();
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function moderator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'moderated_by');
+    }
+
+    /**
+     * @return BelongsTo<User, $this>
+     */
+    public function flagger(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'flagged_by');
     }
 
     /**
