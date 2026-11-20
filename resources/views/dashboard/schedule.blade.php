@@ -20,7 +20,7 @@
                     <div class="hb-row">
                         <div class="w-36 shrink-0 text-xs font-medium tabular-nums text-zinc-500 dark:text-zinc-400">{{ $item->timeLabel() }}</div>
                         <div @class(['min-w-0 flex-1 truncate font-semibold', 'text-zinc-500 dark:text-zinc-400' => $isBreak, 'text-zinc-900 dark:text-white' => ! $isBreak])>{{ $item->activity }}</div>
-                        @if ($url = $item->delegateLink())
+                        @if ($url = $item->delegateLink($committee ?? null))
                             <flux:button size="sm" variant="primary" icon="arrow-top-right-on-square" :href="$url" target="_blank">{{ __('Open') }}</flux:button>
                         @elseif (! $isBreak)
                             <flux:button size="sm" variant="filled" icon="video-camera" x-on:click="gotcha = true">{{ __('Join') }}</flux:button>

@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\AuditLog;
+use App\Models\Committee;
 use App\Models\ScheduleItem;
 use Flux\Flux;
 use Illuminate\Support\Collection;
@@ -23,7 +24,23 @@ new #[Title('Schedule')] class extends Component {
 
     public string $link = '';
 
+    public bool $usesCommitteeLink = false;
+
     public bool $linkVisible = false;
+
+    /**
+     * Each committee's room link, keyed by committee id.
+     *
+     * @var array<int|string, string>
+     */
+    public array $roomLinks = [];
+
+    public function mount(): void
+    {
+        $this->roomLinks = Committee::ordered()->get()
+            ->mapWithKeys(fn (Committee $committee) => [$committee->id => (string) $committee->meeting_url])
+            ->all();
+    }
 
     /**
      * Rows grouped by day number.
@@ -36,12 +53,43 @@ new #[Title('Schedule')] class extends Component {
         return ScheduleItem::ordered()->get()->groupBy('day');
     }
 
+    /**
+     * @return \Illuminate\Database\Eloquent\Collection<int, Committee>
+     */
+    #[Computed]
+    public function committees(): \Illuminate\Database\Eloquent\Collection
+    {
+        return Committee::ordered()->get();
+    }
+
+    public function saveRooms(): void
+    {
+        Gate::authorize('manage-conference');
+
+        $this->validate([
+            'roomLinks' => ['array'],
+            'roomLinks.*' => ['nullable', 'url:http,https', 'max:500'],
+        ], attributes: ['roomLinks.*' => 'room link']);
+
+        foreach ($this->committees as $committee) {
+            $url = trim($this->roomLinks[$committee->id] ?? '') ?: null;
+
+            if ($committee->meeting_url !== $url) {
+                $committee->forceFill(['meeting_url' => $url])->save();
+                AuditLog::record('committee_room_link_changed', $committee, Auth::user(), ['committee' => $committee->code]);
+            }
+        }
+
+        unset($this->committees);
+        Flux::toast(variant: 'success', text: __('Committee room links saved.'));
+    }
+
     public function add(?int $day = null): void
     {
         Gate::authorize('manage-conference');
 
         $this->resetValidation();
-        $this->reset('editingId', 'startTime', 'endTime', 'activity', 'link', 'linkVisible');
+        $this->reset('editingId', 'startTime', 'endTime', 'activity', 'link', 'usesCommitteeLink', 'linkVisible');
 
         $day ??= (int) ($this->days->keys()->max() ?? 1);
         $last = $this->days->get($day)?->last();
@@ -64,6 +112,7 @@ new #[Title('Schedule')] class extends Component {
         $this->endTime = $item->endInput();
         $this->activity = $item->activity;
         $this->link = (string) $item->link;
+        $this->usesCommitteeLink = $item->uses_committee_link;
         $this->linkVisible = $item->link_visible;
 
         Flux::modal('schedule-item')->show();
@@ -78,6 +127,7 @@ new #[Title('Schedule')] class extends Component {
             'startTime' => ['required', 'date_format:H:i'],
             'endTime' => ['nullable', 'date_format:H:i', 'after:startTime'],
             'activity' => ['required', 'string', 'max:120'],
+            'usesCommitteeLink' => ['boolean'],
             'link' => ['nullable', 'url:http,https', 'max:500'],
             'linkVisible' => ['boolean'],
         ], attributes: ['startTime' => 'start time', 'endTime' => 'end time']);
@@ -87,7 +137,8 @@ new #[Title('Schedule')] class extends Component {
             'starts_at' => $validated['startTime'],
             'ends_at' => $validated['endTime'] ?: null,
             'activity' => $validated['activity'],
-            'link' => $validated['link'] ?: null,
+            'uses_committee_link' => $validated['usesCommitteeLink'],
+            'link' => $validated['usesCommitteeLink'] ? null : ($validated['link'] ?: null),
             'link_visible' => $validated['linkVisible'],
         ];
 
@@ -99,7 +150,7 @@ new #[Title('Schedule')] class extends Component {
 
         Flux::modal('schedule-item')->close();
         Flux::toast(variant: 'success', text: __(':activity saved.', ['activity' => $item->activity]));
-        $this->reset('editingId', 'startTime', 'endTime', 'activity', 'link', 'linkVisible');
+        $this->reset('editingId', 'startTime', 'endTime', 'activity', 'link', 'usesCommitteeLink', 'linkVisible');
         unset($this->days);
     }
 
@@ -125,7 +176,7 @@ new #[Title('Schedule')] class extends Component {
         Gate::authorize('manage-conference');
 
         $items = ScheduleItem::query()
-            ->whereNotNull('link')
+            ->where(fn ($query) => $query->whereNotNull('link')->orWhere('uses_committee_link', true))
             ->where('link_visible', ! $visible)
             ->when($day, fn ($query) => $query->where('day', $day))
             ->get();
@@ -167,12 +218,30 @@ new #[Title('Schedule')] class extends Component {
         </div>
     </div>
 
+    {{-- Committee rooms --}}
+    <flux:card>
+        <form wire:submit="saveRooms" class="flex flex-col gap-4">
+            <div>
+                <flux:heading size="lg">{{ __('Committee rooms') }}</flux:heading>
+                <flux:text class="text-sm">{{ __('One meeting link per committee, reused for every session. Rows marked “Committee rooms” give each delegate only their own committee’s link, once that row is visible.') }}</flux:text>
+            </div>
+            <div class="grid gap-4 md:grid-cols-2">
+                @foreach ($this->committees as $committee)
+                    <flux:input wire:model="roomLinks.{{ $committee->id }}" type="url" :label="$committee->label()" placeholder="https://meet.google.com/…" wire:key="room-{{ $committee->id }}" />
+                @endforeach
+            </div>
+            <div>
+                <flux:button type="submit" variant="primary" icon="check">{{ __('Save room links') }}</flux:button>
+            </div>
+        </form>
+    </flux:card>
+
     @forelse ($this->days as $day => $items)
         <div class="flex flex-col gap-3" wire:key="day-{{ $day }}">
             <div class="flex flex-wrap items-center justify-between gap-2">
                 <flux:heading size="lg">{{ __('Day :day', ['day' => $day]) }}</flux:heading>
                 <div class="flex flex-wrap gap-1">
-                    @if ($items->whereNotNull('link')->isNotEmpty())
+                    @if ($items->contains(fn ($item) => $item->hasLink()))
                         <flux:button size="sm" variant="ghost" icon="eye-slash" wire:click="setAllLinks(false, {{ $day }})">{{ __('Hide day’s links') }}</flux:button>
                         <flux:button size="sm" variant="ghost" icon="eye" wire:click="setAllLinks(true, {{ $day }})">{{ __('Show day’s links') }}</flux:button>
                     @endif
@@ -194,7 +263,9 @@ new #[Title('Schedule')] class extends Component {
                             <flux:table.cell class="whitespace-nowrap">{{ $item->timeLabel() }}</flux:table.cell>
                             <flux:table.cell class="font-medium text-zinc-800 dark:text-white">{{ $item->activity }}</flux:table.cell>
                             <flux:table.cell>
-                                @if ($item->link)
+                                @if ($item->uses_committee_link)
+                                    <flux:badge size="sm" color="purple" icon="building-library" inset="top bottom">{{ __('Committee rooms') }}</flux:badge>
+                                @elseif ($item->link)
                                     <flux:link :href="$item->link" target="_blank" :title="$item->link" class="inline-flex items-center gap-1">
                                         {{ parse_url($item->link, PHP_URL_HOST) }}
                                         <flux:icon.arrow-top-right-on-square variant="micro" />
@@ -204,7 +275,7 @@ new #[Title('Schedule')] class extends Component {
                                 @endif
                             </flux:table.cell>
                             <flux:table.cell>
-                                @if ($item->link)
+                                @if ($item->hasLink())
                                     <flux:button size="xs" :variant="$item->link_visible ? 'primary' : 'filled'" :icon="$item->link_visible ? 'eye' : 'eye-slash'" wire:click="toggleLink({{ $item->id }})">
                                         {{ $item->link_visible ? __('Visible') : __('Hidden') }}
                                     </flux:button>
@@ -240,7 +311,10 @@ new #[Title('Schedule')] class extends Component {
                 <flux:input wire:model="endTime" type="time" :label="__('End time')" :description="__('Optional')" />
             </div>
             <flux:input wire:model="activity" :label="__('Activity')" :placeholder="__('Session 01')" />
-            <flux:input wire:model="link" type="url" :label="__('Link')" :description="__('Optional — meeting, form or stream link.')" placeholder="https://meet.google.com/…" />
+            <flux:switch wire:model.live="usesCommitteeLink" :label="__('Use committee rooms')" :description="__('Each delegate gets their own committee’s room link (set above) instead of one shared link.')" />
+            @unless ($usesCommitteeLink)
+                <flux:input wire:model="link" type="url" :label="__('Link')" :description="__('Optional — one link for everyone, e.g. the opening ceremony.')" placeholder="https://meet.google.com/…" />
+            @endunless
             <flux:switch wire:model="linkVisible" :label="__('Show this link to delegates')" :description="__('Leave off to keep it hidden until you’re ready.')" />
             <div class="flex gap-2">
                 <flux:spacer />

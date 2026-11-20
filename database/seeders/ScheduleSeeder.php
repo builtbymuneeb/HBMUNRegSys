@@ -40,7 +40,13 @@ class ScheduleSeeder extends Seeder
 
         foreach ($days as $day => $rows) {
             foreach ($rows as [$start, $end, $activity]) {
-                ScheduleItem::create(['day' => $day, 'starts_at' => $start, 'ends_at' => $end, 'activity' => $activity]);
+                ScheduleItem::create([
+                    'day' => $day,
+                    'starts_at' => $start,
+                    'ends_at' => $end,
+                    'activity' => $activity,
+                    'uses_committee_link' => str_starts_with($activity, 'Session'),
+                ]);
             }
         }
     }

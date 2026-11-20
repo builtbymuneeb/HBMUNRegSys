@@ -8,8 +8,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
 /**
- * One row of the conference timetable (Day 1, 2, 3 …), optionally with a link
- * that delegates only see once staff switch it on.
+ * One row of the conference timetable (Day 1, 2, 3 …). A row either has its own link
+ * (e.g. the opening ceremony) or sends each delegate to their committee's room. Either
+ * way delegates only get the link once staff switch it on.
  *
  * @property int $id
  * @property int $day
@@ -17,11 +18,12 @@ use Illuminate\Support\Carbon;
  * @property string|null $ends_at
  * @property string $activity
  * @property string|null $link
+ * @property bool $uses_committee_link
  * @property bool $link_visible
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['day', 'starts_at', 'ends_at', 'activity', 'link', 'link_visible'])]
+#[Fillable(['day', 'starts_at', 'ends_at', 'activity', 'link', 'uses_committee_link', 'link_visible'])]
 class ScheduleItem extends Model
 {
     /**
@@ -33,6 +35,7 @@ class ScheduleItem extends Model
     {
         return [
             'day' => 'integer',
+            'uses_committee_link' => 'boolean',
             'link_visible' => 'boolean',
         ];
     }
@@ -46,11 +49,24 @@ class ScheduleItem extends Model
     }
 
     /**
-     * The link delegates may open, or null while it's hidden.
+     * Whether this row has any link to reveal.
      */
-    public function delegateLink(): ?string
+    public function hasLink(): bool
     {
-        return $this->link_visible ? $this->link : null;
+        return $this->uses_committee_link || filled($this->link);
+    }
+
+    /**
+     * The link this delegate may open, or null while it's hidden or missing.
+     * Committee-room rows only ever give out the delegate's own committee's link.
+     */
+    public function delegateLink(?Committee $committee): ?string
+    {
+        if (! $this->link_visible) {
+            return null;
+        }
+
+        return $this->uses_committee_link ? $committee?->meeting_url : $this->link;
     }
 
     /**
