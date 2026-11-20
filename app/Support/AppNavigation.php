@@ -48,6 +48,7 @@ class AppNavigation
             $add('committees', 'Committees', 'Committees', 'building-library', 'staff.committees', 'staff.committees*');
             $add('guides', 'Study guides', 'Guides', 'book-open', 'staff.guides', 'staff.guides');
             $add('announcements', 'Announcements', 'Updates', 'megaphone', 'staff.announcements', 'staff.announcements');
+            $add('schedule', 'Schedule', 'Schedule', 'calendar-days', 'staff.schedule', 'staff.schedule');
         }
 
         if ($user->can('manage-ambassadors')) {

@@ -149,7 +149,7 @@ new class extends Component
      */
     protected function fingerprint(): string
     {
-        $shared = Cache::remember('delegate-dashboard:stamp', 10, fn () => collect([Announcement::class, StudyGuide::class, CommitteeSession::class, Committee::class])
+        $shared = Cache::remember('delegate-dashboard:stamp', 10, fn () => collect([Announcement::class, StudyGuide::class, CommitteeSession::class, Committee::class, \App\Models\ScheduleItem::class])
             ->map(fn (string $model) => $model::query()->selectRaw('count(*) as c, max(updated_at) as u')->first()?->only(['c', 'u']))
             ->toJson());
 

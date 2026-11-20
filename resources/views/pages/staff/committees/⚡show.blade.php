@@ -334,61 +334,6 @@ new #[Title('Committee')] class extends Component {
         @endif
     </flux:card>
 
-    {{-- Sessions --}}
-    <div class="flex flex-col gap-3">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <flux:heading size="lg">{{ __('Sessions') }}</flux:heading>
-                <flux:text class="text-sm">{{ __('Times are Pakistan time. Each session can have its own meeting link.') }}</flux:text>
-            </div>
-            <flux:button variant="primary" icon="plus" wire:click="addSession">{{ __('Add session') }}</flux:button>
-        </div>
-
-        <flux:table>
-            <flux:table.columns>
-                <flux:table.column>{{ __('Session') }}</flux:table.column>
-                <flux:table.column>{{ __('Date') }}</flux:table.column>
-                <flux:table.column>{{ __('Start') }}</flux:table.column>
-                <flux:table.column>{{ __('End') }}</flux:table.column>
-                <flux:table.column>{{ __('Meeting link') }}</flux:table.column>
-                <flux:table.column></flux:table.column>
-            </flux:table.columns>
-
-            <flux:table.rows>
-                @forelse ($this->sessions as $session)
-                    <flux:table.row :key="'session-'.$session->id">
-                        <flux:table.cell class="font-medium text-zinc-800 dark:text-white">{{ $session->title }}</flux:table.cell>
-                        <flux:table.cell>{{ $session->localStart()->format('D j M') }}</flux:table.cell>
-                        <flux:table.cell>{{ $session->localStart()->format('g:i a') }}</flux:table.cell>
-                        <flux:table.cell>{{ $session->localEnd()->format('g:i a') }}</flux:table.cell>
-                        <flux:table.cell>
-                            @if ($session->meeting_url)
-                                <flux:link :href="$session->meeting_url" target="_blank" :title="$session->meeting_url" class="inline-flex items-center gap-1">
-                                    {{ parse_url($session->meeting_url, PHP_URL_HOST) }}
-                                    <flux:icon.arrow-top-right-on-square variant="micro" />
-                                </flux:link>
-                            @else
-                                <flux:badge size="sm" color="amber" inset="top bottom">{{ __('No link') }}</flux:badge>
-                            @endif
-                        </flux:table.cell>
-                        <flux:table.cell align="end">
-                            <div class="flex justify-end gap-1">
-                                <flux:button size="sm" variant="ghost" icon="pencil-square" wire:click="editSession({{ $session->id }})" :aria-label="__('Change :title', ['title' => $session->title])" />
-                                <flux:button size="sm" variant="ghost" icon="trash" wire:click="deleteSession({{ $session->id }})"
-                                    wire:confirm="{{ __('Remove :title? Delegates will no longer see it.', ['title' => $session->title]) }}"
-                                    :aria-label="__('Remove :title', ['title' => $session->title])" />
-                            </div>
-                        </flux:table.cell>
-                    </flux:table.row>
-                @empty
-                    <flux:table.row>
-                        <flux:table.cell colspan="6" class="py-10 text-center">{{ __('No sessions yet. Add the first one to give delegates a time and a link.') }}</flux:table.cell>
-                    </flux:table.row>
-                @endforelse
-            </flux:table.rows>
-        </flux:table>
-    </div>
-
     {{-- Delegates --}}
     <div class="flex flex-col gap-3">
         <div class="flex flex-wrap items-end justify-between gap-3">
@@ -466,26 +411,6 @@ new #[Title('Committee')] class extends Component {
                     <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
                 </flux:modal.close>
                 <flux:button type="submit" variant="primary">{{ __('Save list') }}</flux:button>
-            </div>
-        </form>
-    </flux:modal>
-
-    <flux:modal name="committee-session" class="md:w-xl">
-        <form wire:submit="saveSession" class="space-y-5">
-            <flux:heading size="lg">{{ $editingSessionId ? __('Change session') : __('Add session') }}</flux:heading>
-            <flux:input wire:model="sessionTitle" :label="__('Title')" :placeholder="__('Session 1 — Opening ceremony')" />
-            <div class="grid gap-4 sm:grid-cols-3">
-                <flux:input wire:model="sessionDate" type="date" :label="__('Date')" />
-                <flux:input wire:model="startTime" type="time" :label="__('Start time')" />
-                <flux:input wire:model="endTime" type="time" :label="__('End time')" />
-            </div>
-            <flux:input wire:model="meetingUrl" type="url" :label="__('Meeting link')" :description="__('Optional. You can add it later.')" placeholder="https://meet.google.com/…" />
-            <div class="flex gap-2">
-                <flux:spacer />
-                <flux:modal.close>
-                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
-                </flux:modal.close>
-                <flux:button type="submit" variant="primary">{{ $editingSessionId ? __('Save session') : __('Add session') }}</flux:button>
             </div>
         </form>
     </flux:modal>

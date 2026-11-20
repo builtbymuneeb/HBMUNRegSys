@@ -63,7 +63,7 @@
             {{-- Shortcuts --}}
             <div class="grid grid-cols-4 gap-2 xl:hidden">
                 @foreach ([
-                    ['#sessions', 'video-camera', __('Sessions')],
+                    ['#schedule', 'calendar-days', __('Schedule')],
                     ['#guides', 'book-open', __('Guides')],
                     ['#updates', 'megaphone', __('Updates')],
                     $committee ? ['#card', 'identification', __('Card')] : ['#delegation', 'user-group', __('Team')],
@@ -75,34 +75,7 @@
                 @endforeach
             </div>
 
-            {{-- Sessions --}}
-            <section id="sessions" class="flex scroll-mt-20 flex-col gap-2">
-                <h2 class="px-1 text-[15px] font-semibold text-zinc-900 dark:text-white">{{ __('Sessions') }}</h2>
-                <div class="hb-list">
-                    @forelse ($sessions as $session)
-                        <div @class(['hb-row', 'opacity-60' => ! $session->isUpcoming(), 'hb-fresh !mx-0 !rounded-none' => in_array($session->id, $fresh['sessions'])])>
-                            <div class="min-w-0 flex-1">
-                                <div class="truncate font-semibold text-zinc-900 dark:text-white">
-                                    {{ $session->title }}
-                                    @if (in_array($session->id, $fresh['sessions']))
-                                        <flux:badge size="sm" color="lime" class="ms-1">{{ __('Updated') }}</flux:badge>
-                                    @endif
-                                </div>
-                                <div class="text-xs text-zinc-500 dark:text-zinc-400">{{ $session->timeLabel() }}</div>
-                            </div>
-                            @if ($session->meeting_url && $session->isUpcoming())
-                                <flux:button size="sm" :variant="$next?->is($session) ? 'primary' : 'filled'" icon="video-camera" :href="$session->meeting_url" target="_blank">{{ __('Join') }}</flux:button>
-                            @elseif ($session->isUpcoming())
-                                <span class="text-xs text-zinc-500">{{ __('Link soon') }}</span>
-                            @else
-                                <span class="text-xs text-zinc-500">{{ __('Ended') }}</span>
-                            @endif
-                        </div>
-                    @empty
-                        <div class="hb-row text-sm text-zinc-500 dark:text-zinc-400">{{ $committee ? __('Times and links coming soon.') : __('Shown once you’re allocated.') }}</div>
-                    @endforelse
-                </div>
-            </section>
+            @include('dashboard.schedule')
 
             {{-- Study guides --}}
             <section id="guides" class="flex scroll-mt-20 flex-col gap-2">
