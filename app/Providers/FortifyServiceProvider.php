@@ -4,11 +4,15 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Middleware\LetSignedInUsersSeeResetLinks;
+use App\Http\Responses\LogoutResponse;
+use Illuminate\Auth\Middleware\RedirectIfAuthenticated;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Laravel\Fortify\Contracts\LogoutResponse as LogoutResponseContract;
 use Laravel\Fortify\Fortify;
 
 class FortifyServiceProvider extends ServiceProvider
@@ -18,7 +22,10 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Someone logged in can still open a password link (see the reset page), and logging
+        // out from there goes straight back to the link.
+        $this->app->bind(RedirectIfAuthenticated::class, LetSignedInUsersSeeResetLinks::class);
+        $this->app->singleton(LogoutResponseContract::class, LogoutResponse::class);
     }
 
     /**

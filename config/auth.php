@@ -96,7 +96,7 @@ return [
         'users' => [
             'provider' => 'users',
             'table' => env('AUTH_PASSWORD_RESET_TOKEN_TABLE', 'password_reset_tokens'),
-            'expire' => 4320,
+            'expire' => 10080, // 7 days: set-password links for new delegates and staff use this too
             'throttle' => 60,
         ],
     ],

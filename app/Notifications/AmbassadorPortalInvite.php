@@ -37,7 +37,7 @@ class AmbassadorPortalInvite extends Notification implements ShouldQueue
         if ($this->token !== null) {
             return $mail
                 ->action('Set your password', route('password.reset', ['token' => $this->token, 'email' => $notifiable->getEmailForPasswordReset()]))
-                ->line('This link expires in '.config('auth.passwords.users.expire') / 60 .' hours. After that, use "Forgot password" on the login page with this email address.');
+                ->line('This link expires in '.intdiv(config('auth.passwords.users.expire'), 1440).' days, and only the newest link we send works. After that, use "Forgot password" on the login page with this email address.');
         }
 
         return $mail

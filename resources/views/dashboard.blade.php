@@ -55,6 +55,11 @@
                 @endforeach
             </div>
         @elseif ($user->role === \App\Enums\UserRole::Ambassador)
+            <a href="{{ route('register') }}" class="hb-row rounded-2xl border border-zinc-200 bg-white hover:bg-zinc-50 dark:border-white/8 dark:bg-zinc-900/70 dark:hover:bg-white/4" data-test="register-as-delegate-link">
+                <span class="hb-icon-tile"><flux:icon.identification class="size-5" /></span>
+                <span class="flex-1 text-[15px] font-medium text-zinc-800 dark:text-white">{{ __('Register as a delegate') }}</span>
+                <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
+            </a>
             @if ($user->ambassador)
                 @include('partials.ambassador-home', ['ambassador' => $user->ambassador])
             @else
@@ -68,6 +73,7 @@
                     <span class="flex-1 text-[15px] font-medium text-zinc-800 dark:text-white">{{ __('Campus ambassador portal') }}</span>
                     <flux:icon.chevron-right variant="micro" class="text-zinc-400" />
                 </a>
+                @include('partials.delegate-welcome', ['user' => $user])
             @endif
             <livewire:delegate-dashboard />
         @endif

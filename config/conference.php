@@ -32,13 +32,25 @@ return [
     |--------------------------------------------------------------------------
     */
 
+    // Extended-deadline fees (15 to 19 November 2026).
     'fees' => [
+        // Every delegate in a delegation, Homebridge or not.
         'per_delegate' => (int) env('CONFERENCE_FEE_PER_DELEGATE', 1000),
-        'per_delegation' => (int) env('CONFERENCE_FEE_PER_DELEGATION', 1000),
+        // Once per delegation, shared by its members.
+        'per_delegation' => (int) env('CONFERENCE_FEE_PER_DELEGATION', 1500),
         // A single delegate registering on their own; no delegation fee.
-        'private_delegate' => (int) env('CONFERENCE_FEE_PRIVATE_DELEGATE', 1000),
-        // Delegations only: percent off each Homebridge member's fee; an all-Homebridge delegation also gets it off the delegation fee. Individuals pay in full.
-        'homebridge_discount_percent' => (int) env('CONFERENCE_HOMEBRIDGE_DISCOUNT_PERCENT', 40),
+        'private_delegate' => (int) env('CONFERENCE_FEE_PRIVATE_DELEGATE', 1500),
+        // A single delegate who is a Homebridge student.
+        'homebridge_individual' => (int) env('CONFERENCE_FEE_HOMEBRIDGE_INDIVIDUAL', 1300),
+        // Delegations only: percent off each Homebridge member's fee; an all-Homebridge delegation also gets it off the delegation fee. 0 turns it off.
+        'homebridge_discount_percent' => (int) env('CONFERENCE_HOMEBRIDGE_DISCOUNT_PERCENT', 0),
+    ],
+
+    // Shown on the home page and the registration form until `until` (Pakistan time).
+    'registration_deadline' => [
+        'label' => 'Extended deadline',
+        'dates' => '15–19 November',
+        'until' => '2026-11-19 23:59',
     ],
 
     'delegation' => [

@@ -35,9 +35,13 @@ class RegistrationReceived extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject("Registration received ({$this->registration->reference})")
             ->greeting("Hello {$this->registration->contact_name},")
-            ->line('Thank you for registering for '.config('conference.name').'. We have received your registration and payment screenshot.')
+            ->line((int) $this->registration->amount_due === 0
+                ? 'Thank you for registering for '.config('conference.name').'. We have received your registration, and it is free under our free-registration offer, so there is nothing to pay.'
+                : 'Thank you for registering for '.config('conference.name').'. We have received your registration and payment screenshot.')
             ->line("Your reference number is **{$this->registration->reference}**.")
-            ->line('Our registration team will verify your payment shortly. Once verified, each delegate will receive an email to set their password.')
+            ->line((int) $this->registration->amount_due === 0
+                ? 'Our registration team will review it shortly. Once confirmed, each delegate will receive an email to set their password.'
+                : 'Our registration team will verify your payment shortly. Once verified, each delegate will receive an email to set their password.')
             ->action('Check your status', route('registration.status'));
     }
 

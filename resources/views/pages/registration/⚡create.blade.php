@@ -9,6 +9,7 @@ use App\Livewire\Concerns\CollectsPaymentScreenshots;
 use App\Models\Committee;
 use App\Models\Delegate;
 use App\Models\PaymentScreenshot;
+use App\Support\FreeRegistrationOffer;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
@@ -138,10 +139,49 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
         return Committee::ordered()->get();
     }
 
+    /**
+     * Whether tonight's free-registration offer is on. Worked out once per request, so the
+     * form, its validation and the saved registration always agree.
+     */
+    #[Computed]
+    public function freeOffer(): bool
+    {
+        return FreeRegistrationOffer::isActive();
+    }
+
     #[Computed]
     public function amountDue(): int
     {
-        return $this->registrationType->amountDueFor(count($this->delegates), $this->homebridgeCount);
+        return $this->freeOffer ? 0 : $this->registrationType->amountDueFor(count($this->delegates), $this->homebridgeCount);
+    }
+
+    /**
+     * The total as shown: "FREE" during the offer, otherwise "PKR 7,000".
+     */
+    #[Computed]
+    public function priceLabel(): string
+    {
+        return $this->freeOffer ? __('FREE') : 'PKR '.number_format($this->amountDue);
+    }
+
+    /**
+     * Step names and hints as shown; during the offer the last step only asks to confirm.
+     *
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function stepLabels(): array
+    {
+        return $this->freeOffer ? [...self::STEPS, 4 => 'Confirm'] : self::STEPS;
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    #[Computed]
+    public function stepHints(): array
+    {
+        return $this->freeOffer ? [...self::STEP_HINTS, 4 => 'Free tonight, no payment'] : self::STEP_HINTS;
     }
 
     /**
@@ -159,7 +199,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
     #[Computed]
     public function amountBeforeDiscount(): int
     {
-        return $this->registrationType->amountDueFor(count($this->delegates));
+        return $this->freeOffer ? 0 : $this->registrationType->amountDueFor(count($this->delegates));
     }
 
     /**
@@ -344,7 +384,8 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'first_preference' => $delegate['first_preference'] ?: null,
             'second_preference' => $delegate['second_preference'] ?: null,
             'mun_experience' => MunExperience::tryFrom($delegate['mun_experience'] ?? ''),
-            'is_homebridge' => ! $this->registrationType->isIndividual() && (bool) ($delegate['is_homebridge'] ?? false),
+            // Individuals: sets the Homebridge individual fee. Delegations: the Homebridge discount, if any.
+            'is_homebridge' => (bool) ($delegate['is_homebridge'] ?? false),
         ], $validated['delegates']);
 
         $contact = [
@@ -352,7 +393,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'referral_code' => Str::upper(trim($validated['contact']['referral_code'] ?? '')) ?: null,
         ];
 
-        $registration = $submitRegistration->handle($this->registrationType, $contact, $delegates, $this->paymentScreenshots);
+        $registration = $submitRegistration->handle($this->registrationType, $contact, $delegates, $this->freeOffer ? [] : $this->paymentScreenshots, $this->freeOffer);
 
         $this->submittedReference = $registration->reference;
         $this->dispatch('registration-draft-cleared');
@@ -389,7 +430,8 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             'delegates.*.second_preference' => ['nullable', 'string', 'max:255', $this->onPreferenceList('second')],
             'delegates.*.mun_experience' => ['nullable', Rule::enum(MunExperience::class)],
             'delegates.*.is_homebridge' => ['boolean'],
-            ...$this->paymentScreenshotsRules(),
+            // Nothing to pay during the free-registration offer, so no screenshot either.
+            ...($this->freeOffer ? [] : $this->paymentScreenshotsRules()),
             'confirmed' => ['accepted'],
         ];
     }
@@ -654,7 +696,11 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                 <div class="font-display text-3xl font-bold tracking-[0.08em]" data-test="reference-number">{{ $submittedReference }}</div>
             </div>
             <p class="max-w-lg leading-relaxed text-hb-muted">
-                {{ __('Our registration team will verify your payment. You’ll soon receive an email or WhatsApp message with a link to set your password and open your delegate dashboard. Keep your reference number to check your status.') }}
+                @if ($this->freeOffer)
+                    {{ __('Your registration is free under tonight’s offer, so there is nothing to pay. Our registration team will review it, and you’ll soon receive an email or WhatsApp message with a link to set your password and open your delegate dashboard. Keep your reference number to check your status.') }}
+                @else
+                    {{ __('Our registration team will verify your payment. You’ll soon receive an email or WhatsApp message with a link to set your password and open your delegate dashboard. Keep your reference number to check your status.') }}
+                @endif
             </p>
             <a href="{{ route('registration.status', ['reference' => $submittedReference]) }}" class="hb-button-primary">{{ __('Track my status') }}</a>
         </section>
@@ -676,21 +722,34 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                 @php($feePerDelegate = number_format(config('conference.fees.per_delegate')))
                 @php($feePerDelegation = number_format(config('conference.fees.per_delegation')))
                 @php($hbPercent = RegistrationType::homebridgeDiscountPercent())
+                @php($savingLabel = $isIndividual ? __('Homebridge student rate') : __(':percent% Homebridge discount', ['percent' => $hbPercent]))
+                @php($deadlineLabel = \App\Support\RegistrationDeadline::label())
                 @php($hbSaving = $this->amountBeforeDiscount - $this->amountDue)
+                @if ($this->freeOffer)
+                    <x-public.free-offer-banner compact />
+                @endif
                 {{-- Phones get the total inline on the delegates step instead, so the form comes first. --}}
                 <div class="hidden flex-col gap-2.5 border border-hb-line bg-hb-surface p-5 lg:flex">
+                    @if ($deadlineLabel && ! $this->freeOffer)
+                        <div class="hb-eyebrow" data-test="deadline-label">{{ $deadlineLabel }}</div>
+                    @endif
                     @if ($isIndividual)
                         <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
-                        <div class="font-display text-4xl font-bold" data-test="amount-due">PKR {{ number_format($this->amountDue) }}</div>
+                        <div class="font-display text-4xl font-bold" data-test="amount-due">{{ $this->priceLabel }}</div>
                         <div class="text-sm leading-relaxed text-hb-muted">
                             {{ __('Individual delegate fee. No delegation fee.') }}
                         </div>
+                        <div class="text-sm leading-relaxed text-hb-lavender">{{ __('Homebridge students pay PKR :hb, everyone else PKR :private.', ['hb' => number_format(RegistrationType::individualFee(true)), 'private' => number_format(RegistrationType::individualFee(false))]) }}</div>
                     @elseif ($step === 1)
                         <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Fees') }}</div>
                         <div class="text-sm leading-relaxed text-hb-soft">
                             {{ __('PKR :fee per delegate, plus PKR :delegation per delegation.', ['fee' => $feePerDelegate, 'delegation' => $feePerDelegation]) }}
                         </div>
-                        <div class="text-sm leading-relaxed text-hb-lavender">{{ __('Homebridge students in a delegation get :percent% off.', ['percent' => $hbPercent]) }}</div>
+                        @if ($hbPercent > 0)
+                            <div class="text-sm leading-relaxed text-hb-lavender">{{ __('Homebridge students in a delegation get :percent% off.', ['percent' => $hbPercent]) }}</div>
+                        @else
+                            <div class="text-sm leading-relaxed text-hb-lavender">{{ __('The delegation fee is paid once and shared by the whole team.') }}</div>
+                        @endif
                         <div class="text-sm leading-relaxed text-hb-muted">
                             {{ __('You’ll choose how many delegates (:min–:max) in the next step, and see your total there.', ['min' => $this->registrationType->minimumDelegates(), 'max' => $this->registrationType->maximumDelegates()]) }}
                         </div>
@@ -699,12 +758,12 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                         <div class="text-sm leading-relaxed text-hb-muted">{{ __('Choose the number of delegates to see your total.') }}</div>
                     @else
                         <div class="text-xs tracking-[0.18em] text-hb-subtle uppercase">{{ __('Amount due') }}</div>
-                        <div class="font-display text-4xl font-bold" data-test="amount-due">PKR {{ number_format($this->amountDue) }}</div>
+                        <div class="font-display text-4xl font-bold" data-test="amount-due">{{ $this->priceLabel }}</div>
                         <div class="text-sm leading-relaxed text-hb-muted">
                             {{ __(':count delegates × PKR :fee + PKR :delegation delegation fee', ['count' => count($delegates), 'fee' => $feePerDelegate, 'delegation' => $feePerDelegation]) }}
                         </div>
                         @if ($hbSaving > 0)
-                            <div class="text-sm leading-relaxed text-hb-lavender" data-test="homebridge-saving">{{ __('Includes :percent% Homebridge discount (−PKR :saving).', ['percent' => $hbPercent, 'saving' => number_format($hbSaving)]) }}</div>
+                            <div class="text-sm leading-relaxed text-hb-lavender" data-test="homebridge-saving">{{ __('Includes :label (−PKR :saving).', ['label' => $savingLabel, 'saving' => number_format($hbSaving)]) }}</div>
                         @endif
                     @endif
                     <div class="border-t border-hb-line pt-2 text-xs leading-relaxed text-hb-subtle">
@@ -714,10 +773,13 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
             </aside>
 
             <div class="flex min-w-0 flex-[2_1_600px] flex-col gap-8">
+                @if ($this->freeOffer)
+                    <div class="lg:hidden"><x-public.free-offer-banner compact /></div>
+                @endif
                 {{-- Progress --}}
                 @php($stepsWithIssues = $this->stepsWithIssues())
                 <ol id="registration-steps" class="grid scroll-mt-6 grid-cols-4 gap-2" aria-label="{{ __('Registration steps') }}">
-                    @foreach ($this::STEPS as $number => $label)
+                    @foreach ($this->stepLabels as $number => $label)
                         @php($flagged = in_array($number, $stepsWithIssues, true) && $number !== $step)
                         @php($done = in_array($number, $visited, true) && ! in_array($number, $stepsWithIssues, true))
                         <li wire:key="step-{{ $number }}">
@@ -741,7 +803,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     @endif
                                 </span>
                                 <span class="text-sm font-semibold">{{ __($label) }}</span>
-                                <span class="hidden text-xs font-normal opacity-75 sm:block">{{ __($this::STEP_HINTS[$number]) }}</span>
+                                <span class="hidden text-xs font-normal opacity-75 sm:block">{{ __($this->stepHints[$number]) }}</span>
                             </button>
                         </li>
                     @endforeach
@@ -755,7 +817,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                 @if ($otherFlagged !== [] && $step !== 3)
                     <div class="flex flex-wrap items-center justify-between gap-3 border border-amber-300/40 bg-amber-300/10 px-4 py-3 text-sm text-amber-100" role="status" data-test="pending-issues">
                         <span>
-                            @php($flaggedNames = collect($otherFlagged)->map(fn ($n) => __('Step :number (:label)', ['number' => $n, 'label' => __($this::STEPS[$n])]))->join(', ', ' '.__('and').' '))
+                            @php($flaggedNames = collect($otherFlagged)->map(fn ($n) => __('Step :number (:label)', ['number' => $n, 'label' => __($this->stepLabels[$n])]))->join(', ', ' '.__('and').' '))
                             {{ $attemptedSubmit
                                 ? __(':steps also need fixing before you can submit.', ['steps' => $flaggedNames])
                                 : __('Some details on :steps still need to be filled in. You can carry on and come back to them.', ['steps' => $flaggedNames]) }}
@@ -799,7 +861,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                             <legend class="hb-legend">{{ $isInstitution ? __('Institution information') : ($isIndividual ? __('Your details') : __('Delegation head')) }}</legend>
 
                             @if ($isIndividual)
-                                <p class="-mt-1 text-sm leading-relaxed text-hb-muted">{{ __('Register on your own, without a delegation, for PKR :fee.', ['fee' => number_format(RegistrationType::PrivateDelegate->amountDueFor(1))]) }}</p>
+                                <p class="-mt-1 text-sm leading-relaxed text-hb-muted">{{ __('Register on your own, without a delegation: PKR :hb for Homebridge students, PKR :private for everyone else.', ['hb' => number_format(RegistrationType::individualFee(true)), 'private' => number_format(RegistrationType::individualFee(false))]) }}</p>
                             @endif
 
                             <div class="grid grid-cols-[repeat(auto-fit,minmax(240px,1fr))] gap-4">
@@ -859,9 +921,9 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 <div class="flex items-baseline justify-between gap-3 border border-hb-line bg-hb-surface px-4 py-3 lg:hidden">
                                     <span class="text-xs tracking-[0.16em] text-hb-subtle uppercase">{{ __('Total') }}</span>
                                     <span class="text-right">
-                                        <span class="font-display text-xl font-bold">PKR {{ number_format($this->amountDue) }}</span>
+                                        <span class="font-display text-xl font-bold">{{ $this->priceLabel }}</span>
                                         @if ($hbSaving > 0)
-                                            <span class="block text-xs text-hb-lavender">{{ __(':percent% Homebridge discount (−PKR :saving)', ['percent' => $hbPercent, 'saving' => number_format($hbSaving)]) }}</span>
+                                            <span class="block text-xs text-hb-lavender">{{ __(':label (−PKR :saving)', ['label' => Str::ucfirst($savingLabel), 'saving' => number_format($hbSaving)]) }}</span>
                                         @endif
                                     </span>
                                 </div>
@@ -926,15 +988,21 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                                 @endforeach
                                             </div>
                                         </x-public.field>
-                                        @unless ($isIndividual)
+                                        @if ($isIndividual || $hbPercent > 0)
                                         <label class="col-span-full flex cursor-pointer items-start gap-3 rounded-xs border border-[#3a3542] bg-hb-field px-4 py-3 text-sm has-checked:border-[#a98bd6] has-checked:bg-hb-purple/40 has-focus-visible:outline-2 has-focus-visible:outline-[#8e6bc8]">
                                             <input type="checkbox" wire:model.live="delegates.{{ $index }}.is_homebridge" class="mt-0.5 size-5 shrink-0 accent-[#a98bd6]" data-test="homebridge-{{ $index }}">
                                             <span class="flex flex-col gap-0.5">
                                                 <span class="font-semibold text-white">{{ __('Homebridge student') }}</span>
-                                                <span class="text-hb-muted">{{ __(':percent% off for Homebridge students in a delegation. The registration team checks this before verifying.', ['percent' => $hbPercent]) }}</span>
+                                                <span class="text-hb-muted">
+                                                    @if ($isIndividual)
+                                                        {{ __('Homebridge students pay PKR :hb instead of PKR :private. The registration team checks this before verifying.', ['hb' => number_format(RegistrationType::individualFee(true)), 'private' => number_format(RegistrationType::individualFee(false))]) }}
+                                                    @else
+                                                        {{ __(':percent% off for Homebridge students in a delegation. The registration team checks this before verifying.', ['percent' => $hbPercent]) }}
+                                                    @endif
+                                                </span>
                                             </span>
                                         </label>
-                                        @endunless
+                                        @endif
                                     </div>
                                 </div>
                             @endforeach
@@ -951,7 +1019,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                 @if ($issues = $this->issuesOnStep($reviewStep))
                                     <div wire:key="review-issues-{{ $reviewStep }}" class="flex flex-col gap-2 border border-amber-300/40 bg-amber-300/10 p-4 text-sm" data-test="review-issues-{{ $reviewStep }}">
                                         <div class="flex items-center justify-between gap-3">
-                                            <span class="font-semibold text-amber-100">{{ __('Still needed on Step :number (:label)', ['number' => $reviewStep, 'label' => __($this::STEPS[$reviewStep])]) }}</span>
+                                            <span class="font-semibold text-amber-100">{{ __('Still needed on Step :number (:label)', ['number' => $reviewStep, 'label' => __($this->stepLabels[$reviewStep])]) }}</span>
                                             <button type="button" wire:click="editStep({{ $reviewStep }})" class="font-semibold text-amber-200 underline-offset-4 hover:underline">{{ __('Fix') }}</button>
                                         </div>
                                         <ul class="list-disc pl-5 text-amber-100/90">
@@ -1008,22 +1076,41 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                         @if ($experience = MunExperience::tryFrom($delegate['mun_experience'] ?? ''))
                                             <div class="text-hb-muted">{{ __('Experience: :experience', ['experience' => __($experience->label())]) }}</div>
                                         @endif
-                                        @if (! $isIndividual && ($delegate['is_homebridge'] ?? false))
-                                            <div class="text-hb-lavender">{{ __('Homebridge student · :percent% off', ['percent' => $hbPercent]) }}</div>
+                                        @if (($delegate['is_homebridge'] ?? false) && ($isIndividual || $hbPercent > 0))
+                                            <div class="text-hb-lavender">{{ $isIndividual ? __('Homebridge student · PKR :fee rate', ['fee' => number_format(RegistrationType::individualFee(true))]) : __('Homebridge student · :percent% off', ['percent' => $hbPercent]) }}</div>
                                         @endif
                                     </div>
                                 @endforeach
                             </section>
 
                             <div class="flex items-center justify-between gap-3 border border-hb-purple-line bg-hb-purple p-5">
-                                <span class="text-sm tracking-[0.12em] uppercase">{{ __('Amount to pay') }}</span>
+                                <span class="text-sm tracking-[0.12em] uppercase">{{ $this->freeOffer ? __('Free tonight') : __('Amount to pay') }}</span>
                                 <span class="text-right">
-                                    <span class="font-display text-2xl font-bold">{{ $delegates === [] ? '—' : 'PKR '.number_format($this->amountDue) }}</span>
+                                    <span class="font-display text-2xl font-bold">{{ $delegates === [] ? '—' : $this->priceLabel }}</span>
                                     @if ($hbSaving > 0)
-                                        <span class="block text-xs text-[#dccff0]">{{ __('After :percent% Homebridge discount (−PKR :saving)', ['percent' => $hbPercent, 'saving' => number_format($hbSaving)]) }}</span>
+                                        <span class="block text-xs text-[#dccff0]">{{ __('After :label (−PKR :saving)', ['label' => $savingLabel, 'saving' => number_format($hbSaving)]) }}</span>
                                     @endif
                                 </span>
                             </div>
+                        </div>
+                    @elseif ($this->freeOffer)
+                        {{-- 4. Confirm (free-registration offer: no payment) --}}
+                        <fieldset class="flex flex-col gap-4" data-test="free-offer-step">
+                            <legend class="hb-legend">{{ __('Confirm your registration') }}</legend>
+                            <div class="flex flex-col gap-2 border border-hb-purple-line bg-hb-purple p-6">
+                                <div class="font-display text-3xl font-bold">{{ __('FREE') }}</div>
+                                <p class="leading-relaxed text-[#dccff0]">
+                                    {{ __('Registrations submitted before :end are free. No payment and no screenshot needed: just confirm and submit.', ['end' => FreeRegistrationOffer::endsLabel()]) }}
+                                </p>
+                            </div>
+                        </fieldset>
+
+                        <div class="flex flex-col gap-2" @error('confirmed') data-invalid @enderror>
+                            <label class="flex items-start gap-3 text-sm leading-relaxed text-hb-soft">
+                                <input type="checkbox" wire:model="confirmed" class="mt-0.5 size-5 accent-[#8e6bc8]">
+                                <span>{{ __('I confirm the details are correct.') }}</span>
+                            </label>
+                            <x-public.error name="confirmed" />
                         </div>
                     @else
                         {{-- 4. Payment --}}
@@ -1074,7 +1161,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
                                     @if ($delegates === [])
                                         <dd class="mt-1 text-sm">{{ __('Choose the number of delegates on Step 2 first.') }}</dd>
                                     @else
-                                        <dd class="mt-0.5 font-display text-2xl font-bold">PKR {{ number_format($this->amountDue) }}</dd>
+                                        <dd class="mt-0.5 font-display text-2xl font-bold">{{ $this->priceLabel }}</dd>
                                     @endif
                                 </div>
                             </dl>
@@ -1133,7 +1220,7 @@ new #[Layout('layouts::public')] #[Title('Register')] class extends Component {
 
                             @if ($step < 4)
                                 <button type="submit" class="hb-button-primary min-h-13 px-10 text-base" wire:loading.attr="disabled" wire:target="next" data-test="next-step">
-                                    <span wire:loading.remove wire:target="next">{{ $step === 3 ? ($stepsWithIssues === [] ? __('Looks good, continue to payment') : __('Continue to payment')) : __('Continue') }}</span>
+                                    <span wire:loading.remove wire:target="next">{{ $step === 3 ? ($this->freeOffer ? ($stepsWithIssues === [] ? __('Looks good, continue') : __('Continue')) : ($stepsWithIssues === [] ? __('Looks good, continue to payment') : __('Continue to payment'))) : __('Continue') }}</span>
                                     <span wire:loading wire:target="next">{{ __('Loading…') }}</span>
                                 </button>
                             @else

@@ -3,10 +3,12 @@
 namespace App\Actions\Registrations;
 
 use App\Enums\RegistrationStatus;
+use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\Delegate;
 use App\Models\Registration;
 use App\Models\User;
+use App\Notifications\DelegateAccessAdded;
 use App\Notifications\RegistrationVerified;
 use App\Notifications\SetPassword;
 use Illuminate\Support\Facades\DB;
@@ -25,8 +27,8 @@ class VerifyRegistration
     {
         $amountPaid ??= $registration->amount_due;
 
-        /** @var list<User> $newUsers */
-        $newUsers = DB::transaction(function () use ($registration, $reviewer, $amountPaid) {
+        /** @var array{new: list<User>, existing: list<User>} $accounts */
+        $accounts = DB::transaction(function () use ($registration, $reviewer, $amountPaid) {
             $registration->update([
                 'status' => RegistrationStatus::Verified,
                 'amount_paid' => $amountPaid,
@@ -35,11 +37,12 @@ class VerifyRegistration
                 'reviewed_at' => now(),
             ]);
 
-            $newUsers = $registration->delegates
-                ->map(fn (Delegate $delegate) => $this->createAccountFor($delegate))
-                ->filter()
-                ->values()
-                ->all();
+            $accounts = ['new' => [], 'existing' => []];
+
+            foreach ($registration->delegates as $delegate) {
+                [$user, $isNew] = $this->createAccountFor($delegate);
+                $accounts[$isNew ? 'new' : 'existing'][] = $user;
+            }
 
             AuditLog::record('verified', $registration, $reviewer, [
                 'reason' => 'PKR '.number_format($amountPaid).' received'
@@ -47,11 +50,17 @@ class VerifyRegistration
                 'amount_paid' => $amountPaid,
             ]);
 
-            return $newUsers;
+            return $accounts;
         });
 
-        foreach ($newUsers as $user) {
+        foreach ($accounts['new'] as $user) {
             $user->notify(new SetPassword(Password::broker()->createToken($user)));
+        }
+
+        // People who already had an account (e.g. a campus ambassador) keep their password,
+        // so they get a "log in as usual" email instead of a set-password link.
+        foreach ($accounts['existing'] as $user) {
+            $user->notify(new DelegateAccessAdded($registration));
         }
 
         if (! $registration->delegates->contains('email', $registration->contact_email)) {
@@ -61,9 +70,11 @@ class VerifyRegistration
     }
 
     /**
-     * Link the delegate to a user account, returning the user when it is new.
+     * Link the delegate to a user account.
+     *
+     * @return array{0: User, 1: bool} the user, and whether it needs a set-password link (new, or never set a password)
      */
-    private function createAccountFor(Delegate $delegate): ?User
+    private function createAccountFor(Delegate $delegate): array
     {
         $user = User::firstOrNew(['email' => $delegate->email]);
         $isNew = ! $user->exists;
@@ -75,10 +86,16 @@ class VerifyRegistration
                 'password_set_at' => null,
                 'email_verified_at' => now(),
             ])->save();
+        } elseif ($user->role === UserRole::Ambassador) {
+            // A campus ambassador who registers as a delegate becomes a delegate, so they
+            // get the delegate dashboard. Their ambassador portal stays linked to the account.
+            $user->forceFill(['role' => UserRole::Delegate])->save();
         }
 
         $delegate->user()->associate($user)->save();
 
-        return $isNew ? $user : null;
+        // An existing account that never set a password (e.g. an ambassador who never opened
+        // their portal email) can't "log in as usual", so it gets a set-password link too.
+        return [$user, $isNew || $user->password_set_at === null];
     }
 }

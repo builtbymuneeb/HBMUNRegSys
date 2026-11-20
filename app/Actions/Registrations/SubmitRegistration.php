@@ -20,13 +20,14 @@ class SubmitRegistration
      *
      * @param  array{organisation_name?: string|null, city: string, name: string, cnic: string, phone: string, email: string, referral_code?: string|null}  $contact
      * @param  list<array{name: string, cnic: string, email: string, phone: string, first_committee_id: int, second_committee_id: int, country_preference?: string|null, personality_preference?: string|null, mun_experience?: MunExperience|null, is_homebridge?: bool}>  $delegates
-     * @param  non-empty-list<UploadedFile>  $paymentScreenshots
+     * @param  list<UploadedFile>  $paymentScreenshots  Empty only for a free registration.
+     * @param  bool  $free  Submitted during a free-registration offer: nothing to pay.
      */
-    public function handle(RegistrationType $type, array $contact, array $delegates, array $paymentScreenshots): Registration
+    public function handle(RegistrationType $type, array $contact, array $delegates, array $paymentScreenshots, bool $free = false): Registration
     {
         $screenshotPaths = array_map(fn (UploadedFile $file) => $file->store('payment-screenshots', 'local'), $paymentScreenshots);
 
-        $registration = DB::transaction(function () use ($type, $contact, $delegates, $screenshotPaths) {
+        $registration = DB::transaction(function () use ($type, $contact, $delegates, $screenshotPaths, $free) {
             $registration = Registration::create([
                 'type' => $type,
                 'status' => RegistrationStatus::Pending,
@@ -38,14 +39,14 @@ class SubmitRegistration
                 'contact_email' => $contact['email'],
                 'referral_code' => $contact['referral_code'] ?? null,
                 'campus_ambassador_id' => CampusAmbassador::forCode($contact['referral_code'] ?? null)?->id,
-                'amount_due' => $type->amountDueFor(count($delegates), count(array_filter(array_column($delegates, 'is_homebridge')))),
-                'payment_screenshot_path' => $screenshotPaths[0],
+                'amount_due' => $free ? 0 : $type->amountDueFor(count($delegates), count(array_filter(array_column($delegates, 'is_homebridge')))),
+                'payment_screenshot_path' => $screenshotPaths[0] ?? '',
             ]);
 
             $registration->delegates()->createMany($delegates);
             $registration->paymentScreenshots()->createMany(array_map(fn (string $path) => ['path' => $path], $screenshotPaths));
 
-            AuditLog::record('submitted', $registration);
+            AuditLog::record('submitted', $registration, null, $free ? ['reason' => 'Free registration offer, no payment needed'] : []);
 
             return $registration;
         });

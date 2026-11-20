@@ -43,6 +43,6 @@ class StaffInvitation extends Notification implements ShouldQueue
             ->line("You’ve been added to the organising team as **{$notifiable->role->label()}**.")
             ->line($notifiable->role->description())
             ->action('Set your password', $url)
-            ->line('This link expires in '.config('auth.passwords.users.expire') / 60 .' hours. After that, use "Forgot password" on the login page.');
+            ->line('This link expires in '.intdiv(config('auth.passwords.users.expire'), 1440).' days, and only the newest link we send works. After that, use "Forgot password" on the login page.');
     }
 }

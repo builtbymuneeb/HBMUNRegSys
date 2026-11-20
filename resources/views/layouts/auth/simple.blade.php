@@ -27,5 +27,29 @@
         @include('partials.offline-banner')
 
         @fluxScripts
+
+        <script>
+            // One tap per form. On slow phones people tapped "Log in" / "Reset password" again while
+            // the first tap was still working; the second one then failed (e.g. "token is invalid")
+            // even though the first had already worked. The button shows Flux's spinner meanwhile.
+            document.addEventListener('submit', (event) => {
+                const form = event.target;
+
+                if (form.dataset.submitting) {
+                    event.preventDefault();
+
+                    return;
+                }
+
+                form.dataset.submitting = '1';
+                setTimeout(() => form.querySelectorAll('button[type=submit]').forEach((button) => button.disabled = true));
+            }, true);
+
+            // Coming back with the browser's back button re-enables the form.
+            window.addEventListener('pageshow', () => document.querySelectorAll('form[data-submitting]').forEach((form) => {
+                delete form.dataset.submitting;
+                form.querySelectorAll('button[type=submit]').forEach((button) => button.disabled = false);
+            }));
+        </script>
     </body>
 </html>

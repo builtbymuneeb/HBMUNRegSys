@@ -19,8 +19,10 @@ Route::get('/', fn () => view('welcome', [
 
 Route::view('links', 'links')->middleware(RecordPageView::class)->name('links');
 
+// Open to everyone, including people already logged in (a campus ambassador registering as a delegate).
+Route::livewire('register', 'pages::registration.create')->middleware(RecordPageView::class)->name('register');
+
 Route::middleware('guest')->group(function () {
-    Route::livewire('register', 'pages::registration.create')->middleware(RecordPageView::class)->name('register');
     Route::livewire('staff/join', 'pages::staff.join')->name('staff.join');
 });
 

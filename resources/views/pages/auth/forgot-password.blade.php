@@ -27,5 +27,9 @@
             <span>{{ __('Or, return to') }}</span>
             <flux:link :href="route('login')" wire:navigate>{{ __('log in') }}</flux:link>
         </div>
+
+        @if ($errors->any())
+            <x-help-popup problem="I can't get a password email" :error="implode(' ', $errors->all())" :details="['Email' => (string) old('email')]" />
+        @endif
     </div>
 </x-layouts::auth>

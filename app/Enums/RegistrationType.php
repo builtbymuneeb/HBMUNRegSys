@@ -37,15 +37,15 @@ enum RegistrationType: string
 
     /**
      * The fee in PKR for a registration of this type with the given number of delegates,
-     * of whom $homebridgeCount are Homebridge students. The Homebridge discount is for
-     * delegations only: each Homebridge member pays the discounted rate, and a delegation
-     * made up only of Homebridge students also gets it off the delegation fee. Individual
-     * delegates always pay the full fee.
+     * of whom $homebridgeCount are Homebridge students. An individual delegate pays the
+     * Homebridge individual fee if they are a Homebridge student, otherwise the private
+     * one. In a delegation, the Homebridge discount (if any) applies to each Homebridge
+     * member, and to the delegation fee when the whole team is from Homebridge.
      */
     public function amountDueFor(int $delegateCount, int $homebridgeCount = 0): int
     {
         if ($this->isIndividual()) {
-            return $delegateCount * config('conference.fees.private_delegate', 1000);
+            return $delegateCount * self::individualFee($homebridgeCount > 0);
         }
 
         $homebridgeCount = max(0, min($homebridgeCount, $delegateCount));
@@ -58,6 +58,16 @@ enum RegistrationType: string
         $allHomebridge = $delegateCount > 0 && $homebridgeCount === $delegateCount;
 
         return $total + ($allHomebridge ? self::homebridgeRate($delegationFee) : $delegationFee);
+    }
+
+    /**
+     * What one delegate registering on their own pays.
+     */
+    public static function individualFee(bool $homebridge): int
+    {
+        $private = (int) config('conference.fees.private_delegate', 1000);
+
+        return $homebridge ? (int) config('conference.fees.homebridge_individual', $private) : $private;
     }
 
     /**

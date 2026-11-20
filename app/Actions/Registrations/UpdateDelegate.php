@@ -98,6 +98,6 @@ class UpdateDelegate
      */
     public function sendSetPasswordLink(User $user): void
     {
-        $user->notify(new SetPassword(Password::broker()->createToken($user)));
+        $user->notify(new SetPassword(Password::broker()->createToken($user), resend: true));
     }
 }

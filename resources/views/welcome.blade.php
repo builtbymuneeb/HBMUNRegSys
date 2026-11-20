@@ -6,10 +6,14 @@
     $feePerDelegation = number_format(config('conference.fees.per_delegation'));
     $minDelegates = config('conference.delegation.min_delegates');
     $maxDelegates = config('conference.delegation.max_delegates');
-    $feePrivateDelegate = number_format(\App\Enums\RegistrationType::PrivateDelegate->amountDueFor(1));
+    $feePrivateDelegate = number_format(\App\Enums\RegistrationType::individualFee(false));
+    $feeHomebridgeIndividual = number_format(\App\Enums\RegistrationType::individualFee(true));
+    $hbDiscount = \App\Enums\RegistrationType::homebridgeDiscountPercent();
+    $deadlineLabel = \App\Support\RegistrationDeadline::label();
     $fileNumbers = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
     $committeeArt = ['UNW' => 'hb-art-seal', 'UNSC' => 'hb-art-globe', 'PNA' => 'hb-art-column', 'SPECIAL' => 'hb-art-banner'];
-    $tickerItems = [__('Registrations now open'), config('conference.dates_label'), __('Virtual conference'), __('Delegate fee PKR :fee', ['fee' => $feePerDelegate]), __('HB delegations :percent% off', ['percent' => \App\Enums\RegistrationType::homebridgeDiscountPercent()])];
+    $freeOffer = \App\Support\FreeRegistrationOffer::isActive();
+    $tickerItems = [...($freeOffer ? [__('FREE registration until :end', ['end' => \App\Support\FreeRegistrationOffer::endsLabel()])] : []), __('Registrations now open'), config('conference.dates_label'), __('Virtual conference'), __('Delegate fee PKR :fee', ['fee' => $feePerDelegate]), ...($hbDiscount > 0 ? [__('HB delegations :percent% off', ['percent' => $hbDiscount])] : [__('HB individual delegates PKR :fee', ['fee' => $feeHomebridgeIndividual])]), ...($deadlineLabel ? [$deadlineLabel] : [])];
 @endphp
 
 <x-layouts::public>
@@ -81,9 +85,12 @@
                 <p class="max-w-xl text-[17px] leading-relaxed text-hb-muted">
                     {{ __('Two days of diplomacy, debate, negotiation and collaboration across four committees, from the Security Council to the Pakistan National Assembly. Join from anywhere.') }}
                 </p>
+                @if ($freeOffer)
+                    <x-public.free-offer-banner compact />
+                @endif
                 <div class="grid gap-3 sm:flex sm:flex-wrap">
                     <a href="{{ route('register') }}" class="hb-button-primary min-h-13 px-8 text-base">
-                        {{ __('Register Now') }}
+                        {{ $freeOffer ? __('Register free now') : __('Register Now') }}
                         <svg class="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14" /><path d="m13 6 6 6-6 6" /></svg>
                     </a>
                     <a href="#committees" class="hb-button-secondary min-h-13 text-base">{{ __('Explore committees') }}</a>
@@ -199,7 +206,13 @@
             <div class="flex flex-col items-center gap-3 text-center">
                 <div class="hb-eyebrow">{{ __('Registration fees') }}</div>
                 <h2 class="font-display text-[clamp(30px,3.6vw,44px)] font-semibold">{{ __('Bring your team.') }}</h2>
+                @if ($deadlineLabel && ! $freeOffer)
+                    <div class="bg-white px-2.5 py-1 text-xs font-semibold tracking-[0.14em] whitespace-nowrap text-hb-purple uppercase" data-test="deadline-label">{{ $deadlineLabel }}</div>
+                @endif
             </div>
+            @if ($freeOffer)
+                <x-public.free-offer-banner class="mx-auto w-full max-w-xl lg:max-w-none" />
+            @endif
             <div class="mx-auto grid w-full max-w-xl gap-4 lg:max-w-none lg:grid-cols-2 lg:gap-6">
                 <div class="flex flex-col gap-3.5 border border-hb-purple-line bg-hb-purple px-6 py-7 md:gap-4.5 md:px-9 md:py-10">
                     <div class="flex items-center justify-between gap-3">
@@ -216,7 +229,11 @@
                             </div>
                         @endforeach
                     </dl>
-                    <p class="border-l-2 border-white pl-3 text-sm leading-relaxed text-white" data-test="homebridge-discount">{{ __('Homebridge students in a delegation get :percent% off. An all-Homebridge delegation gets :percent% off the whole fee.', ['percent' => \App\Enums\RegistrationType::homebridgeDiscountPercent()]) }}</p>
+                    @if ($hbDiscount > 0)
+                        <p class="border-l-2 border-white pl-3 text-sm leading-relaxed text-white" data-test="homebridge-discount">{{ __('Homebridge students in a delegation get :percent% off. An all-Homebridge delegation gets :percent% off the whole fee.', ['percent' => $hbDiscount]) }}</p>
+                    @else
+                        <p class="border-l-2 border-white pl-3 text-sm leading-relaxed text-white" data-test="delegation-fee-note">{{ __('Every delegate pays PKR :fee, Homebridge or not. The PKR :delegation delegation fee is paid once and shared by the team.', ['fee' => $feePerDelegate, 'delegation' => $feePerDelegation]) }}</p>
+                    @endif
                     <p class="text-sm leading-relaxed text-[#dccff0]">{{ __('Want to discuss a fee adjustment for your institute? Contact the registration team.') }}</p>
                     <a href="{{ route('register') }}" class="hb-button-primary mt-auto">{{ __('Register a delegation') }}</a>
                 </div>
@@ -228,6 +245,7 @@
                     </div>
                     <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1"><span class="text-hb-muted">PKR</span><span class="font-display text-[44px] leading-none font-bold md:text-[56px]">{{ $feePrivateDelegate }}</span><span class="text-hb-muted">{{ __('/ delegate') }}</span></div>
                     <p class="leading-relaxed text-hb-soft">{{ __('Register on your own, without a delegation. No delegation fee.') }}</p>
+                    <p class="border-l-2 border-white pl-3 text-sm leading-relaxed text-white" data-test="homebridge-individual-fee">{{ __('Homebridge students pay PKR :fee.', ['fee' => $feeHomebridgeIndividual]) }}</p>
                     <a href="{{ route('register', ['type' => \App\Enums\RegistrationType::PrivateDelegate->value]) }}" class="hb-button-primary mt-auto">{{ __('Register as an individual delegate') }}</a>
                 </div>
             </div>
@@ -346,5 +364,6 @@
             <a href="{{ route('register') }}" class="hb-button-primary min-h-13 px-9 text-base">{{ __('Register Now') }}</a>
         </div>
     </section>
+    @include('partials.free-offer-dialog')
     @include('partials.hb-discount-dialog')
 </x-layouts::public>
