@@ -39,7 +39,7 @@ new #[Title('Announcements')] class extends Component {
 
     public function post(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'announcements');
 
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:160'],
@@ -63,7 +63,7 @@ new #[Title('Announcements')] class extends Component {
 
     public function delete(int $announcementId): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'announcements');
 
         $announcement = Announcement::findOrFail($announcementId);
         AuditLog::record('announcement_deleted', $announcement, Auth::user(), ['title' => $announcement->title]);

@@ -43,7 +43,7 @@ trait ManagesAmbassadorTasks
 
     public function saveTask(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $isNew = $this->form->task === null;
         $notify = $isNew && $this->form->notify;
@@ -67,7 +67,7 @@ trait ManagesAmbassadorTasks
 
     public function toggleArchive(int $taskId): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $task = AmbassadorTask::findOrFail($taskId);
         $task->update(['archived_at' => $task->isArchived() ? null : now()]);
@@ -82,7 +82,7 @@ trait ManagesAmbassadorTasks
      */
     public function deleteTask(int $taskId): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $task = AmbassadorTask::withCount(['submissions as approved_count' => fn ($query) => $query->where('status', 'approved')])->findOrFail($taskId);
         AuditLog::record('ambassador_task_deleted', $task, Auth::user(), ['title' => $task->title, 'approved' => $task->approved_count]);

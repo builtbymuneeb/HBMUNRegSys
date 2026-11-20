@@ -2,6 +2,8 @@
 
 use App\Actions\Staff\ApproveStaffAccess;
 use App\Actions\Staff\InviteStaffMember;
+use App\Enums\PageAccess;
+use App\Enums\StaffPage;
 use App\Enums\UserRole;
 use App\Models\AuditLog;
 use App\Models\User;
@@ -20,6 +22,12 @@ new #[Title('Team')] class extends Component {
     public string $newEmail = '';
 
     public string $newRole = 'registrations';
+
+    /** The member whose page access is being edited. */
+    public ?int $accessUserId = null;
+
+    /** @var array<string, string> page => '' (no access), 'view' or 'edit' */
+    public array $access = [];
 
     /**
      * @return Collection<int, User>
@@ -117,6 +125,74 @@ new #[Title('Team')] class extends Component {
         Flux::toast(variant: 'success', text: __(':name added. They’ve been emailed a link to set their password.', ['name' => $member->name]));
     }
 
+    public function openAccess(int $userId): void
+    {
+        Gate::authorize('manage-staff');
+
+        $member = $this->grantableMember($userId);
+
+        $this->accessUserId = $member->id;
+        $this->access = collect(StaffPage::cases())
+            ->mapWithKeys(fn (StaffPage $page) => [$page->value => $member->grantedPageAccess($page)?->value ?? ''])
+            ->all();
+
+        $this->resetValidation();
+        Flux::modal('page-access')->show();
+    }
+
+    public function saveAccess(): void
+    {
+        Gate::authorize('manage-staff');
+
+        $member = $this->grantableMember((int) $this->accessUserId);
+
+        $grants = [];
+
+        foreach (StaffPage::cases() as $page) {
+            $level = PageAccess::tryFrom((string) ($this->access[$page->value] ?? ''));
+
+            if ($level === null) {
+                continue;
+            }
+
+            // The email log has nothing to edit, so the most it can be is view only.
+            $grants[$page->value] = $page->isEditable() ? $level->value : PageAccess::View->value;
+        }
+
+        $member->forceFill(['page_access' => $grants ?: null])->save();
+        AuditLog::record('staff_page_access_changed', $member, Auth::user(), ['pages' => $grants]);
+
+        Flux::modal('page-access')->close();
+        unset($this->members);
+        Flux::toast(variant: 'success', text: $grants
+            ? __(':name can now open :count extra :pages.', ['name' => $member->name, 'count' => count($grants), 'pages' => count($grants) === 1 ? __('page') : __('pages')])
+            : __(':name has no extra pages now.', ['name' => $member->name]));
+    }
+
+    #[Computed]
+    public function accessMember(): ?User
+    {
+        return $this->accessUserId ? User::find($this->accessUserId) : null;
+    }
+
+    /**
+     * Admins and the registrations team already have every page, so only the other
+     * roles get pages opened up one by one.
+     */
+    private function grantableMember(int $userId): User
+    {
+        $member = User::whereIn('role', UserRole::staffRoles())->findOrFail($userId);
+
+        abort_unless(self::canGrant($member), 422);
+
+        return $member;
+    }
+
+    public static function canGrant(User $member): bool
+    {
+        return in_array($member->role, [UserRole::OtherManagement, UserRole::Ambassadors], true);
+    }
+
     private function isLastAdmin(User $admin): bool
     {
         return User::where('role', UserRole::Admin)->whereKeyNot($admin->id)->doesntExist();
@@ -169,6 +245,7 @@ new #[Title('Team')] class extends Component {
                 <flux:table.column>{{ __('Name') }}</flux:table.column>
                 <flux:table.column>{{ __('Email') }}</flux:table.column>
                 <flux:table.column>{{ __('Role') }}</flux:table.column>
+                <flux:table.column>{{ __('Extra pages') }}</flux:table.column>
                 <flux:table.column></flux:table.column>
             </flux:table.columns>
             <flux:table.rows>
@@ -187,6 +264,20 @@ new #[Title('Team')] class extends Component {
                                     <flux:select.option :value="$role->value" :selected="$member->role === $role">{{ $role->label() }}</flux:select.option>
                                 @endforeach
                             </flux:select>
+                        </flux:table.cell>
+                        <flux:table.cell>
+                            @if ($this::canGrant($member))
+                                <div class="flex flex-wrap items-center gap-1">
+                                    @foreach (StaffPage::cases() as $page)
+                                        @if ($level = $member->grantedPageAccess($page))
+                                            <flux:badge size="sm" :color="$level === PageAccess::Edit ? 'purple' : 'zinc'" :icon="$level === PageAccess::Edit ? 'pencil-square' : 'eye'">{{ __($page->label()) }}</flux:badge>
+                                        @endif
+                                    @endforeach
+                                    <flux:button size="xs" variant="ghost" icon="key" wire:click="openAccess({{ $member->id }})" data-test="page-access-{{ $member->id }}">{{ __('Pages') }}</flux:button>
+                                </div>
+                            @else
+                                <flux:text class="text-xs">{{ __('All pages') }}</flux:text>
+                            @endif
                         </flux:table.cell>
                         <flux:table.cell align="end">
                             @unless ($member->is(auth()->user()))
@@ -211,6 +302,40 @@ new #[Title('Team')] class extends Component {
             @endforeach
         </div>
     </section>
+
+    <flux:modal name="page-access" class="w-full md:w-xl">
+        <form wire:submit="saveAccess" class="flex flex-col gap-6">
+            <div>
+                <flux:heading size="lg">{{ __('Page access for :name', ['name' => $this->accessMember?->name]) }}</flux:heading>
+                <flux:text class="mt-2">{{ __('Open single pages to this member on top of their role. “View only” lets them look without changing anything; “Can edit” lets them make changes.') }}</flux:text>
+            </div>
+
+            <div class="flex flex-col divide-y divide-zinc-200 dark:divide-white/10">
+                @foreach (StaffPage::cases() as $page)
+                    <div wire:key="access-{{ $page->value }}" class="flex flex-wrap items-center justify-between gap-3 py-3">
+                        <div class="min-w-0 flex-1">
+                            <div class="font-medium text-zinc-800 dark:text-white">{{ __($page->label()) }}</div>
+                            <flux:text class="text-xs">{{ __($page->editDescription()) }}</flux:text>
+                        </div>
+                        <flux:radio.group wire:model="access.{{ $page->value }}" variant="segmented" size="sm" :aria-label="__('Access to :page', ['page' => __($page->label())])">
+                            <flux:radio value="" :label="__('None')" />
+                            <flux:radio value="view" :label="__('View only')" />
+                            @if ($page->isEditable())
+                                <flux:radio value="edit" :label="__('Can edit')" />
+                            @endif
+                        </flux:radio.group>
+                    </div>
+                @endforeach
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <flux:modal.close>
+                    <flux:button variant="ghost">{{ __('Cancel') }}</flux:button>
+                </flux:modal.close>
+                <flux:button type="submit" variant="primary" data-test="save-page-access">{{ __('Save access') }}</flux:button>
+            </div>
+        </form>
+    </flux:modal>
 
     <flux:modal name="add-member" class="md:w-md">
         <form wire:submit="invite" class="flex flex-col gap-6">

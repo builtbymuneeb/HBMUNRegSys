@@ -35,7 +35,7 @@ new #[Title('Leaderboard')] class extends Component {
 
     public function saveRate(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $this->validate(['rate' => ['required', 'integer', 'min:0', 'max:100000']], attributes: ['rate' => __('points per verified delegate')]);
 
@@ -57,7 +57,7 @@ new #[Title('Leaderboard')] class extends Component {
 
     public function saveAdjustment(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $validated = $this->validate([
             'adjustPoints' => ['required', 'integer', 'not_in:0', 'min:-100000', 'max:100000'],

@@ -14,7 +14,7 @@ class StudyGuidePolicy
      */
     public function view(User $user, StudyGuide $guide): bool
     {
-        if ($user->canManageConference()) {
+        if ($user->can('view-page', 'guides')) {
             return true;
         }
 

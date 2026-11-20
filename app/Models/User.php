@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\PageAccess;
+use App\Enums\StaffPage;
 use App\Enums\UserRole;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -54,6 +56,7 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'password_set_at' => 'datetime',
             'role' => UserRole::class,
             'requested_role' => UserRole::class,
+            'page_access' => 'array',
         ];
     }
 
@@ -150,12 +153,52 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
 
     public function canReviewRegistrations(): bool
     {
-        return in_array($this->role, [UserRole::Registrations, UserRole::Admin], true);
+        return $this->canEditPage(StaffPage::Registrations);
     }
 
     public function canViewRegistrations(): bool
     {
-        return in_array($this->role, [UserRole::Registrations, UserRole::Admin], true);
+        return $this->canViewPage(StaffPage::Registrations);
+    }
+
+    /**
+     * What this user can do on a staff page: what their role gives them, raised by
+     * anything an admin has granted them one by one. Null means no access.
+     */
+    public function pageAccess(StaffPage $page): ?PageAccess
+    {
+        $fromRole = match ($this->role) {
+            UserRole::Admin, UserRole::Registrations => PageAccess::Edit,
+            UserRole::Ambassadors => $page === StaffPage::Ambassadors ? PageAccess::Edit : null,
+            default => null,
+        };
+
+        // Grants only ever apply to team members, never to delegates or ambassadors.
+        $granted = $this->role->isStaff() ? $this->grantedPageAccess($page) : null;
+
+        if ($fromRole === PageAccess::Edit || $granted === PageAccess::Edit) {
+            return $page->isEditable() ? PageAccess::Edit : PageAccess::View;
+        }
+
+        return $fromRole ?? $granted;
+    }
+
+    /**
+     * Only what an admin has granted, ignoring the role.
+     */
+    public function grantedPageAccess(StaffPage $page): ?PageAccess
+    {
+        return PageAccess::tryFrom((string) ($this->page_access[$page->value] ?? ''));
+    }
+
+    public function canViewPage(StaffPage $page): bool
+    {
+        return $this->pageAccess($page) !== null;
+    }
+
+    public function canEditPage(StaffPage $page): bool
+    {
+        return $this->pageAccess($page) === PageAccess::Edit;
     }
 
     /**

@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Enums\RegistrationStatus;
+use App\Enums\StaffPage;
 use App\Enums\UserRole;
 use App\Models\AmbassadorSubmission;
 use App\Models\InboxMessage;
@@ -43,17 +44,29 @@ class AppNavigation
             $add('registrations', 'Registrations', 'Registrations', 'clipboard-document-check', 'staff.registrations.index', 'staff.registrations.*', $user->canReviewRegistrations() ? Registration::where('status', RegistrationStatus::Pending)->count() : null);
         }
 
-        if ($user->can('manage-conference')) {
+        if ($user->canViewPage(StaffPage::Allocations)) {
             $add('allocations', 'Allocations', 'Allocate', 'user-group', 'staff.allocations', 'staff.allocations');
+        }
+
+        if ($user->canViewPage(StaffPage::Committees)) {
             $add('committees', 'Committees', 'Committees', 'building-library', 'staff.committees', 'staff.committees*');
+        }
+
+        if ($user->canViewPage(StaffPage::Guides)) {
             $add('guides', 'Study guides', 'Guides', 'book-open', 'staff.guides', 'staff.guides');
+        }
+
+        if ($user->canViewPage(StaffPage::Announcements)) {
             $add('announcements', 'Announcements', 'Updates', 'megaphone', 'staff.announcements', 'staff.announcements');
+        }
+
+        if ($user->canViewPage(StaffPage::Schedule)) {
             $add('schedule', 'Schedule', 'Schedule', 'calendar-days', 'staff.schedule', 'staff.schedule');
         }
 
-        if ($user->can('manage-ambassadors')) {
+        if ($user->canViewPage(StaffPage::Ambassadors)) {
             $add('ambassadors', 'Campus ambassadors', 'Ambassadors', 'ticket', 'staff.ambassadors', ['staff.ambassadors', 'staff.ambassadors.show', 'staff.ambassadors.list']);
-            $add('ambassador-tasks', 'Ambassador tasks', 'Tasks', 'clipboard-document-list', 'staff.ambassadors.tasks', 'staff.ambassadors.tasks*', AmbassadorSubmission::pending()->count());
+            $add('ambassador-tasks', 'Ambassador tasks', 'Tasks', 'clipboard-document-list', 'staff.ambassadors.tasks', 'staff.ambassadors.tasks*', $user->canEditPage(StaffPage::Ambassadors) ? AmbassadorSubmission::pending()->count() : null);
             $add('leaderboard', 'Leaderboard', 'Leaderboard', 'trophy', 'staff.ambassadors.leaderboard', 'staff.ambassadors.leaderboard');
         }
 
@@ -61,7 +74,7 @@ class AppNavigation
             $add('inbox', 'Inbox', 'Inbox', 'inbox', 'staff.inbox', 'staff.inbox*', InboxMessage::visibleTo($user)->unread()->count());
         }
 
-        if ($user->can('manage-conference')) {
+        if ($user->canViewPage(StaffPage::Emails)) {
             $add('emails', 'Email log', 'Emails', 'envelope', 'staff.emails', 'staff.emails');
         }
 

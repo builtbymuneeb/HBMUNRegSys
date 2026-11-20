@@ -73,7 +73,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function editAgenda(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $this->resetValidation();
         $this->agenda = (string) $this->committee->agenda;
@@ -86,7 +86,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function saveAgenda(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $validated = $this->validate(['agenda' => ['nullable', 'string', 'max:2000']]);
 
@@ -103,7 +103,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function editPortfolios(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $this->resetValidation();
         $this->portfolioList = implode("\n", $this->committee->portfolios ?? []);
@@ -118,7 +118,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function savePortfolios(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $this->validate([
             'portfolioList' => ['nullable', 'string', 'max:20000'],
@@ -168,7 +168,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function addSession(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $this->resetValidation();
         $this->editingSessionId = null;
@@ -190,7 +190,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function editSession(int $sessionId): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $session = $this->committee->sessions()->findOrFail($sessionId);
 
@@ -210,7 +210,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function saveSession(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $validated = $this->validate([
             'sessionTitle' => ['required', 'string', 'max:120'],
@@ -260,7 +260,7 @@ new #[Title('Committee')] class extends Component {
      */
     public function deleteSession(int $sessionId): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'committees');
 
         $session = $this->committee->sessions()->findOrFail($sessionId);
         $session->delete();

@@ -262,7 +262,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function sendEmails(EmailAmbassadors $emailAmbassadors): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         if ($this->messageKind === 'custom') {
             $validated = $this->validate([
@@ -303,7 +303,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function save(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $ambassador = $this->form->save();
 
@@ -358,7 +358,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function givePortalAccessToAll(GivePortalAccess $givePortalAccess): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $given = 0;
         $problems = [];
@@ -383,7 +383,7 @@ new #[Title('Campus ambassadors')] class extends Component {
 
     public function import(ImportAmbassadors $importAmbassadors): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $count = $importAmbassadors->import($this->sheetRows, Auth::user(), AmbassadorType::tryFrom($this->importType) ?? AmbassadorType::Homebridge);
 

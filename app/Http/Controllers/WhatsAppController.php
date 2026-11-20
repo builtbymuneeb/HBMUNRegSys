@@ -61,7 +61,7 @@ class WhatsAppController extends Controller
      */
     public function allocation(Request $request, Delegate $delegate): RedirectResponse
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'allocations');
         abort_unless($delegate->hasPublishedAllocation(), 404);
 
         $message = (new AllocationPublished($delegate))->toWhatsApp();
@@ -74,7 +74,7 @@ class WhatsAppController extends Controller
      */
     public function ambassadorWelcome(Request $request, CampusAmbassador $ambassador): RedirectResponse
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         return $this->open($request, WhatsAppLog::AMBASSADOR_WELCOME, (string) $ambassador->phone, (new AmbassadorWelcome($ambassador))->toWhatsApp(), ambassador: $ambassador);
     }
@@ -84,7 +84,7 @@ class WhatsAppController extends Controller
      */
     public function ambassadorMessage(Request $request, CampusAmbassador $ambassador): RedirectResponse
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $text = $request->validate(['text' => ['required', 'string', 'max:2000']])['text'];
 
@@ -96,7 +96,7 @@ class WhatsAppController extends Controller
      */
     public function ambassadorPortal(Request $request, CampusAmbassador $ambassador): RedirectResponse
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
         abort_unless($ambassador->user !== null, 404);
 
         return $this->open($request, WhatsAppLog::AMBASSADOR_PORTAL, (string) $ambassador->phone, AmbassadorPortalInvite::whatsAppMessage($ambassador->firstName(), $ambassador->user->email), ambassador: $ambassador);

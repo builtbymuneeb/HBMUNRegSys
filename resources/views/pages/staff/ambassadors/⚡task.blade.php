@@ -63,7 +63,7 @@ new #[Title('Ambassador task')] class extends Component {
 
     public function delete(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         AuditLog::record('ambassador_task_deleted', $this->task, Auth::user(), ['title' => $this->task->title, 'approved' => $this->counts['approved'] ?? 0]);
         $this->task->delete();

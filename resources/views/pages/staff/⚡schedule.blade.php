@@ -64,7 +64,7 @@ new #[Title('Schedule')] class extends Component {
 
     public function saveRooms(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'schedule');
 
         $this->validate([
             'roomLinks' => ['array'],
@@ -86,7 +86,7 @@ new #[Title('Schedule')] class extends Component {
 
     public function add(?int $day = null): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'schedule');
 
         $this->resetValidation();
         $this->reset('editingId', 'startTime', 'endTime', 'activity', 'link', 'usesCommitteeLink', 'linkVisible');
@@ -101,7 +101,7 @@ new #[Title('Schedule')] class extends Component {
 
     public function edit(int $id): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'schedule');
 
         $item = ScheduleItem::findOrFail($id);
 
@@ -120,7 +120,7 @@ new #[Title('Schedule')] class extends Component {
 
     public function save(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'schedule');
 
         $validated = $this->validate([
             'day' => ['required', 'integer', 'between:1,9'],
@@ -156,7 +156,7 @@ new #[Title('Schedule')] class extends Component {
 
     public function toggleLink(int $id): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'schedule');
 
         $item = ScheduleItem::findOrFail($id);
         $item->update(['link_visible' => ! $item->link_visible]);
@@ -173,7 +173,7 @@ new #[Title('Schedule')] class extends Component {
      */
     public function setAllLinks(bool $visible, ?int $day = null): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'schedule');
 
         $items = ScheduleItem::query()
             ->where(fn ($query) => $query->whereNotNull('link')->orWhere('uses_committee_link', true))
@@ -194,7 +194,7 @@ new #[Title('Schedule')] class extends Component {
 
     public function delete(int $id): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'schedule');
 
         $item = ScheduleItem::findOrFail($id);
         AuditLog::record('schedule_item_deleted', $item, Auth::user(), ['activity' => $item->activity, 'day' => $item->day]);

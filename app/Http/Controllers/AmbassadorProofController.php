@@ -17,7 +17,7 @@ class AmbassadorProofController extends Controller
         $user = $request->user();
         $owner = $file->submission->campus_ambassador_id;
 
-        abort_unless($user->can('manage-ambassadors') || $user->ambassador?->id === $owner, 403);
+        abort_unless($user->can('view-page', 'ambassadors') || $user->ambassador?->id === $owner, 403);
 
         $headers = $file->isImage() ? [] : ['Content-Disposition' => 'attachment; filename="'.addcslashes($file->original_name ?: basename($file->path), '"\\').'"'];
 

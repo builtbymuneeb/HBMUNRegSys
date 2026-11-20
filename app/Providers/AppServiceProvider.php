@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Enums\StaffPage;
 use App\Listeners\RecordMail;
 use App\Models\User;
+use App\Support\ViewOnlyPages;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Console\ServeCommand;
 use Illuminate\Mail\Events\MessageSent;
@@ -45,6 +47,10 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-ambassadors', fn (User $user): bool => $user->canManageAmbassadors());
         Gate::define('use-inbox', fn (User $user): bool => $user->canUseInbox());
         Gate::define('use-ambassador-portal', fn (User $user): bool => $user->isAmbassador());
+        Gate::define('view-page', fn (User $user, StaffPage|string $page): bool => $user->canViewPage(StaffPage::from($page instanceof StaffPage ? $page->value : $page)));
+        Gate::define('edit-page', fn (User $user, StaffPage|string $page): bool => $user->canEditPage(StaffPage::from($page instanceof StaffPage ? $page->value : $page)));
+
+        ViewOnlyPages::register();
 
         Event::listen(MessageSent::class, [RecordMail::class, 'sent']);
         Event::listen(JobFailed::class, [RecordMail::class, 'failed']);

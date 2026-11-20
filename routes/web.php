@@ -71,20 +71,19 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
     Route::get('whatsapp/ambassador/{ambassador}/portal', [WhatsAppController::class, 'ambassadorPortal'])->name('whatsapp.ambassador.portal');
 
     Route::get('delegates/export', DelegateExportController::class)
-        ->can('manage-conference')
+        ->middleware("can:view-page,'registrations'")
         ->name('delegates.export');
 
-    Route::middleware('can:manage-conference')->group(function () {
-        Route::livewire('allocations', 'pages::staff.allocations')->name('allocations');
-        Route::livewire('committees', 'pages::staff.committees.index')->name('committees');
-        Route::livewire('committees/{committee}', 'pages::staff.committees.show')->name('committees.show');
-        Route::livewire('guides', 'pages::staff.guides')->name('guides');
-        Route::livewire('announcements', 'pages::staff.announcements')->name('announcements');
-        Route::livewire('schedule', 'pages::staff.schedule')->name('schedule');
-        Route::livewire('emails', 'pages::staff.emails')->name('emails');
-    });
+    // Each page checks its own access, so an admin can open single pages to a team member.
+    Route::livewire('allocations', 'pages::staff.allocations')->middleware("can:view-page,'allocations'")->name('allocations');
+    Route::livewire('committees', 'pages::staff.committees.index')->middleware("can:view-page,'committees'")->name('committees');
+    Route::livewire('committees/{committee}', 'pages::staff.committees.show')->middleware("can:view-page,'committees'")->name('committees.show');
+    Route::livewire('guides', 'pages::staff.guides')->middleware("can:view-page,'guides'")->name('guides');
+    Route::livewire('announcements', 'pages::staff.announcements')->middleware("can:view-page,'announcements'")->name('announcements');
+    Route::livewire('schedule', 'pages::staff.schedule')->middleware("can:view-page,'schedule'")->name('schedule');
+    Route::livewire('emails', 'pages::staff.emails')->middleware("can:view-page,'emails'")->name('emails');
 
-    Route::middleware('can:manage-ambassadors')->group(function () {
+    Route::middleware("can:view-page,'ambassadors'")->group(function () {
         Route::livewire('ambassadors', 'pages::staff.ambassadors.index')->name('ambassadors');
         Route::get('ambassadors/list', AmbassadorListController::class)->name('ambassadors.list');
         Route::livewire('ambassadors/tasks', 'pages::staff.ambassadors.tasks')->name('ambassadors.tasks');

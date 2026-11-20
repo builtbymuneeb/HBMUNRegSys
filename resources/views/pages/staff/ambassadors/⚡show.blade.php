@@ -77,7 +77,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function givePortalAccess(GivePortalAccess $givePortalAccess): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         try {
             $user = $givePortalAccess->handle($this->ambassador, Auth::user());
@@ -93,7 +93,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function removeAdjustment(int $adjustmentId): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $adjustment = $this->ambassador->pointAdjustments()->findOrFail($adjustmentId);
         AuditLog::record('ambassador_points_adjustment_removed', $this->ambassador, Auth::user(), ['points' => $adjustment->points, 'reason' => $adjustment->reason]);
@@ -110,7 +110,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function sendWelcomeEmail(EmailAmbassadors $emailAmbassadors): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         if ($emailAmbassadors->welcome([$this->ambassador], Auth::user()) === 0) {
             Flux::toast(variant: 'danger', text: __('Add an email address first.'));
@@ -129,7 +129,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function sendMessageEmail(EmailAmbassadors $emailAmbassadors): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $validated = $this->validate([
             'messageSubject' => ['required', 'string', 'max:150'],
@@ -155,7 +155,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function save(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         $this->ambassador = $this->form->save();
         unset($this->counts, $this->registrations);
@@ -169,7 +169,7 @@ new #[Title('Campus ambassador')] class extends Component {
      */
     public function markChecked(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         AuditLog::record('ambassador_checked', $this->ambassador, Auth::user(), ['code' => $this->ambassador->code, 'flag_reason' => $this->ambassador->flag_reason]);
         $this->ambassador->update(['flag_reason' => null]);
@@ -179,7 +179,7 @@ new #[Title('Campus ambassador')] class extends Component {
 
     public function delete(): void
     {
-        Gate::authorize('manage-ambassadors');
+        Gate::authorize('edit-page', 'ambassadors');
 
         AuditLog::record('ambassador_deleted', $this->ambassador, Auth::user(), ['code' => $this->ambassador->code, 'name' => $this->ambassador->name]);
         $login = $this->ambassador->user;

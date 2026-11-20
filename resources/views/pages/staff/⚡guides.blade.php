@@ -47,7 +47,7 @@ new #[Title('Study guides')] class extends Component {
 
     public function saveGuide(): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'guides');
 
         $validated = $this->validate([
             'title' => ['required', 'string', 'max:160'],
@@ -77,7 +77,7 @@ new #[Title('Study guides')] class extends Component {
 
     public function delete(int $guideId): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'guides');
 
         $guide = StudyGuide::findOrFail($guideId);
         Storage::disk('local')->delete($guide->file_path);

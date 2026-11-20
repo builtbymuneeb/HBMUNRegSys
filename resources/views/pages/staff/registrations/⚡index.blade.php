@@ -175,7 +175,7 @@ new #[Title('Registrations')] class extends Component {
 <div wire:poll.15s="poll" class="flex w-full flex-col gap-6 p-6 lg:p-8">
     <div class="flex flex-wrap items-end justify-between gap-4">
         <flux:heading size="xl" level="1" class="max-sm:px-1">{{ __('Registrations') }}</flux:heading>
-        @can('manage-conference')
+        @can('view-page', 'registrations')
             <flux:button icon="arrow-down-tray" class="max-sm:hidden" :href="route('staff.delegates.export', ['status' => $status])">
                 {{ $status ? __('Export :status delegates (CSV)', ['status' => strtolower(RegistrationStatus::tryFrom($status)?->label() ?? '')]) : __('Export all delegates (CSV)') }}
             </flux:button>

@@ -216,7 +216,7 @@ new #[Title('Allocations')] class extends Component {
 
     public function edit(int $delegateId): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'allocations');
 
         $delegate = $this->allocatable()->findOrFail($delegateId);
 
@@ -260,7 +260,7 @@ new #[Title('Allocations')] class extends Component {
 
     public function save(AllocateDelegate $allocateDelegate): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'allocations');
 
         $this->validate([
             'committeeId' => ['required', 'exists:committees,id'],
@@ -278,7 +278,7 @@ new #[Title('Allocations')] class extends Component {
 
     public function clear(AllocateDelegate $allocateDelegate): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'allocations');
 
         $delegate = $this->allocatable()->findOrFail($this->editingId);
         $allocateDelegate->handle($delegate, null, null, Auth::user());
@@ -290,7 +290,7 @@ new #[Title('Allocations')] class extends Component {
 
     public function send(int $delegateId, PublishAllocations $publishAllocations): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'allocations');
 
         $delegate = $this->allocatable()->findOrFail($delegateId);
         $publishAllocations->handle(collect([$delegate]), Auth::user());
@@ -300,7 +300,7 @@ new #[Title('Allocations')] class extends Component {
 
     public function sendAll(PublishAllocations $publishAllocations): void
     {
-        Gate::authorize('manage-conference');
+        Gate::authorize('edit-page', 'allocations');
 
         $delegates = $this->allocatable()
             ->with(['registration', 'user', 'allocatedCommittee'])
