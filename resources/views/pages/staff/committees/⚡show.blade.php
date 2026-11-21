@@ -341,7 +341,12 @@ new #[Title('Committee')] class extends Component {
                 <flux:heading size="lg">{{ __('Allocated delegates') }}</flux:heading>
                 <flux:text class="text-sm">{{ __('Change allocations from the Allocations page.') }}</flux:text>
             </div>
-            <flux:button icon="users" :href="route('staff.allocations', ['committee' => $committee->id, 'show' => 'all'])" wire:navigate>{{ __('Allocations') }}</flux:button>
+            <div class="flex flex-wrap gap-2">
+                <flux:modal.trigger name="committee-export">
+                    <flux:button icon="arrow-down-tray">{{ __('Export') }}</flux:button>
+                </flux:modal.trigger>
+                <flux:button icon="users" :href="route('staff.allocations', ['committee' => $committee->id, 'show' => 'all'])" wire:navigate>{{ __('Allocations') }}</flux:button>
+            </div>
         </div>
 
         <flux:table>
@@ -414,4 +419,6 @@ new #[Title('Committee')] class extends Component {
             </div>
         </form>
     </flux:modal>
+
+    @include('partials.committee-export-modal', ['committee' => $committee, 'committees' => collect([$committee])])
 </div>

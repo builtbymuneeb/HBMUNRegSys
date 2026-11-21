@@ -18,9 +18,14 @@ new #[Title('Committees')] class extends Component {
 }; ?>
 
 <div class="flex w-full flex-col gap-6 p-6 lg:p-8">
-    <div>
-        <flux:heading size="xl" level="1">{{ __('Committees') }}</flux:heading>
-        <flux:text class="mt-1">{{ __('Open a committee to add its agenda and sessions, and see who has been allocated to it. Allocated delegates see their own committee’s details on their dashboard.') }}</flux:text>
+    <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+            <flux:heading size="xl" level="1">{{ __('Committees') }}</flux:heading>
+            <flux:text class="mt-1">{{ __('Open a committee to add its agenda and sessions, and see who has been allocated to it. Allocated delegates see their own committee’s details on their dashboard.') }}</flux:text>
+        </div>
+        <flux:modal.trigger name="committee-export">
+            <flux:button icon="arrow-down-tray">{{ __('Export') }}</flux:button>
+        </flux:modal.trigger>
     </div>
 
     <div class="grid gap-4 lg:grid-cols-2">
@@ -68,4 +73,6 @@ new #[Title('Committees')] class extends Component {
             </a>
         @endforeach
     </div>
+
+    @include('partials.committee-export-modal', ['committees' => $this->committees, 'committee' => null])
 </div>

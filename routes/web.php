@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AmbassadorListController;
 use App\Http\Controllers\AmbassadorProofController;
+use App\Http\Controllers\CommitteeExportController;
 use App\Http\Controllers\DelegateExportController;
 use App\Http\Controllers\PaymentScreenshotController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -77,6 +78,7 @@ Route::middleware(['auth', 'verified'])->prefix('staff')->name('staff.')->group(
     // Each page checks its own access, so an admin can open single pages to a team member.
     Route::livewire('allocations', 'pages::staff.allocations')->middleware("can:view-page,'allocations'")->name('allocations');
     Route::livewire('committees', 'pages::staff.committees.index')->middleware("can:view-page,'committees'")->name('committees');
+    Route::get('committees/export', CommitteeExportController::class)->middleware("can:view-page,'committees'")->name('committees.export');
     Route::livewire('committees/{committee}', 'pages::staff.committees.show')->middleware("can:view-page,'committees'")->name('committees.show');
     Route::livewire('guides', 'pages::staff.guides')->middleware("can:view-page,'guides'")->name('guides');
     Route::livewire('announcements', 'pages::staff.announcements')->middleware("can:view-page,'announcements'")->name('announcements');
